@@ -20,7 +20,6 @@ def format_json(path: Path, times) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    defaults = DetectorConfig()
     parser = argparse.ArgumentParser(
         prog="analyzer", description="Detect kick onsets in a rawstyle track."
     )
@@ -39,13 +38,6 @@ def main(argv: list[str] | None = None) -> int:
         "json: {file, kicks} (default: csv)",
     )
     parser.add_argument(
-        "-t",
-        "--threshold",
-        type=float,
-        default=defaults.threshold,
-        help=f"peak threshold on the click-band onset strength (default: {defaults.threshold})",
-    )
-    parser.add_argument(
         "--sonify",
         type=Path,
         metavar="WAV",
@@ -53,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    config = DetectorConfig(threshold=args.threshold)
+    config = DetectorConfig()
     try:
         signal = load_mid(args.audio, config.sample_rate)
     except (FileNotFoundError, RuntimeError) as error:

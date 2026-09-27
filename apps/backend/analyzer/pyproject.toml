@@ -5,6 +5,7 @@ description = "Kick onset detection for rawstyle tracks"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "beat-this>=1.1.0",
     "numpy>=2.5.3",
     "pyloudnorm>=0.2.0",
     "scipy>=1.18.1",
