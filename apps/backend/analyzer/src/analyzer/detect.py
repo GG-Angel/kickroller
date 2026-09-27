@@ -91,6 +91,13 @@ class DetectorConfig:
         return max(1, round(seconds * self.fps))
 
 
+@dataclass(frozen=True)
+class Detection:
+    beats: np.ndarray  # beat grid times in seconds
+    kicks: np.ndarray  # kick onset times in seconds
+    confidence: np.ndarray  # confidence (0-1) of each kick
+
+
 def click_strength(signal: np.ndarray, config: DetectorConfig) -> np.ndarray:
     """Click-band SuperFlux onset strength of a mono signal (one value per hop)."""
     first_bin, filters = log_filterbank(
@@ -171,23 +178,27 @@ def strongest_per_key(keys: np.ndarray, strength: np.ndarray) -> np.ndarray:
     return order[first]
 
 
-def detect_kicks_in_signal(
-    signal: np.ndarray, config: DetectorConfig
-) -> tuple[np.ndarray, np.ndarray]:
-    """Kick onset times in seconds and their confidence (0-1) for a mono signal.
+def beats_in_track(beats: np.ndarray, duration: float) -> np.ndarray:
+    return beats[(beats >= 0.0) & (beats <= duration)]
+
+
+def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detection:
+    """Beat grid, kick onset times and kick confidence for a mono signal.
 
     The signal must be at `config.sample_rate`. Only kicks with a confidence of
-    at least `config.min_confidence` are returned.
+    at least `config.min_confidence` are returned. The beats are the grid used
+    for the kicks: each beat is moved to its confident kick.
     """
-    empty = np.empty(0), np.empty(0)
+    duration = len(signal) / config.sample_rate
     grid = regularize_beats(
         track_beats(signal, config.sample_rate, config.beat_checkpoint),
-        len(signal) / config.sample_rate,
+        duration,
         config.min_bpm,
         config.max_bpm,
     )
+    no_kicks = Detection(beats_in_track(grid, duration), np.empty(0), np.empty(0))
     if len(grid) < 2:
-        return empty
+        return no_kicks
 
     signal = normalize_loudness(signal, config.sample_rate, config.target_lufs)
     strength = click_strength(signal, config)
@@ -197,7 +208,7 @@ def detect_kicks_in_signal(
         local_max_frames=config.frames(config.peak_window),
     )
     if len(candidates) == 0:
-        return empty
+        return no_kicks
     energy, centroid = low_band_profile(
         signal,
         config.sample_rate,
@@ -260,10 +271,10 @@ def detect_kicks_in_signal(
     # 4. In each beat, keep the straight (1/8, 1/16) or the triplet kicks,
     # whichever has the higher best score.
     triplet = KINDS[position[off_beat]] == TRIPLET
-    beats = interval[off_beat]
+    beat_of = interval[off_beat]
     best = np.zeros((2, len(anchors)))
-    np.maximum.at(best, (triplet.astype(int), beats), score[off_beat])
-    off_beat = off_beat[triplet == (best[1] > best[0])[beats]]
+    np.maximum.at(best, (triplet.astype(int), beat_of), score[off_beat])
+    off_beat = off_beat[triplet == (best[1] > best[0])[beat_of]]
 
     kicks = np.concatenate([beat_kicks, off_beat])
     confidence = np.concatenate([scores[BEAT, beat_kicks], score[off_beat]])
@@ -272,12 +283,14 @@ def detect_kicks_in_signal(
     kept = enforce_min_distance(
         candidates[kicks], confidence, config.frames(config.min_distance)
     )
-    return candidates[kicks[kept]] / config.fps, confidence[kept]
+    return Detection(
+        beats_in_track(anchors, duration),
+        candidates[kicks[kept]] / config.fps,
+        confidence[kept],
+    )
 
 
-def detect_kicks(
-    path: str | Path, config: DetectorConfig | None = None
-) -> tuple[np.ndarray, np.ndarray]:
-    """Kick onset times in seconds and their confidence (0-1) for an audio or video file."""
+def detect_kicks(path: str | Path, config: DetectorConfig | None = None) -> Detection:
+    """Beat grid, kick onset times and kick confidence for an audio or video file."""
     config = config or DetectorConfig()
     return detect_kicks_in_signal(load_mid(path, config.sample_rate), config)
