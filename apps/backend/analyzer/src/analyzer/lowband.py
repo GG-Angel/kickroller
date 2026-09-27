@@ -35,3 +35,30 @@ def low_band_change(
     level_db = 10.0 * np.log10(energy[post] / reference + 1e-12)
     rise_db = 10.0 * np.log10((energy[post] + eps) / (energy[pre] + eps))
     return level_db, rise_db, centroid[post] - centroid[pre]
+
+
+def low_band_gap_rise(
+    frames: np.ndarray,
+    energy: np.ndarray,
+    frames_after: int = 3,
+    frames_before: int = 2,
+) -> np.ndarray:
+    """Short-gap rise in dB at each attack.
+
+    Compares the highest energy 1 to `frames_after` frames after the attack with
+    the lowest energy from the attack frame back to `frames_before` frames before.
+    This finds a low band that starts with the click (for example a regular drum
+    kick), where the 30 ms rise of `low_band_change` can miss it.
+    """
+    if len(frames) == 0 or len(energy) == 0:
+        return np.empty(0)
+    last = len(energy) - 1
+    post = np.max(
+        [energy[np.minimum(frames + k, last)] for k in range(1, frames_after + 1)],
+        axis=0,
+    )
+    pre = np.min(
+        [energy[np.maximum(frames - k, 0)] for k in range(frames_before + 1)], axis=0
+    )
+    eps = 1e-12 * max(float(np.percentile(energy, 95)), 1e-30)
+    return 10.0 * np.log10((post + eps) / (pre + eps))

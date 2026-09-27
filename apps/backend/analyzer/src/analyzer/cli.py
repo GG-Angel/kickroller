@@ -8,18 +8,20 @@ from analyzer.detect import DetectorConfig, detect_kicks_in_signal
 from analyzer.sonify import sonify, write_wav
 
 
-def format_csv(times) -> str:
-    return "".join(f"{t:.3f}\n" for t in times)
+def format_csv(times, confidence) -> str:
+    return "".join(f"{t:.3f},{c:.2f}\n" for t, c in zip(times, confidence))
 
 
-def format_json(path: Path, times) -> str:
-    return (
-        json.dumps({"file": path.name, "kicks": [round(float(t), 3) for t in times]})
-        + "\n"
-    )
+def format_json(path: Path, times, confidence) -> str:
+    kicks = [
+        {"time": round(float(t), 3), "confidence": round(float(c), 2)}
+        for t, c in zip(times, confidence)
+    ]
+    return json.dumps({"file": path.name, "kicks": kicks}) + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:
+    defaults = DetectorConfig()
     parser = argparse.ArgumentParser(
         prog="analyzer", description="Detect kick onsets in a rawstyle track."
     )
@@ -34,27 +36,38 @@ def main(argv: list[str] | None = None) -> int:
         "--format",
         choices=["csv", "json"],
         default="csv",
-        help="csv: one time in seconds per line (Sonic Visualiser time instants); "
-        "json: {file, kicks} (default: csv)",
+        help="csv: one 'time,confidence' per line, time in seconds; "
+        "json: {file, kicks: [{time, confidence}]} (default: csv)",
+    )
+    parser.add_argument(
+        "-c",
+        "--min-confidence",
+        type=float,
+        default=defaults.min_confidence,
+        help="only output kicks with at least this confidence, 0-1 "
+        f"(default: {defaults.min_confidence})",
     )
     parser.add_argument(
         "--sonify",
         type=Path,
         metavar="WAV",
-        help="also write a WAV file of the track with a click at each detected kick",
+        help="also write a WAV file of the track with a click at each detected kick "
+        "(louder for higher confidence)",
     )
     args = parser.parse_args(argv)
 
-    config = DetectorConfig()
+    config = DetectorConfig(min_confidence=args.min_confidence)
     try:
         signal = load_mid(args.audio, config.sample_rate)
     except (FileNotFoundError, RuntimeError) as error:
         print(f"analyzer: error: {error}", file=sys.stderr)
         return 1
-    times = detect_kicks_in_signal(signal, config)
+    times, confidence = detect_kicks_in_signal(signal, config)
 
     text = (
-        format_json(args.audio, times) if args.format == "json" else format_csv(times)
+        format_json(args.audio, times, confidence)
+        if args.format == "json"
+        else format_csv(times, confidence)
     )
     if args.output:
         args.output.write_text(text)
@@ -65,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
         normalized = normalize_loudness(signal, config.sample_rate, config.target_lufs)
         write_wav(
             args.sonify,
-            sonify(normalized, times, config.sample_rate),
+            sonify(normalized, times, config.sample_rate, confidence=confidence),
             config.sample_rate,
         )
     return 0

@@ -15,10 +15,12 @@ def enforce_min_distance(
 ) -> np.ndarray:
     """Remove peaks closer than `min_distance_frames` to a stronger peak.
 
-    `strength` has one value per frame in `frames`. Returns sorted frames.
+    `strength` has one value per frame in `frames`. Returns the indices of the
+    kept peaks into `frames`, sorted by frame.
     """
     kept: list[int] = []
     for i in np.argsort(-strength, kind="stable"):
-        if all(abs(frames[i] - k) >= min_distance_frames for k in kept):
-            kept.append(int(frames[i]))
-    return np.sort(np.asarray(kept, dtype=int))
+        if all(abs(frames[i] - frames[k]) >= min_distance_frames for k in kept):
+            kept.append(int(i))
+    kept_array = np.asarray(kept, dtype=int)
+    return kept_array[np.argsort(frames[kept_array], kind="stable")]

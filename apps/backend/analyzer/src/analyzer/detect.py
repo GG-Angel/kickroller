@@ -13,7 +13,7 @@ from analyzer.grid import (
     regularize_beats,
     track_beats,
 )
-from analyzer.lowband import low_band_change, low_band_profile
+from analyzer.lowband import low_band_change, low_band_gap_rise, low_band_profile
 from analyzer.odf import log_filterbank, stft_bins, superflux
 from analyzer.peaks import enforce_min_distance, local_peaks
 
@@ -45,21 +45,43 @@ class DetectorConfig:
     low_fmax: float = 300.0
     low_context: float = 0.03
 
-    # New kick body: the low band has level, and rises or jumps up in pitch.
-    min_low_level_db: float = -35.0  # relative to the track's 95th percentile
-    min_low_rise_db: float = 6.0
-    min_pitch_jump_hz: float = 12.0
-
-    # Restart: a weak click where the low band restarts at full level after a gap.
-    weak_threshold: float = 0.5
-    min_restart_rise_db: float = 12.0
-    min_restart_level_db: float = -10.0
+    # Confidence: each rule below is a product of sigmoids centered on its
+    # thresholds, and the score is the highest rule score. "Maybe" rules have a
+    # cap below 0.5.
+    min_confidence: float = 0.1
+    anchor_confidence: float = 0.5  # beats move only to kicks with this score
+    click_width: float = 0.25  # sigmoid widths: octaves of click strength,
+    db_width: float = 2.0  # dB,
+    hz_width: float = 3.0  # and Hz
 
     # Click thresholds per position kind: stricter at the finer positions.
     beat_threshold: float = 0.9
     eighth_threshold: float = 1.5
     fine_threshold: float = 1.5
+
+    # Rule 1, new kick body: a click, and the low band has level and rises or
+    # jumps up in pitch. At 1/16 and triplet positions, only a pitch jump counts.
+    min_low_level_db: float = -35.0  # relative to the track's 95th percentile
+    min_low_rise_db: float = 6.0
+    min_pitch_jump_hz: float = 12.0
     fine_min_level_db: float = -20.0
+
+    # Rule 2, restart (beat, 1/8): a weak click where the low band restarts at
+    # full level after a gap.
+    weak_threshold: float = 0.5
+    min_restart_rise_db: float = 12.0
+    min_restart_level_db: float = -10.0
+
+    # Rule 3, maybe (beat, 1/8): the low band starts with the click, as in a
+    # regular drum kick (short-gap rise).
+    min_gap_rise_db: float = 8.0
+    min_gap_level_db: float = -25.0
+    gap_cap_beat: float = 0.5
+    gap_cap_eighth: float = 0.4
+
+    # Rule 4, maybe (beat only): a strong click with no low-band evidence.
+    strong_threshold: float = 1.8
+    strong_cap: float = 0.3
 
     @property
     def fps(self) -> float:
@@ -83,6 +105,63 @@ def click_strength(signal: np.ndarray, config: DetectorConfig) -> np.ndarray:
     return superflux(magnitude @ filters)
 
 
+def soft_at_least(x: np.ndarray, threshold: float, width: float) -> np.ndarray:
+    """0.5 at `threshold`, near 1 well above it and near 0 well below it."""
+    return 0.5 * (1.0 + np.tanh((x - threshold) / (2.0 * width)))
+
+
+def kick_scores(
+    click: np.ndarray,
+    level_db: np.ndarray,
+    rise_db: np.ndarray,
+    pitch_jump: np.ndarray,
+    gap_rise_db: np.ndarray,
+    config: DetectorConfig,
+) -> np.ndarray:
+    """Confidence (0-1) of each candidate, one row per position kind.
+
+    Rows: BEAT, EIGHTH, SIXTEENTH, TRIPLET.
+    """
+    c = config
+    log_click = np.log2(np.maximum(click, 1e-9))
+
+    def clicks(threshold: float) -> np.ndarray:
+        return soft_at_least(log_click, np.log2(threshold), c.click_width)
+
+    def db(x: np.ndarray, threshold: float) -> np.ndarray:
+        return soft_at_least(x, threshold, c.db_width)
+
+    jump = soft_at_least(pitch_jump, c.min_pitch_jump_hz, c.hz_width)
+    body = np.maximum(jump, db(rise_db, c.min_low_rise_db)) * db(
+        level_db, c.min_low_level_db
+    )
+    restart = (
+        clicks(c.weak_threshold)
+        * db(rise_db, c.min_restart_rise_db)
+        * db(level_db, c.min_restart_level_db)
+    )
+    gap_start = (
+        clicks(c.weak_threshold)
+        * db(gap_rise_db, c.min_gap_rise_db)
+        * db(level_db, c.min_gap_level_db)
+    )
+    beat = np.max(
+        [
+            clicks(c.beat_threshold) * body,
+            restart,
+            c.gap_cap_beat * gap_start,
+            c.strong_cap * clicks(c.strong_threshold),
+        ],
+        axis=0,
+    )
+    eighth = np.max(
+        [clicks(c.eighth_threshold) * body, restart, c.gap_cap_eighth * gap_start],
+        axis=0,
+    )
+    fine = clicks(c.fine_threshold) * jump * db(level_db, c.fine_min_level_db)
+    return np.stack([beat, eighth, fine, fine])
+
+
 def strongest_per_key(keys: np.ndarray, strength: np.ndarray) -> np.ndarray:
     """Index of the strongest item for each distinct key."""
     if len(keys) == 0:
@@ -92,8 +171,15 @@ def strongest_per_key(keys: np.ndarray, strength: np.ndarray) -> np.ndarray:
     return order[first]
 
 
-def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> np.ndarray:
-    """Kick onset times in seconds for a mono signal at `config.sample_rate`."""
+def detect_kicks_in_signal(
+    signal: np.ndarray, config: DetectorConfig
+) -> tuple[np.ndarray, np.ndarray]:
+    """Kick onset times in seconds and their confidence (0-1) for a mono signal.
+
+    The signal must be at `config.sample_rate`. Only kicks with a confidence of
+    at least `config.min_confidence` are returned.
+    """
+    empty = np.empty(0), np.empty(0)
     grid = regularize_beats(
         track_beats(signal, config.sample_rate, config.beat_checkpoint),
         len(signal) / config.sample_rate,
@@ -101,7 +187,7 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> np.nda
         config.max_bpm,
     )
     if len(grid) < 2:
-        return np.empty(0)
+        return empty
 
     signal = normalize_loudness(signal, config.sample_rate, config.target_lufs)
     strength = click_strength(signal, config)
@@ -110,6 +196,8 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> np.nda
         threshold=config.weak_threshold,
         local_max_frames=config.frames(config.peak_window),
     )
+    if len(candidates) == 0:
+        return empty
     energy, centroid = low_band_profile(
         signal,
         config.sample_rate,
@@ -122,29 +210,15 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> np.nda
         candidates, energy, centroid, config.frames(config.low_context)
     )
     click = strength[candidates]
+    scores = kick_scores(
+        click,
+        level_db,
+        rise_db,
+        pitch_jump,
+        low_band_gap_rise(candidates, energy),
+        config,
+    )
     times = candidates / config.fps
-
-    new_body = (level_db >= config.min_low_level_db) & (
-        (rise_db >= config.min_low_rise_db) | (pitch_jump >= config.min_pitch_jump_hz)
-    )
-    restart = (
-        (click >= config.weak_threshold)
-        & (level_db >= config.min_restart_level_db)
-        & (rise_db >= config.min_restart_rise_db)
-    )
-    fine = (
-        (click >= config.fine_threshold)
-        & (level_db >= config.fine_min_level_db)
-        & (pitch_jump >= config.min_pitch_jump_hz)
-    )
-    passes = np.stack(  # one row per position kind: BEAT, EIGHTH, SIXTEENTH, TRIPLET
-        [
-            ((click >= config.beat_threshold) & new_body) | restart,
-            ((click >= config.eighth_threshold) & new_body) | restart,
-            fine,
-            fine,
-        ]
-    )
     windows = np.array(
         [
             config.beat_window,
@@ -154,59 +228,56 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> np.nda
         ]
     )
 
-    # 1. Beats: the strongest passing candidate near each beat.
+    # 1. Beats: the highest-scoring candidate near each beat.
     interval, position, offset = nearest_position(times, grid)
-    on_beat = (
-        (KINDS[position] == BEAT)
-        & (np.abs(offset) <= config.beat_window)
-        & passes[BEAT]
+    near = np.flatnonzero(
+        (KINDS[position] == BEAT) & (np.abs(offset) <= config.beat_window)
     )
     beat_index = interval + (position == len(POSITIONS) - 1)
-    on_beat = np.flatnonzero(on_beat)
-    beat_kicks = on_beat[strongest_per_key(beat_index[on_beat], click[on_beat])]
+    beat_kicks = near[strongest_per_key(beat_index[near], scores[BEAT, near])]
 
-    # 2. beat_this gives beats in 20 ms steps: move each beat to its kick, and
-    # move the beats with no kick by the median shift.
+    # 2. beat_this gives beats in 20 ms steps: move each beat to its confident
+    # kick, and move the other beats by the median shift.
     anchors = grid.copy()
-    if len(beat_kicks):
-        kick_beats = beat_index[beat_kicks]
-        anchors += np.median(times[beat_kicks] - grid[kick_beats])
-        anchors[kick_beats] = times[beat_kicks]
+    confident = beat_kicks[scores[BEAT, beat_kicks] >= config.anchor_confidence]
+    if len(confident):
+        kick_beats = beat_index[confident]
+        anchors += np.median(times[confident] - grid[kick_beats])
+        anchors[kick_beats] = times[confident]
 
     # 3. Off-beat positions between the moved beats.
     interval, position, offset = nearest_position(times, anchors)
     kind = KINDS[position]
-    ok = (
-        (kind != BEAT)
-        & (np.abs(offset) <= windows[kind])
-        & passes[kind, np.arange(len(times))]
-    )
+    score = scores[kind, np.arange(len(times))]
+    ok = (kind != BEAT) & (np.abs(offset) <= windows[kind])
     ok[beat_kicks] = False
     ok = np.flatnonzero(ok)
     off_beat = ok[
-        strongest_per_key(interval[ok] * len(POSITIONS) + position[ok], click[ok])
+        strongest_per_key(interval[ok] * len(POSITIONS) + position[ok], score[ok])
     ]
+    off_beat = off_beat[score[off_beat] >= config.min_confidence]
 
     # 4. In each beat, keep the straight (1/8, 1/16) or the triplet kicks,
-    # whichever has the larger total click strength.
+    # whichever has the higher best score.
     triplet = KINDS[position[off_beat]] == TRIPLET
     beats = interval[off_beat]
-    straight_sum = np.bincount(
-        beats[~triplet], click[off_beat][~triplet], minlength=len(anchors)
-    )
-    triplet_sum = np.bincount(
-        beats[triplet], click[off_beat][triplet], minlength=len(anchors)
-    )
-    off_beat = off_beat[triplet == (triplet_sum > straight_sum)[beats]]
+    best = np.zeros((2, len(anchors)))
+    np.maximum.at(best, (triplet.astype(int), beats), score[off_beat])
+    off_beat = off_beat[triplet == (best[1] > best[0])[beats]]
 
     kicks = np.concatenate([beat_kicks, off_beat])
-    frames = enforce_min_distance(
-        candidates[kicks], click[kicks], config.frames(config.min_distance)
+    confidence = np.concatenate([scores[BEAT, beat_kicks], score[off_beat]])
+    keep = confidence >= config.min_confidence
+    kicks, confidence = kicks[keep], confidence[keep]
+    kept = enforce_min_distance(
+        candidates[kicks], confidence, config.frames(config.min_distance)
     )
-    return frames / config.fps
+    return candidates[kicks[kept]] / config.fps, confidence[kept]
 
 
-def detect_kicks(path: str | Path, config: DetectorConfig | None = None) -> np.ndarray:
-    """Kick onset times in seconds for an audio or video file."""
+def detect_kicks(
+    path: str | Path, config: DetectorConfig | None = None
+) -> tuple[np.ndarray, np.ndarray]:
+    """Kick onset times in seconds and their confidence (0-1) for an audio or video file."""
     config = config or DetectorConfig()
     return detect_kicks_in_signal(load_mid(path, config.sample_rate), config)
