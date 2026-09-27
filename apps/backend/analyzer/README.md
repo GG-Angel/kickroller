@@ -26,13 +26,15 @@ Logs go to standard error ([loguru](https://github.com/Delgan/loguru)), so stand
 
 ## Training
 
-The kick model learns from synthetic drops made from the [On Point Samples](https://onpointsamples.com) packs (not in this repository):
+The kick model learns from synthetic drops made from your hardstyle sample packs (not in this repository). A TOML bank config tells which files are kicks, loops, claps, impacts and other hits. Copy `bank.example.toml` to `bank.toml` (git-ignored), set `root` to your packs folder and edit the globs. Then:
 
 ```sh
-uv run analyzer train "/path/to/On Point Samples" -v   # about 20 min on an Apple M4 Max (MPS)
+uv run analyzer train bank.toml -v   # about 20 min on an Apple M4 Max (MPS)
 ```
 
-The first run decodes the samples to `models/bank/` (about 0.7 GB). The model with the best validation F-measure goes to `models/kick.pt`. Options: `--steps` (default 15000), `--batch-size` (16), `--workers` (10 processes make the drops), `--device` (`mps`, `cuda` or `cpu`) and `--seed`. `models/` is git-ignored: never commit samples, the bank or models.
+The first run decodes the samples to `models/bank/` (about 0.7 GB for 3000 samples); a changed config decodes them again. The model with the best validation F-measure goes to `models/kick.pt`. Options: `--cache` (the decoded samples folder), `--steps` (default 15000), `--batch-size` (16), `--workers` (10 processes make the drops), `--device` (`mps`, `cuda` or `cpu`) and `--seed`. `models/` is git-ignored: never commit samples, the bank or models.
+
+Good samples: complete kick one-shots (no rolls or triplets), 160 BPM loops that start on a bar and have no kicks and no sub-bass (screeches, atmospheres, top loops, fills; no drum loops, full mixes or bass stems), and one-shots without a kick layer.
 
 ## Development
 
@@ -64,7 +66,7 @@ uv run ty check      # type check
 
 The targets are the exact kick onsets (the frame of the onset is 1, its two neighbors 0.5), with binary cross-entropy loss. 10% of the kick designs are held out (split by design, not by file, because the pitched versions are near-duplicates); 200 drops made from them are the validation set.
 
-`bank.py` lists the samples. It uses only 160 BPM loops and skips drum loops, vocals, kick FX and kick fills, kick rolls and triplets, gated kicks, songstarter mixes and their drum, kick and bass stems.
+`bank.py` reads the bank config, lists its samples and decodes them once to a memory-mapped cache.
 
 Known limits: the output is only as good as the beat grid; a wrong beat phase or tempo gives wrong kicks, and kicks off the grid are lost. The model learns only from synthetic drops; real mixes (reverb, layered kicks, other genres) can differ. The confidence ranks kicks but is not a calibrated probability.
 

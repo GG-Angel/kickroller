@@ -14,6 +14,9 @@ samples/
 # Trained models and the decoded sample bank (derived from the samples).
 models/
 
+# The local sample bank config (see bank.example.toml).
+bank.toml
+
 # Python
 .venv/
 __pycache__/

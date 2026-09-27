@@ -1,4 +1,4 @@
-"""Train the kick model on synthetic drops made from the On Point Samples packs."""
+"""Train the kick model on synthetic drops made from a sample bank."""
 
 from pathlib import Path
 from time import perf_counter
@@ -9,7 +9,7 @@ from loguru import logger
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, IterableDataset, get_worker_info
 
-from analyzer.bank import build_bank, load_bank
+from analyzer.bank import BankConfig, build_bank, load_bank
 from analyzer.model import KickNet, ModelConfig, save_model
 from analyzer.peaks import enforce_min_distance, local_peaks
 from analyzer.synth import Catalog, Drop, make_drop
@@ -94,7 +94,7 @@ def validate(
 
 
 def train(
-    samples: Path,
+    bank_config: BankConfig,
     output: Path,
     bank_dir: Path,
     steps: int = 15000,
@@ -106,8 +106,12 @@ def train(
     seed: int = 0,
 ) -> None:
     """Train a KickNet and save the version with the best validation F-measure to `output`."""
-    bank = build_bank(samples, bank_dir, workers)
+    bank = build_bank(bank_config, bank_dir, workers)
     catalog = Catalog(bank)
+    if not (catalog.designs[False] and catalog.designs[True]):
+        raise RuntimeError(
+            "the bank needs more kick designs (about 10% are held out for validation)"
+        )
     logger.info(
         "Kick designs: {train} for training, {held_out} held out for validation",
         train=len(catalog.designs[False]),

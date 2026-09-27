@@ -1,16 +1,20 @@
-"""The On Point Samples packs, decoded once into a memory-mapped sample bank.
+"""A sample bank: the samples of a bank config, decoded once and memory-mapped.
 
-The bank has three kinds of samples:
+The config is a TOML file (see bank.example.toml). It gives a root folder and,
+for each kind of sample, globs relative to the root:
 
-- kick: complete kick one-shots. Each has a design name; the pitched versions of
+- kick: complete kick one-shots. Each has a design; the pitched versions of
   one kick have the same design, so that a held-out design is really unheard.
-- loop: 160 BPM loops with no kicks (screeches, songstarter stems, atmospheres,
-  top loops and fills). Each loop starts on a bar.
-- hit: other one-shots (claps, snares, hats, percussion, FX, synth hits).
+- loop: 160 BPM loops with no kicks and no sub-bass (screeches, atmospheres,
+  top loops, fills). Each loop starts on a bar.
+- clap: claps, put on beats 2 and 4.
+- impact: impacts, crashes and sub drops, put at the start of a bar.
+- hit: other one-shots (snares, hats, percussion, FX, synth hits).
 """
 
 import json
 import re
+import tomllib
 import zlib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -21,106 +25,9 @@ from loguru import logger
 
 from analyzer.audio import SAMPLE_RATE, decode_mid
 
-KINDS = ("kick", "loop", "hit")
+KINDS = ("kick", "loop", "clap", "impact", "hit")
+AUDIO_SUFFIXES = (".wav", ".aif", ".aiff", ".flac", ".mp3", ".ogg", ".m4a")
 
-HE1 = "OPS - Hardstyle Essentials Vol. 1"
-HE3 = "OPS - Hardstyle Essentials Vol. 3"
-IR = "OPS - INDUSTRIAL RAWSTYLE PRODUCTION SUITE"
-IRD = f"{IR}/OPS - Industrial Rawstyle Drum Expansion (Vol. 1)"
-IRK = f"{IR}/OPS - Industrial Rawstyle Kick Expansion (Vol. 1)"
-IRM = f"{IR}/OPS - Industrial Rawstyle Melody Vault"
-IRP = f"{IR}/OPS - Industrial Rawstyle Predrops (Vol. 1)"
-REV = "OPS - Rawphoric Essentials Vol. 1"
-FR1 = "OPS - Hardstyle Freebie Vol. 1"
-FR2 = "OPS - Hardstyle Freebie Vol. 2"
-
-# (kind, glob relative to the packs folder). Globs ending in "/*" do not go
-# into subfolders.
-RULES: tuple[tuple[str, str], ...] = (
-    ("kick", f"{HE3}/Kicks/**/*"),
-    ("kick", f"{HE3}/Drums/Kicks/*"),
-    ("kick", f"{IRK}/Kicks/*"),
-    ("kick", f"{IRK}/Kicks (Kloenk)/*"),
-    ("kick", f"{IRK}/Kicks (Various)/*"),
-    ("kick", f"{IRD}/Kicks/*"),
-    ("kick", f"{REV}/Drums/Kicks/*"),
-    ("kick", f"{REV}/Kicks/Gated Kicks/*"),
-    ("kick", f"{REV}/Kicks/Mid-Intro Kicks/*"),
-    ("kick", f"{REV}/Kicks/Rawstyle Kicks/*"),
-    ("kick", f"{REV}/Kicks/Rawphoric Kicks/*/*"),
-    ("kick", f"{REV}/Kick Fundamentals/1. Kicks/**/*"),
-    ("kick", f"{FR1}/Kicks/Kicks/*"),
-    ("kick", f"{FR1}/Kicks/Pitched Raw Kick (A)/*"),
-    ("kick", f"{FR1}/Kicks/Pitched Raw Kick (F#)/*"),
-    ("kick", f"{FR1}/Kicks/Toks/*"),
-    ("kick", f"{FR2}/Mid-Intro Kicks/*"),
-    ("kick", f"{FR2}/Misc Kicks/*"),
-    ("kick", f"{FR2}/Psy Kicks/*"),
-    ("kick", f"{FR2}/Pitched Kicks/*/*"),
-    ("kick", f"{FR2}/Kick Parts Folder/Creative Kicks/*"),
-    ("kick", f"{FR2}/Kick Parts Folder/Lazer Kicks/*"),
-    ("kick", f"{FR2}/Kick Parts Folder/Punchy Kicks/*"),
-    ("kick", "OPS - Free SZP Type Psy Kicks/SZP Type Psy Kicks/*"),
-    ("kick", "OPS - Free Zaag Kicks (Vol. 1)/Zaag Kicks/*"),
-    ("loop", f"{IRM}/Screech Loops/*"),
-    ("loop", f"{IRM}/Screech Loops/Dry/*"),
-    ("loop", f"{IRM}/Songstarters/*/*"),
-    ("loop", f"{IRM}/Songstarters/*/Dry/*"),
-    ("loop", f"{IRM}/Atmospheres (Songstarter)/*"),
-    ("loop", f"{IRM}/Atmospheres (Various)/*/*"),
-    ("loop", f"{IRD}/_Top Loops/*"),
-    ("loop", f"{IRD}/_Ride Loops/*"),
-    ("loop", f"{IRP}/Snare Fills/*"),
-    ("loop", f"{IRP}/Riser Fills/*"),
-    ("hit", f"{HE3}/Drums/Claps/*"),
-    ("hit", f"{HE3}/Drums/Hihats/*"),
-    ("hit", f"{HE3}/Drums/Earcandy/*"),
-    ("hit", f"{HE3}/FX/Distorted Snares/*"),
-    ("hit", f"{HE3}/FX/Impacts/*"),
-    ("hit", f"{HE3}/FX/Sub Drops/*"),
-    ("hit", f"{HE3}/FX/Hardstyle Sounds/Distorted Snares/*"),
-    ("hit", f"{HE3}/FX/Hardstyle Sounds/Distorted Sounds/*"),
-    ("hit", f"{HE3}/FX/Hardstyle Sounds/Misc Sounds/*"),
-    ("hit", f"{HE3}/Synths & Basses/Bass Hits/*"),
-    ("hit", f"{HE3}/Synths & Basses/Stabs/*"),
-    ("hit", f"{HE3}/Synths & Basses/Synth Stabs/*"),
-    ("hit", f"{HE3}/Synths & Basses/War Horns/*"),
-    ("hit", f"{HE1}/Renders; F-150bpm/*"),
-    ("hit", f"{IRD}/Claps/*"),
-    ("hit", f"{IRD}/Claps (Hard)/*"),
-    ("hit", f"{IRD}/Hi Hats (Closed)/*"),
-    ("hit", f"{IRD}/Open Hat/*"),
-    ("hit", f"{IRD}/Percussion/*"),
-    ("hit", f"{IRD}/Rides/*"),
-    ("hit", f"{IRD}/Snares (*)/*"),
-    ("hit", f"{REV}/Drums/Claps/*"),
-    ("hit", f"{REV}/Drums/Hats/*"),
-    ("hit", f"{REV}/Drums/Percussion/*"),
-    ("hit", f"{REV}/Drums/Snares/*"),
-    ("hit", f"{REV}/FX/Distorted Snares/*"),
-    ("hit", f"{REV}/FX/Impacts/*"),
-    ("hit", f"{FR1}/Drums/Claps/*"),
-    ("hit", f"{FR1}/Drums/Hihats/*"),
-    ("hit", f"{FR1}/Drums/Percussion/*"),
-    ("hit", f"{FR1}/Drums/Snares/*"),
-    ("hit", f"{FR1}/FX/Crashes/*"),
-    ("hit", f"{FR1}/FX/Impacts/*"),
-    ("hit", f"{FR1}/FX/Sub Drops/*"),
-    ("hit", f"{FR1}/Synths & Melodic/Screeches/*"),
-)
-
-# File names that do not fit their folder: kick rolls and triplets (more than one
-# kick), gated kicks (a rumble chopped into 1/16 pulses), songstarter mixes, stems with drums and bass stems (sub-bass notes can
-# sound like kicks), and one-shots layered with a kick.
-EXCLUDE = {
-    "kick": re.compile(r"TRIPLET|ROLL|GATED", re.IGNORECASE),
-    "loop": re.compile(r"_(FULL|DRUMS|KICK|BASS)\.WAV$", re.IGNORECASE),
-    "hit": re.compile(r"KICK", re.IGNORECASE),
-}
-
-# Kick folders that hold the pitched versions of one design.
-DESIGN_FOLDER = re.compile(r"^(.*Kick \d+.*|Pitched Raw Kick.*)$", re.IGNORECASE)
-VARIATION_FOLDER = re.compile(r"^(High Variations|Original Kick|Main)$", re.IGNORECASE)
 # Key and variation suffixes of pitched kick file names, for example "_D#_HIGH".
 KEY_SUFFIX = re.compile(
     r"[ _]?([A-G](#|B)?\d?|\d+[A-G]#?)([ _](HIGH|LOW))?$", re.IGNORECASE
@@ -137,7 +44,7 @@ INDEX, AUDIO = "index.json", "audio.npy"
 class Sample:
     kind: str
     design: str  # the same for all versions of one kick; the file for others
-    path: str  # relative to the packs folder
+    path: str  # relative to the bank root
 
 
 @dataclass
@@ -154,31 +61,107 @@ class Bank:
         )
 
     def indices(self, kind: str) -> np.ndarray:
-        return np.array([i for i, s in enumerate(self.samples) if s.kind == kind])
+        return np.array(
+            [i for i, s in enumerate(self.samples) if s.kind == kind], dtype=int
+        )
+
+
+@dataclass(frozen=True)
+class Source:
+    """The samples of one kind in a bank config."""
+
+    files: tuple[str, ...] = ()  # globs of audio files
+    exclude: re.Pattern[str] | None = None  # file names to skip
+
+
+@dataclass(frozen=True)
+class BankConfig:
+    root: Path
+    sources: dict[str, Source]
+    designs: tuple[str, ...] = ()  # globs of folders that each hold one kick design
+
+
+def globs(value: object, where: str) -> tuple[str, ...]:
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, list) and all(isinstance(v, str) for v in value):
+        return tuple(value)
+    raise ValueError(f"{where} must be a glob or a list of globs")
+
+
+def read_config(path: Path) -> BankConfig:
+    """The bank config in the TOML file `path`. A relative root is relative to the file."""
+    data = tomllib.loads(path.read_text())
+    unknown = sorted(set(data) - {"root", *KINDS})
+    if unknown:
+        raise ValueError(f"unknown keys {unknown} (use root, {', '.join(KINDS)})")
+    sources = {}
+    for kind in KINDS:
+        table = data.get(kind, {})
+        keys = (
+            ("files", "exclude", "designs") if kind == "kick" else ("files", "exclude")
+        )
+        unknown = sorted(set(table) - set(keys))
+        if unknown:
+            raise ValueError(
+                f"unknown keys {unknown} in [{kind}] (use {', '.join(keys)})"
+            )
+        try:
+            exclude = re.compile(table["exclude"], re.IGNORECASE)
+        except KeyError:
+            exclude = None
+        except (re.error, TypeError) as error:
+            raise ValueError(f"[{kind}] exclude: {error}") from error
+        sources[kind] = Source(
+            globs(table.get("files", []), f"[{kind}] files"), exclude
+        )
+    if not sources["kick"].files:
+        raise ValueError("[kick] has no files")
+    root = path.parent / Path(data.get("root", ".")).expanduser()
+    designs = globs(data.get("kick", {}).get("designs", []), "[kick] designs")
+    return BankConfig(root, sources, designs)
 
 
 def design_name(path: Path) -> str:
-    folder = path.parent
-    if VARIATION_FOLDER.match(folder.name):
-        folder = folder.parent
-    if DESIGN_FOLDER.match(folder.name):
-        return folder.as_posix()
-    stem = path.stem.lstrip("_")
-    return f"{folder.as_posix()}/{KEY_SUFFIX.sub('', stem).upper()}"
+    """The folder and the file name without its key suffix ("KICK 3_F#" is "KICK 3")."""
+    stem = KEY_SUFFIX.sub("", path.stem.lstrip("_")).upper()
+    return f"{path.parent.as_posix()}/{stem}"
 
 
-def catalog(root: Path) -> list[Sample]:
-    """All samples of the rules that exist under `root`, sorted by path."""
+def catalog(config: BankConfig) -> list[Sample]:
+    """All samples of the config, sorted by path.
+
+    A file found for more than one kind gets the first kind in KINDS. The design
+    of a kick is its nearest design folder, or else the design of its name.
+    """
+    root = config.root
+    folders = {
+        folder.relative_to(root)
+        for pattern in config.designs
+        for folder in root.glob(pattern, case_sensitive=False)
+        if folder.is_dir()
+    }
+
+    def design(path: Path) -> str:
+        folder = next((p for p in path.parents if p in folders), None)
+        return folder.as_posix() if folder else design_name(path)
+
     found: dict[str, Sample] = {}
-    for kind, pattern in RULES:
-        for path in root.glob(pattern, case_sensitive=False):
-            relative = path.relative_to(root)
-            if path.suffix.lower() != ".wav" or EXCLUDE[kind].search(path.name):
-                continue
-            design = design_name(relative) if kind == "kick" else relative.as_posix()
-            found.setdefault(
-                relative.as_posix(), Sample(kind, design, relative.as_posix())
-            )
+    for kind, source in config.sources.items():
+        for pattern in source.files:
+            for path in root.glob(pattern, case_sensitive=False):
+                if (
+                    path.suffix.lower() not in AUDIO_SUFFIXES
+                    or not path.is_file()
+                    or (source.exclude and source.exclude.search(path.name))
+                ):
+                    continue
+                relative = path.relative_to(root)
+                name = relative.as_posix()
+                found.setdefault(
+                    name,
+                    Sample(kind, design(relative) if kind == "kick" else name, name),
+                )
     return sorted(found.values(), key=lambda s: s.path)
 
 
@@ -207,9 +190,12 @@ def load_bank(cache: Path) -> Bank:
     )
 
 
-def build_bank(root: Path, cache: Path, workers: int = 8) -> Bank:
-    """Decode all samples to `cache` (a folder), or load the bank from it."""
-    samples = catalog(root)
+def build_bank(config: BankConfig, cache: Path, workers: int = 8) -> Bank:
+    """Decode all samples of `config` to `cache` (a folder), or load the bank from it."""
+    root = config.root
+    if not root.is_dir():
+        raise FileNotFoundError(f"the bank root {root} is not a folder")
+    samples = catalog(config)
     if (cache / INDEX).exists() and (cache / AUDIO).exists():
         bank = load_bank(cache)
         if bank.samples == samples:
@@ -220,16 +206,18 @@ def build_bank(root: Path, cache: Path, workers: int = 8) -> Bank:
             )
             return bank
     if not samples:
-        raise RuntimeError(f"no On Point samples found under {root}")
+        raise RuntimeError(f"no samples of the bank config found under {root}")
 
     counts = {kind: sum(s.kind == kind for s in samples) for kind in KINDS}
     logger.info(
         "Decoding {total} samples ({kicks} kicks in {designs} designs, {loops} loops, "
-        "{hits} hits)",
+        "{claps} claps, {impacts} impacts, {hits} other hits)",
         total=len(samples),
         kicks=counts["kick"],
         designs=len({s.design for s in samples if s.kind == "kick"}),
         loops=counts["loop"],
+        claps=counts["clap"],
+        impacts=counts["impact"],
         hits=counts["hit"],
     )
 

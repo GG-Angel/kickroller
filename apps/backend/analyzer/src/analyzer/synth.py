@@ -49,20 +49,9 @@ class Catalog:
             for held_out in (False, True)
         }
         self.loops = bank.indices("loop")
-        hits = bank.indices("hit")
-
-        def role(pattern: tuple[str, ...]) -> np.ndarray:
-            return np.array(
-                [
-                    i
-                    for i in hits
-                    if any(p in bank.samples[i].path.upper() for p in pattern)
-                ]
-            )
-
-        self.claps = role(("CLAP",))
-        self.impacts = role(("IMPACT", "CRASH", "SUB DROP"))
-        self.hits = np.setdiff1d(hits, np.concatenate([self.claps, self.impacts]))
+        self.claps = bank.indices("clap")
+        self.impacts = bank.indices("impact")
+        self.hits = bank.indices("hit")
 
 
 def db(gain_db: float) -> float:
@@ -216,7 +205,8 @@ def make_drop(
 
     mix = kicks.copy()
     ducking = duck(length, starts, rng)
-    for _ in range(int(rng.choice([0, 1, 2, 3], p=[0.1, 0.35, 0.35, 0.2]))):
+    layers = int(rng.choice([0, 1, 2, 3], p=[0.1, 0.35, 0.35, 0.2]))
+    for _ in range(layers if len(catalog.loops) else 0):
         loop = render_loop(
             rng, bank.get(int(rng.choice(catalog.loops))), origin, length
         )
@@ -236,7 +226,8 @@ def make_drop(
         for beat in range(1, 4 * bars, 2):
             if rng.random() < 0.9:
                 place(mix, clap, origin + round(beat * beat_samples), gain)
-    for _ in range(rng.poisson(8.0)):
+    hits = int(rng.poisson(8.0))
+    for _ in range(hits if len(catalog.hits) else 0):
         hit = bank.get(int(rng.choice(catalog.hits)))
         at = int(rng.integers(0, 4 * bars * 4)) * beat_samples / 4
         if rng.random() < 0.2:

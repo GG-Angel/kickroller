@@ -9,6 +9,7 @@ import typer
 from loguru import logger
 
 from analyzer.audio import load_mid, normalize_loudness
+from analyzer.bank import read_config
 from analyzer.detect import Detection, DetectorConfig, detect_kicks_in_signal
 from analyzer.model import DEFAULT_MODEL, load_model
 from analyzer.sonify import sonify, write_wav
@@ -193,22 +194,22 @@ class Device(StrEnum):
 
 @app.command()
 def train(
-    samples: Annotated[
+    config: Annotated[
         Path,
         typer.Argument(
             exists=True,
-            file_okay=False,
-            help="The On Point Samples folder (it holds the 'OPS - ...' pack folders).",
+            dir_okay=False,
+            help="The sample bank config (TOML, see bank.example.toml).",
         ),
     ],
     output: Annotated[
         Path,
         typer.Option("--output", "-o", help="Where to save the model."),
     ] = DEFAULT_MODEL,
-    bank: Annotated[
+    cache: Annotated[
         Path,
         typer.Option(
-            "--bank",
+            "--cache",
             help="Cache folder for the decoded samples (made on the first run).",
         ),
     ] = MODELS / "bank",
@@ -229,14 +230,18 @@ def train(
     verbose: Verbose = 0,
     quiet: Quiet = False,
 ) -> None:
-    """Train the kick model on synthetic drops made from the sample packs."""
+    """Train the kick model on synthetic drops made from the sample bank."""
     from analyzer.train import train as train_model
 
     configure_logging(verbose, quiet)
+    try:
+        bank = read_config(config)
+    except ValueError as error:
+        raise typer.BadParameter(str(error), param_hint="CONFIG") from error
     train_model(
-        samples,
-        output,
         bank,
+        output,
+        cache,
         steps=steps,
         batch_size=batch_size,
         workers=workers,
