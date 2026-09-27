@@ -26,7 +26,7 @@ Logs go to standard error ([loguru](https://github.com/Delgan/loguru)), so stand
 
 ## Training
 
-The kick model learns from synthetic drops made from your hardstyle sample packs (not in this repository). A TOML bank config tells which files are kicks, loops, claps, impacts and other hits. Copy `bank.example.toml` to `bank.toml` (git-ignored), set `root` to your packs folder and edit the globs. Then:
+The kick model learns from synthetic drops made from your own audio samples (not in this repository): kicks, loops and other sounds. A TOML bank config tells which files are kicks, loops, claps, impacts and other hits. Copy `bank.example.toml` to `bank.toml` (git-ignored), set `root` to your samples folder and edit the globs. Then:
 
 ```sh
 uv run analyzer train bank.toml -v   # about 20 min on an Apple M4 Max (MPS)
@@ -34,7 +34,7 @@ uv run analyzer train bank.toml -v   # about 20 min on an Apple M4 Max (MPS)
 
 The first run decodes the samples to `models/bank/` (about 0.7 GB for 3000 samples); a changed config decodes them again. The model with the best validation F-measure goes to `models/kick.pt`. Options: `--cache` (the decoded samples folder), `--steps` (default 15000), `--batch-size` (16), `--workers` (10 processes make the drops), `--device` (`mps`, `cuda` or `cpu`) and `--seed`. `models/` is git-ignored: never commit samples, the bank or models.
 
-Good samples: complete kick one-shots (no rolls or triplets), 160 BPM loops that start on a bar and have no kicks and no sub-bass (screeches, atmospheres, top loops, fills; no drum loops, full mixes or bass stems), and one-shots without a kick layer.
+Good samples: complete kick one-shots with one kick each (no kick rolls), 160 BPM loops that start on a bar and have no kicks and no sub-bass (screeches, atmospheres, top loops, fills; no drum loops, full mixes or bass stems), and one-shots without a kick layer.
 
 ## Development
 
@@ -61,7 +61,7 @@ uv run ty check      # type check
 
 - One kick design (all pitched versions of one kick), with a new key every two bars. Each kick cuts the tail of the one before it.
 - Kick patterns: beats, 1/8 off-beats, missing beats, single 1/16 and triplet kicks, and rolls of 1, 2 or 4 beats (1/16, triplets or 1/8) at bar ends. Some bars and drops have no kicks.
-- Up to three 160 BPM loops (screeches, songstarter stems, atmospheres, top and ride loops, fills), usually high-passed at 100-250 Hz and ducked by a sidechain curve at each kick. Claps on beats 2 and 4, other one-shots (snares, hats, percussion, FX, synth hits) on the 1/16 grid or off it, and impacts.
+- Up to three 160 BPM loops (screeches, melody stems, atmospheres, top and ride loops, fills), usually high-passed at 100-250 Hz and ducked by a sidechain curve at each kick. Claps on beats 2 and 4, other one-shots (snares, hats, percussion, FX, synth hits) on the 1/16 grid or off it, and impacts.
 - Mastering: EQ tilt, drive into a tanh soft clipper, a peak limiter, then a tempo change of up to +/-6% (150-170 BPM) and a random gain of +/-6 dB after loudness normalization.
 
 The targets are the exact kick onsets (the frame of the onset is 1, its two neighbors 0.5), with binary cross-entropy loss. 10% of the kick designs are held out (split by design, not by file, because the pitched versions are near-duplicates); 200 drops made from them are the validation set.

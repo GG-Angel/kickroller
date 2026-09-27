@@ -1,12 +1,12 @@
 # Sample bank for `analyzer train`. Copy this file to bank.toml
-# (git-ignored), set the root and list the samples of your packs.
+# (git-ignored), set the root to your samples folder and list its files.
 #
 # "files" are globs of audio files, relative to the root and not case-sensitive:
 # "*" stays in one folder and "**" also goes into subfolders. "exclude" is a
 # regular expression for file names to skip. Only [kick] is necessary. A file
 # found for more than one kind gets the first of kick, loop, clap, impact, hit.
 
-root = "/path/to/sample packs" # a relative root is relative to this file
+root = "/path/to/samples" # a relative root is relative to this file
 
 # Complete kick one-shots, one kick each. 10% of the kick designs are held out
 # for validation, so the pitched versions of one kick must be one design. The
@@ -14,26 +14,26 @@ root = "/path/to/sample packs" # a relative root is relative to this file
 # ("Kick 3_F#.wav" and "Kick 3_G.wav" are "KICK 3"). "designs" are globs of
 # folders that each hold one design (all kicks below the folder).
 [kick]
-files = ["Pack A/Kicks/*", "Pack B/Drums/Kicks/**/*", "Pack C/Pitched Kicks/*/*"]
-designs = ["Pack C/Pitched Kicks/*"]
-exclude = 'ROLL|TRIPLET' # more than one kick
+files = ["kicks/*", "kicks/raw/**/*", "kicks/pitched/*/*"]
+designs = ["kicks/pitched/*"]
+exclude = 'KICK_ROLL' # kick rolls have more than one kick
 
 # 160 BPM loops that start on a bar and have no kicks and no sub-bass:
 # screeches, atmospheres, top loops, fills. Not drum loops or full mixes.
 [loop]
-files = ["Pack A/Loops/Screech Loops/*", "Pack B/Top Loops/*"]
+files = ["loops/screeches/*", "loops/tops/*"]
 exclude = '_(FULL|DRUMS|KICK|BASS)\.wav$'
 
 # Claps, put on beats 2 and 4.
 [clap]
-files = ["Pack A/Drums/Claps/*"]
+files = ["drums/claps/*"]
 exclude = 'KICK' # kick and clap layers
 
 # Impacts, crashes and sub drops, put at the start of a bar.
 [impact]
-files = ["Pack A/FX/Impacts/*", "Pack A/FX/Sub Drops/*"]
+files = ["fx/impacts/*", "fx/sub drops/*"]
 
 # Other one-shots: snares, hats, percussion, FX, synth hits. No kick layers.
 [hit]
-files = ["Pack A/Drums/Snares/*", "Pack A/Drums/Hats/*", "Pack B/FX/*"]
+files = ["drums/snares/*", "drums/hats/*", "fx/other/*"]
 exclude = 'KICK'
