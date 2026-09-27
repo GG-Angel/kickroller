@@ -11,6 +11,9 @@ samples/
 *.mov
 *.mp4
 
+# Trained models and the decoded sample bank (derived from the samples).
+models/
+
 # Python
 .venv/
 __pycache__/

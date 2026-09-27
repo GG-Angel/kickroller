@@ -10,6 +10,7 @@ dependencies = [
     "numpy>=2.5.3",
     "pyloudnorm>=0.2.0",
     "scipy>=1.18.1",
+    "torch>=2.14.0",
     "typer>=0.27.2",
 ]
 

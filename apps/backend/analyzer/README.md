@@ -6,6 +6,8 @@ Requires [uv](https://docs.astral.sh/uv/) and `ffmpeg` on `PATH` (it decodes any
 
 ## Usage
 
+Train the kick model once (see [Training](#training)), then analyze tracks:
+
 ```sh
 uv run analyzer analyze "track.m4a"                         # CSV to stdout, one "time,confidence" per line
 uv run analyzer analyze "track.m4a" -o kicks.csv            # CSV file (Sonic Visualiser can import it)
@@ -13,13 +15,24 @@ uv run analyzer analyze "track.m4a" -f json -o kicks.json   # {"file": "track.m4
 uv run analyzer analyze "track.m4a" -b beats.csv            # also write the beat grid, one time per line
 uv run analyzer analyze "track.m4a" -c 0.5                  # only kicks with a confidence of at least 0.5 (default: 0.1)
 uv run analyzer analyze "track.m4a" --sonify check.wav      # also write the track with a click at each kick (louder = more confident)
-uv run analyzer analyze "track.m4a" -v                      # show the pipeline steps (-vv: also one line per candidate attack)
+uv run analyzer analyze "track.m4a" -m other.pt             # use a different kick model (default: models/kick.pt)
+uv run analyzer analyze "track.m4a" -v                      # show the pipeline steps (-vv: also one line per candidate kick)
 uv run analyzer analyze "track.m4a" -q                      # only show warnings and errors
 ```
 
 The first run downloads the beat_this model (about 78 MB) to the PyTorch cache. Run `uv run analyzer analyze --help` for all options.
 
 Logs go to standard error ([loguru](https://github.com/Delgan/loguru)), so standard output only has the result. The package is silent when you import it as a library; call `logger.enable("analyzer")` to see its logs.
+
+## Training
+
+The kick model learns from synthetic drops made from the [On Point Samples](https://onpointsamples.com) packs (not in this repository):
+
+```sh
+uv run analyzer train "/path/to/On Point Samples" -v   # about 20 min on an Apple M4 Max (MPS)
+```
+
+The first run decodes the samples to `models/bank/` (about 0.7 GB). The model with the best validation F-measure goes to `models/kick.pt`. Options: `--steps` (default 15000), `--batch-size` (16), `--workers` (10 processes make the drops), `--device` (`mps`, `cuda` or `cpu`) and `--seed`. `models/` is git-ignored: never commit samples, the bank or models.
 
 ## Development
 
@@ -33,26 +46,26 @@ uv run ty check      # type check
 
 1. Decode with ffmpeg to 44.1 kHz, mid channel (L+R)/2.
 2. Beat grid: track the beats with [beat_this](https://github.com/CPJKU/beat_this) (`final0` model, CPU, no DBN). Remove extra beats closer than 3/4 of the beat period, fill skipped beats, and extend the beats over the full track. The beat period is the median beat interval, moved by octaves toward 150-170 BPM.
-3. Loudness-normalize to -14 LUFS. Candidates: SuperFlux onset strength in the click band (2-6 kHz, 12 log bands per octave, 46 ms Hann window, 10 ms hop), then local maxima within +/-20 ms.
-4. Low-band features (30-300 Hz): the level after the attack (relative to the track's loud level), the rise and the centroid jump (30 ms after the attack compared with 30 ms before), and the short-gap rise (the highest energy 10-30 ms after the attack compared with the lowest energy from the attack back to 20 ms before).
-5. Confidence: each rule is a product of sigmoids, each centered on one threshold (0.5 at the threshold). The score for a grid position is the highest rule score. The click thresholds are stricter at finer positions: 0.9 at beats, 1.5 at 1/8, 1/16 and triplet positions.
+3. Loudness-normalize to -14 LUFS. The kick model gives a kick onset probability for each 10 ms frame. Candidates are the local maxima within +/-20 ms with a probability of at least the minimum confidence.
+4. Grid positions, with search windows of +/-40 ms (beat), +/-30 ms (1/8) and +/-15 ms (1/16 at 1/4 and 3/4 of a beat, triplet at 1/3 and 2/3). First the beats are checked. Each beat then moves to its kick if that kick has a probability of at least 0.5 (beat_this gives beats in 20 ms steps), and the other beats move by the median shift. Then the off-beat positions are checked between the moved beats. At each position, the most probable candidate is kept. In each beat, the straight (1/8, 1/16) or the triplet kicks are kept, whichever has the more probable best kick.
+5. Remove kicks closer than 40 ms to a more probable kick. The confidence is the model probability. The output is the detected onset time, not the grid time.
+6. Beat output: the moved beats from step 4 that are inside the track. A beat with a confident kick is at the kick onset; the other beats are the beat_this beats moved by the median shift.
 
-   | Rule                                                             | Positions | Evidence                                                                                                                                                                                                                                  | Cap               |
-   | ---------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-   | New kick body                                                    | all       | click >= position threshold, low band >= -35 dB, and centroid jump >= 12 Hz (the kick's pitch drop starts high) or rise >= 6 dB (a kick after a gap). At 1/16 and triplet positions: low band >= -20 dB and only the centroid jump counts | 1.0               |
-   | Restart                                                          | beat, 1/8 | click >= 0.5 where the low band restarts at full level after a gap: rise >= 12 dB, low band >= -10 dB                                                                                                                                     | 1.0               |
-   | Low band starts with the click (for example a regular drum kick) | beat, 1/8 | click >= 0.5, short-gap rise >= 8 dB, low band >= -25 dB                                                                                                                                                                                  | 0.5 beat, 0.4 1/8 |
-   | Strong click only                                                | beat      | click >= 1.8                                                                                                                                                                                                                              | 0.3               |
+### Kick model
 
-   Clear hardstyle kicks (new kick body or restart) score near 1. Kicks with only the capped "maybe" evidence score below 0.5.
+`model.py`: log-magnitude spectrograms at three window sizes (1024, 2048 and 4096 samples: 23, 46 and 93 ms), 80 mel bands from 27.5 Hz to 16 kHz, 10 ms hop, standardized per band with training statistics. Three 3x3 convolution layers (16, 32 and 32 channels, frequency max-pooling) read the spectrum. Six residual dilated 1D convolution layers (64 channels, dilations 1, 2, 4, 8, 16, 8) add +/-420 ms of context, about one beat on each side. About 110k parameters, one sigmoid output per frame.
 
-6. Grid positions, with search windows of +/-40 ms (beat), +/-30 ms (1/8) and +/-15 ms (1/16 at 1/4 and 3/4 of a beat, triplet at 1/3 and 2/3). First the beats are checked. Each beat then moves to its kick if that kick scores at least 0.5 (beat_this gives beats in 20 ms steps), and the other beats move by the median shift. Then the off-beat positions are checked between the moved beats. At each position, the highest-scoring candidate is kept. In each beat, the straight (1/8, 1/16) or the triplet kicks are kept, whichever has the higher best score.
-7. Klaplong kicks: a punch with no bass (low band <= -20 dB after the click), then the bass half a beat later (+/-30 ms; low band >= -10 dB). The bass swells in between the two clicks, so neither click has a rise of its own (< 6 dB). The pair is one kick at the punch: the punch gets the confidence of the bass part if that is higher, and the confidence of the bass part is multiplied by (1 - the pair score).
-8. Drop kicks below the minimum confidence (default 0.1), then remove kicks closer than 40 ms to a higher-scoring kick. The output is the detected onset time, not the grid time.
-9. Beat output: the moved beats from step 6 that are inside the track. A beat with a confident kick is at the kick onset; the other beats are the beat_this beats moved by the median shift.
+`synth.py`: each training example is a synthetic 12 s drop (8 bars at 160 BPM):
 
-This rejects attacks inside a kick tail (tail gating, screeches, claps) and all attacks off the grid.
+- One kick design (all pitched versions of one kick), with a new key every two bars. Each kick cuts the tail of the one before it.
+- Kick patterns: beats, 1/8 off-beats, missing beats, single 1/16 and triplet kicks, and rolls of 1, 2 or 4 beats (1/16, triplets or 1/8) at bar ends. Some bars and drops have no kicks.
+- Up to three 160 BPM loops (screeches, songstarter stems, atmospheres, top and ride loops, fills), usually high-passed at 100-250 Hz and ducked by a sidechain curve at each kick. Claps on beats 2 and 4, other one-shots (snares, hats, percussion, FX, synth hits) on the 1/16 grid or off it, and impacts.
+- Mastering: EQ tilt, drive into a tanh soft clipper, a peak limiter, then a tempo change of up to +/-6% (150-170 BPM) and a random gain of +/-6 dB after loudness normalization.
 
-Known limits: the output is only as good as the beat grid; a wrong beat phase or tempo gives wrong kicks, and kicks off the grid are lost. Kicks closer than about 60 ms can fail the low-band check. The thresholds and the confidence are tuned by ear on two tracks only (the klaplong rule on one track); the confidence ranks kicks but is not a calibrated probability.
+The targets are the exact kick onsets (the frame of the onset is 1, its two neighbors 0.5), with binary cross-entropy loss. 10% of the kick designs are held out (split by design, not by file, because the pitched versions are near-duplicates); 200 drops made from them are the validation set.
+
+`bank.py` lists the samples. It uses only 160 BPM loops and skips drum loops, vocals, kick FX and kick fills, kick rolls and triplets, gated kicks, songstarter mixes and their drum, kick and bass stems.
+
+Known limits: the output is only as good as the beat grid; a wrong beat phase or tempo gives wrong kicks, and kicks off the grid are lost. The model learns only from synthetic drops; real mixes (reverb, layered kicks, other genres) can differ. The confidence ranks kicks but is not a calibrated probability.
 
 Audio files must never be committed (see `.gitignore`).

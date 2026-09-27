@@ -17,6 +17,19 @@ def load_mid(path: str | Path, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
     (MP3 encoder delay, AAC priming in MP4/M4A), so time zero is the first
     real sample of the track.
     """
+    logger.debug("Decoding {path} with ffmpeg", path=path)
+    signal = decode_mid(path, sample_rate)
+    logger.info(
+        "Decoded {name}: {seconds:.1f} s at {rate} Hz",
+        name=Path(path).name,
+        seconds=len(signal) / sample_rate,
+        rate=sample_rate,
+    )
+    return signal
+
+
+def decode_mid(path: str | Path, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
+    """`load_mid` with no logs."""
     if shutil.which("ffmpeg") is None:
         raise RuntimeError("ffmpeg is not on PATH; install it to decode audio")
     path = Path(path)
@@ -35,19 +48,12 @@ def load_mid(path: str | Path, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
         "-acodec", "pcm_f32le",
         "-",
     ]  # fmt: skip
-    logger.debug("Decoding {path} with ffmpeg", path=path)
     proc = subprocess.run(cmd, capture_output=True, check=False)
     if proc.returncode != 0:
         message = proc.stderr.decode(errors="replace").strip()
         raise RuntimeError(f"ffmpeg could not decode {path}: {message}")
 
     stereo = np.frombuffer(proc.stdout, dtype="<f4").reshape(-1, 2)
-    logger.info(
-        "Decoded {name}: {seconds:.1f} s at {rate} Hz",
-        name=path.name,
-        seconds=len(stereo) / sample_rate,
-        rate=sample_rate,
-    )
     return stereo.mean(axis=1)
 
 

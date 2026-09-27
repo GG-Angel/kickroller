@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 
 import numpy as np
 from loguru import logger
@@ -15,8 +16,7 @@ from analyzer.grid import (
     regularize_beats,
     track_beats,
 )
-from analyzer.lowband import low_band_change, low_band_gap_rise, low_band_profile
-from analyzer.odf import log_filterbank, stft_bins, superflux
+from analyzer.model import DEFAULT_MODEL, KickNet, kick_activation, load_model
 from analyzer.peaks import enforce_min_distance, local_peaks
 
 
@@ -24,8 +24,6 @@ from analyzer.peaks import enforce_min_distance, local_peaks
 class DetectorConfig:
     sample_rate: int = SAMPLE_RATE
     target_lufs: float = TARGET_LUFS
-    hop: int = 441  # 10 ms
-    n_fft: int = 2048  # 46 ms
 
     # Beat grid from beat_this, with 1/16 and triplet positions between the beats.
     beat_checkpoint: str = "final0"
@@ -35,69 +33,11 @@ class DetectorConfig:
     eighth_window: float = 0.03
     fine_window: float = 0.015  # 1/16 and triplet positions
 
-    # Candidates: attacks in the kick click band.
-    click_fmin: float = 2000.0
-    click_fmax: float = 6000.0
-    bands_per_octave: int = 12
+    # Candidates: peaks of the model's kick probability.
     peak_window: float = 0.02  # local max within +/- 20 ms
     min_distance: float = 0.04
-
-    # Low band (30-300 Hz), compared 30 ms after the attack with 30 ms before.
-    low_fmin: float = 30.0
-    low_fmax: float = 300.0
-    low_context: float = 0.03
-
-    # Confidence: each rule below is a product of sigmoids centered on its
-    # thresholds, and the score is the highest rule score. "Maybe" rules have a
-    # cap below 0.5.
     min_confidence: float = 0.1
-    anchor_confidence: float = 0.5  # beats move only to kicks with this score
-    click_width: float = 0.25  # sigmoid widths: octaves of click strength,
-    db_width: float = 2.0  # dB,
-    hz_width: float = 3.0  # and Hz
-
-    # Click thresholds per position kind: stricter at the finer positions.
-    beat_threshold: float = 0.9
-    eighth_threshold: float = 1.5
-    fine_threshold: float = 1.5
-
-    # Rule 1, new kick body: a click, and the low band has level and rises or
-    # jumps up in pitch. At 1/16 and triplet positions, only a pitch jump counts.
-    min_low_level_db: float = -35.0  # relative to the track's 95th percentile
-    min_low_rise_db: float = 6.0
-    min_pitch_jump_hz: float = 12.0
-    fine_min_level_db: float = -20.0
-
-    # Rule 2, restart (beat, 1/8): a weak click where the low band restarts at
-    # full level after a gap.
-    weak_threshold: float = 0.5
-    min_restart_rise_db: float = 12.0
-    min_restart_level_db: float = -10.0
-
-    # Rule 3, maybe (beat, 1/8): the low band starts with the click, as in a
-    # regular drum kick (short-gap rise).
-    min_gap_rise_db: float = 8.0
-    min_gap_level_db: float = -25.0
-    gap_cap_beat: float = 0.5
-    gap_cap_eighth: float = 0.4
-
-    # Rule 4, maybe (beat only): a strong click with no low-band evidence.
-    strong_threshold: float = 1.8
-    strong_cap: float = 0.3
-
-    # Klaplong kicks: a punch with no bass, then the bass half a beat later. The
-    # bass swells in between the two clicks, so neither click has a low-band rise
-    # of its own (below min_low_rise_db). The bass part is not a new kick: its
-    # confidence moves to the punch.
-    klaplong_punch_level_db: float = -20.0  # the punch: low band at most this
-    klaplong_bass_level_db: float = -10.0  # the bass part: low band at least this
-
-    @property
-    def fps(self) -> float:
-        return self.sample_rate / self.hop
-
-    def frames(self, seconds: float) -> int:
-        return max(1, round(seconds * self.fps))
+    anchor_confidence: float = 0.5  # beats move only to kicks with this confidence
 
 
 @dataclass(frozen=True)
@@ -105,77 +45,6 @@ class Detection:
     beats: np.ndarray  # beat grid times in seconds
     kicks: np.ndarray  # kick onset times in seconds
     confidence: np.ndarray  # confidence (0-1) of each kick
-
-
-def click_strength(signal: np.ndarray, config: DetectorConfig) -> np.ndarray:
-    """Click-band SuperFlux onset strength of a mono signal (one value per hop)."""
-    first_bin, filters = log_filterbank(
-        config.n_fft,
-        config.sample_rate,
-        config.click_fmin,
-        config.click_fmax,
-        config.bands_per_octave,
-    )
-    last_bin = first_bin + filters.shape[0] - 1
-    magnitude = stft_bins(signal, config.n_fft, config.hop, first_bin, last_bin)
-    return superflux(magnitude @ filters)
-
-
-def soft_at_least(x: np.ndarray, threshold: float, width: float) -> np.ndarray:
-    """0.5 at `threshold`, near 1 well above it and near 0 well below it."""
-    return 0.5 * (1.0 + np.tanh((x - threshold) / (2.0 * width)))
-
-
-def kick_scores(
-    click: np.ndarray,
-    level_db: np.ndarray,
-    rise_db: np.ndarray,
-    pitch_jump: np.ndarray,
-    gap_rise_db: np.ndarray,
-    config: DetectorConfig,
-) -> np.ndarray:
-    """Confidence (0-1) of each candidate, one row per position kind.
-
-    Rows: BEAT, EIGHTH, SIXTEENTH, TRIPLET.
-    """
-    c = config
-    log_click = np.log2(np.maximum(click, 1e-9))
-
-    def clicks(threshold: float) -> np.ndarray:
-        return soft_at_least(log_click, np.log2(threshold), c.click_width)
-
-    def db(x: np.ndarray, threshold: float) -> np.ndarray:
-        return soft_at_least(x, threshold, c.db_width)
-
-    jump = soft_at_least(pitch_jump, c.min_pitch_jump_hz, c.hz_width)
-    body = np.maximum(jump, db(rise_db, c.min_low_rise_db)) * db(
-        level_db, c.min_low_level_db
-    )
-    restart = (
-        clicks(c.weak_threshold)
-        * db(rise_db, c.min_restart_rise_db)
-        * db(level_db, c.min_restart_level_db)
-    )
-    gap_start = (
-        clicks(c.weak_threshold)
-        * db(gap_rise_db, c.min_gap_rise_db)
-        * db(level_db, c.min_gap_level_db)
-    )
-    beat = np.max(
-        [
-            clicks(c.beat_threshold) * body,
-            restart,
-            c.gap_cap_beat * gap_start,
-            c.strong_cap * clicks(c.strong_threshold),
-        ],
-        axis=0,
-    )
-    eighth = np.max(
-        [clicks(c.eighth_threshold) * body, restart, c.gap_cap_eighth * gap_start],
-        axis=0,
-    )
-    fine = clicks(c.fine_threshold) * jump * db(level_db, c.fine_min_level_db)
-    return np.stack([beat, eighth, fine, fine])
 
 
 def strongest_per_key(keys: np.ndarray, strength: np.ndarray) -> np.ndarray:
@@ -191,49 +60,15 @@ def beats_in_track(beats: np.ndarray, duration: float) -> np.ndarray:
     return beats[(beats >= 0.0) & (beats <= duration)]
 
 
-def merge_klaplong(
-    times: np.ndarray,
-    level_db: np.ndarray,
-    rise_db: np.ndarray,
-    confidence: np.ndarray,
-    grid: np.ndarray,
-    config: DetectorConfig,
-) -> np.ndarray:
-    """Kick confidence after merging the parts of klaplong kicks.
-
-    A klaplong kick is a punch with no bass, then the bass half a beat later.
-    For each such pair, the bass part moves its confidence to the punch. The
-    kicks must be sorted by time and `grid` must have at least 2 beats.
-    """
-    if len(times) < 2:
-        return confidence
-    interval = np.clip(np.searchsorted(grid, times, side="right") - 1, 0, len(grid) - 2)
-    target = times + 0.5 * (grid[interval + 1] - grid[interval])
-    bass = np.clip(np.searchsorted(times, target), 1, len(times) - 1)
-    bass -= np.abs(times[bass - 1] - target) < np.abs(times[bass] - target)
-    klaplong = (
-        (np.abs(times[bass] - target) <= config.eighth_window)
-        * soft_at_least(-level_db, -config.klaplong_punch_level_db, config.db_width)
-        * soft_at_least(-rise_db, -config.min_low_rise_db, config.db_width)
-        * soft_at_least(level_db[bass], config.klaplong_bass_level_db, config.db_width)
-        * soft_at_least(-rise_db[bass], -config.min_low_rise_db, config.db_width)
-    )
-    merged = np.maximum(confidence, klaplong * confidence[bass])
-    share = np.ones(len(times))
-    np.minimum.at(share, bass, 1.0 - klaplong)
-    logger.debug(
-        "Klaplong: {pairs} punches with the bass half a beat later",
-        pairs=np.count_nonzero(klaplong >= 0.5),
-    )
-    return merged * share
-
-
-def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detection:
+def detect_kicks_in_signal(
+    signal: np.ndarray, model: KickNet, config: DetectorConfig
+) -> Detection:
     """Beat grid, kick onset times and kick confidence for a mono signal.
 
-    The signal must be at `config.sample_rate`. Only kicks with a confidence of
-    at least `config.min_confidence` are returned. The beats are the grid used
-    for the kicks: each beat is moved to its confident kick.
+    The signal must be at `config.sample_rate`. The confidence of a kick is the
+    model's kick probability. Only kicks with a confidence of at least
+    `config.min_confidence` are returned. The beats are the grid used for the
+    kicks: each beat is moved to its confident kick.
     """
     duration = len(signal) / config.sample_rate
     grid = regularize_beats(
@@ -248,36 +83,25 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detect
         return no_kicks
 
     signal = normalize_loudness(signal, config.sample_rate, config.target_lufs)
-    strength = click_strength(signal, config)
+    fps = model.config.fps
+    start = perf_counter()
+    probability = kick_activation(model, signal)
     candidates = local_peaks(
-        strength,
-        threshold=config.weak_threshold,
-        local_max_frames=config.frames(config.peak_window),
+        probability,
+        threshold=config.min_confidence,
+        local_max_frames=max(1, round(config.peak_window * fps)),
     )
     logger.debug(
-        "{count} candidate attacks in the click band ({fmin:.0f}-{fmax:.0f} Hz)",
+        "Kick model: {count} peaks with probability >= {threshold} in {seconds:.1f} s",
         count=len(candidates),
-        fmin=config.click_fmin,
-        fmax=config.click_fmax,
+        threshold=config.min_confidence,
+        seconds=perf_counter() - start,
     )
     if len(candidates) == 0:
-        logger.warning("No attacks in the click band; no kicks")
+        logger.warning("The kick model found no kicks")
         return no_kicks
-    energy, centroid = low_band_profile(
-        signal,
-        config.sample_rate,
-        config.n_fft,
-        config.hop,
-        config.low_fmin,
-        config.low_fmax,
-    )
-    level_db, rise_db, pitch_jump = low_band_change(
-        candidates, energy, centroid, config.frames(config.low_context)
-    )
-    gap_rise_db = low_band_gap_rise(candidates, energy)
-    click = strength[candidates]
-    scores = kick_scores(click, level_db, rise_db, pitch_jump, gap_rise_db, config)
-    times = candidates / config.fps
+    score = probability[candidates]
+    times = candidates / fps
     windows = np.array(
         [
             config.beat_window,
@@ -293,7 +117,7 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detect
         (KINDS[position] == BEAT) & (np.abs(offset) <= config.beat_window)
     )
     beat_index = interval + (position == len(POSITIONS) - 1)
-    beat_kicks = near[strongest_per_key(beat_index[near], scores[BEAT, near])]
+    beat_kicks = near[strongest_per_key(beat_index[near], score[near])]
     logger.debug(
         "Beat pass: {found} of {count} beats have a candidate within {window:.0f} ms",
         found=len(beat_kicks),
@@ -304,7 +128,7 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detect
     # 2. beat_this gives beats in 20 ms steps: move each beat to its confident
     # kick, and move the other beats by the median shift.
     anchors = grid.copy()
-    confident = beat_kicks[scores[BEAT, beat_kicks] >= config.anchor_confidence]
+    confident = beat_kicks[score[beat_kicks] >= config.anchor_confidence]
     if len(confident):
         kick_beats = beat_index[confident]
         shift = np.median(times[confident] - grid[kick_beats])
@@ -328,7 +152,6 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detect
     # 3. Off-beat positions between the moved beats.
     interval, position, offset = nearest_position(times, anchors)
     kind = KINDS[position]
-    score = scores[kind, np.arange(len(times))]
     ok = (kind != BEAT) & (np.abs(offset) <= windows[kind])
     ok[beat_kicks] = False
     ok = np.flatnonzero(ok)
@@ -360,29 +183,19 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detect
 
     kicks = np.concatenate([beat_kicks, off_beat])
     kicks = kicks[np.argsort(times[kicks])]
-    confidence = np.where(np.isin(kicks, beat_kicks), scores[BEAT, kicks], score[kicks])
-
-    # 5. Klaplong kicks: the bass part half a beat after a punch is not a new kick.
-    confidence = merge_klaplong(
-        times[kicks], level_db[kicks], rise_db[kicks], confidence, anchors, config
-    )
-
-    keep = confidence >= config.min_confidence
-    kicks, confidence = kicks[keep], confidence[keep]
+    kicks = kicks[score[kicks] >= config.min_confidence]
     kept = enforce_min_distance(
-        candidates[kicks], confidence, config.frames(config.min_distance)
+        candidates[kicks], score[kicks], max(1, round(config.min_distance * fps))
     )
     logger.debug(
-        "Removed {removed} kicks closer than {distance:.0f} ms "
-        "to a higher-scoring kick",
+        "Removed {removed} kicks closer than {distance:.0f} ms to a more probable kick",
         removed=len(kicks) - len(kept),
         distance=1000 * config.min_distance,
     )
-    kicks, confidence = kicks[kept], confidence[kept]
+    kicks = kicks[kept]
+    confidence = score[kicks]
 
-    detection = Detection(
-        beats_in_track(anchors, duration), candidates[kicks] / config.fps, confidence
-    )
+    detection = Detection(beats_in_track(anchors, duration), times[kicks], confidence)
     on_beat = np.count_nonzero(np.isin(kicks, beat_kicks))
     logger.info(
         "Detected {kicks} kicks ({on_beat} on beats, {off_beat} off-beat; "
@@ -395,32 +208,29 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detect
         beats=len(detection.beats),
     )
 
-    # One line per candidate, for tuning: its nearest grid position and features.
+    # One line per candidate, for tuning: its nearest grid position and probability.
     on_grid = np.abs(offset) <= windows[kind]
     outcome = np.where(on_grid, "rejected", "off grid").astype(object)
     outcome[kicks] = "kick"
-    shown = score.copy()
-    shown[kicks] = confidence
     for i, frame in enumerate(candidates):
         logger.trace(
-            "{time:8.3f} s {position:<7} {offset:+6.1f} ms | click {click:5.2f} "
-            "level {level:6.1f} dB rise {rise:+5.1f} dB jump {jump:+6.1f} Hz "
-            "gap rise {gap_rise:+5.1f} dB | score {score:.2f} {outcome}",
-            time=frame / config.fps,
+            "{time:8.3f} s {position:<7} {offset:+6.1f} ms | "
+            "probability {probability:.2f} {outcome}",
+            time=frame / fps,
             position=KIND_NAMES[kind[i]],
             offset=1000 * offset[i],
-            click=click[i],
-            level=level_db[i],
-            rise=rise_db[i],
-            jump=pitch_jump[i],
-            gap_rise=gap_rise_db[i],
-            score=shown[i],
+            probability=score[i],
             outcome=outcome[i],
         )
     return detection
 
 
-def detect_kicks(path: str | Path, config: DetectorConfig | None = None) -> Detection:
+def detect_kicks(
+    path: str | Path,
+    config: DetectorConfig | None = None,
+    model_path: Path = DEFAULT_MODEL,
+) -> Detection:
     """Beat grid, kick onset times and kick confidence for an audio or video file."""
     config = config or DetectorConfig()
-    return detect_kicks_in_signal(load_mid(path, config.sample_rate), config)
+    model = load_model(model_path)
+    return detect_kicks_in_signal(load_mid(path, config.sample_rate), model, config)

@@ -10,7 +10,10 @@ from loguru import logger
 
 from analyzer.audio import load_mid, normalize_loudness
 from analyzer.detect import Detection, DetectorConfig, detect_kicks_in_signal
+from analyzer.model import DEFAULT_MODEL, load_model
 from analyzer.sonify import sonify, write_wav
+
+MODELS = DEFAULT_MODEL.parent
 
 DEFAULTS = DetectorConfig()
 LOG_LEVELS = ("INFO", "DEBUG", "TRACE")
@@ -24,7 +27,23 @@ app = typer.Typer(add_completion=False, no_args_is_help=True)
 
 @app.callback()
 def cli() -> None:
-    """Analyze rawstyle tracks."""
+    """Find the kicks and the beat grid of rawstyle tracks."""
+
+
+Verbose = Annotated[
+    int,
+    typer.Option(
+        "--verbose",
+        "-v",
+        count=True,
+        help="Show more logs: -v for the pipeline steps, "
+        "-vv also for each candidate kick.",
+    ),
+]
+Quiet = Annotated[
+    bool,
+    typer.Option("--quiet", "-q", help="Only show warnings and errors."),
+]
 
 
 def configure_logging(verbose: int, quiet: bool) -> None:
@@ -110,32 +129,26 @@ def analyze(
             "kick (louder for higher confidence).",
         ),
     ] = None,
-    verbose: Annotated[
-        int,
-        typer.Option(
-            "--verbose",
-            "-v",
-            count=True,
-            help="Show more logs: -v for the pipeline steps, "
-            "-vv also for each candidate attack.",
-        ),
-    ] = 0,
-    quiet: Annotated[
-        bool,
-        typer.Option("--quiet", "-q", help="Only show warnings and errors."),
-    ] = False,
+    model_path: Annotated[
+        Path,
+        typer.Option("--model", "-m", help="The trained kick model."),
+    ] = DEFAULT_MODEL,
+    verbose: Verbose = 0,
+    quiet: Quiet = False,
 ) -> None:
-    """Detect kick onsets in a rawstyle track."""
+    """Detect kick onsets and the beat grid in a rawstyle track."""
     configure_logging(verbose, quiet)
     start = perf_counter()
     config = DetectorConfig(min_confidence=min_confidence)
     logger.debug("Detector settings: {config}", config=config)
     try:
+        model = load_model(model_path)
         signal = load_mid(audio, config.sample_rate)
     except (FileNotFoundError, RuntimeError) as error:
         logger.error("{error}", error=error)
         raise typer.Exit(code=1) from error
-    detection = detect_kicks_in_signal(signal, config)
+    logger.debug("Loaded the kick model from {path}", path=model_path)
+    detection = detect_kicks_in_signal(signal, model, config)
 
     text = (
         format_json(audio, detection)
@@ -170,6 +183,66 @@ def analyze(
         logger.info("Wrote the click track to {path}", path=sonify_path)
 
     logger.info("Done in {seconds:.1f} s", seconds=perf_counter() - start)
+
+
+class Device(StrEnum):
+    mps = "mps"
+    cuda = "cuda"
+    cpu = "cpu"
+
+
+@app.command()
+def train(
+    samples: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            help="The On Point Samples folder (it holds the 'OPS - ...' pack folders).",
+        ),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Where to save the model."),
+    ] = DEFAULT_MODEL,
+    bank: Annotated[
+        Path,
+        typer.Option(
+            "--bank",
+            help="Cache folder for the decoded samples (made on the first run).",
+        ),
+    ] = MODELS / "bank",
+    steps: Annotated[
+        int, typer.Option("--steps", min=1, help="Training steps.")
+    ] = 15000,
+    batch_size: Annotated[
+        int, typer.Option("--batch-size", min=1, help="Drops per training step.")
+    ] = 16,
+    workers: Annotated[
+        int,
+        typer.Option("--workers", min=0, help="Processes that make training drops."),
+    ] = 10,
+    device: Annotated[
+        Device, typer.Option("--device", help="Where to train the model.")
+    ] = Device.mps,
+    seed: Annotated[int, typer.Option("--seed", help="Random seed.")] = 0,
+    verbose: Verbose = 0,
+    quiet: Quiet = False,
+) -> None:
+    """Train the kick model on synthetic drops made from the sample packs."""
+    from analyzer.train import train as train_model
+
+    configure_logging(verbose, quiet)
+    train_model(
+        samples,
+        output,
+        bank,
+        steps=steps,
+        batch_size=batch_size,
+        workers=workers,
+        device=device.value,
+        seed=seed,
+    )
 
 
 def main() -> None:
