@@ -1,5 +1,4 @@
 # Audio and video must never be committed (copyright).
-samples/
 *.wav
 *.mp3
 *.m4a
