@@ -2,10 +2,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+from loguru import logger
 
 from analyzer.audio import SAMPLE_RATE, TARGET_LUFS, load_mid, normalize_loudness
 from analyzer.grid import (
     BEAT,
+    KIND_NAMES,
     KINDS,
     POSITIONS,
     TRIPLET,
@@ -198,6 +200,7 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detect
     )
     no_kicks = Detection(beats_in_track(grid, duration), np.empty(0), np.empty(0))
     if len(grid) < 2:
+        logger.warning("No beat grid; no kicks")
         return no_kicks
 
     signal = normalize_loudness(signal, config.sample_rate, config.target_lufs)
@@ -207,7 +210,14 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detect
         threshold=config.weak_threshold,
         local_max_frames=config.frames(config.peak_window),
     )
+    logger.debug(
+        "{count} candidate attacks in the click band ({fmin:.0f}-{fmax:.0f} Hz)",
+        count=len(candidates),
+        fmin=config.click_fmin,
+        fmax=config.click_fmax,
+    )
     if len(candidates) == 0:
+        logger.warning("No attacks in the click band; no kicks")
         return no_kicks
     energy, centroid = low_band_profile(
         signal,
@@ -220,15 +230,9 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detect
     level_db, rise_db, pitch_jump = low_band_change(
         candidates, energy, centroid, config.frames(config.low_context)
     )
+    gap_rise_db = low_band_gap_rise(candidates, energy)
     click = strength[candidates]
-    scores = kick_scores(
-        click,
-        level_db,
-        rise_db,
-        pitch_jump,
-        low_band_gap_rise(candidates, energy),
-        config,
-    )
+    scores = kick_scores(click, level_db, rise_db, pitch_jump, gap_rise_db, config)
     times = candidates / config.fps
     windows = np.array(
         [
@@ -246,6 +250,12 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detect
     )
     beat_index = interval + (position == len(POSITIONS) - 1)
     beat_kicks = near[strongest_per_key(beat_index[near], scores[BEAT, near])]
+    logger.debug(
+        "Beat pass: {found} of {count} beats have a candidate within {window:.0f} ms",
+        found=len(beat_kicks),
+        count=len(grid),
+        window=1000 * config.beat_window,
+    )
 
     # 2. beat_this gives beats in 20 ms steps: move each beat to its confident
     # kick, and move the other beats by the median shift.
@@ -253,8 +263,23 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detect
     confident = beat_kicks[scores[BEAT, beat_kicks] >= config.anchor_confidence]
     if len(confident):
         kick_beats = beat_index[confident]
-        anchors += np.median(times[confident] - grid[kick_beats])
+        shift = np.median(times[confident] - grid[kick_beats])
+        anchors += shift
         anchors[kick_beats] = times[confident]
+        logger.debug(
+            "Moved {moved} beats to their kicks (confidence >= {threshold}) "
+            "and the other {others} by the median shift of {shift:+.1f} ms",
+            moved=len(confident),
+            threshold=config.anchor_confidence,
+            others=len(grid) - len(confident),
+            shift=1000 * shift,
+        )
+    else:
+        logger.warning(
+            "No beat kick has a confidence of at least {threshold}; "
+            "the beats are not moved",
+            threshold=config.anchor_confidence,
+        )
 
     # 3. Off-beat positions between the moved beats.
     interval, position, offset = nearest_position(times, anchors)
@@ -267,6 +292,11 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detect
         strongest_per_key(interval[ok] * len(POSITIONS) + position[ok], score[ok])
     ]
     off_beat = off_beat[score[off_beat] >= config.min_confidence]
+    logger.debug(
+        "Off-beat pass: {count} positions have a kick with confidence >= {threshold}",
+        count=len(off_beat),
+        threshold=config.min_confidence,
+    )
 
     # 4. In each beat, keep the straight (1/8, 1/16) or the triplet kicks,
     # whichever has the higher best score.
@@ -274,7 +304,15 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detect
     beat_of = interval[off_beat]
     best = np.zeros((2, len(anchors)))
     np.maximum.at(best, (triplet.astype(int), beat_of), score[off_beat])
-    off_beat = off_beat[triplet == (best[1] > best[0])[beat_of]]
+    chosen = triplet == (best[1] > best[0])[beat_of]
+    logger.debug(
+        "Straight or triplet: kept {straight} straight and {triplet} triplet kicks, "
+        "removed {removed}",
+        straight=np.count_nonzero(chosen & ~triplet),
+        triplet=np.count_nonzero(chosen & triplet),
+        removed=np.count_nonzero(~chosen),
+    )
+    off_beat = off_beat[chosen]
 
     kicks = np.concatenate([beat_kicks, off_beat])
     confidence = np.concatenate([scores[BEAT, beat_kicks], score[off_beat]])
@@ -283,11 +321,52 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detect
     kept = enforce_min_distance(
         candidates[kicks], confidence, config.frames(config.min_distance)
     )
-    return Detection(
-        beats_in_track(anchors, duration),
-        candidates[kicks[kept]] / config.fps,
-        confidence[kept],
+    logger.debug(
+        "Removed {removed} kicks closer than {distance:.0f} ms "
+        "to a higher-scoring kick",
+        removed=len(kicks) - len(kept),
+        distance=1000 * config.min_distance,
     )
+    kicks, confidence = kicks[kept], confidence[kept]
+
+    detection = Detection(
+        beats_in_track(anchors, duration), candidates[kicks] / config.fps, confidence
+    )
+    on_beat = np.count_nonzero(np.isin(kicks, beat_kicks))
+    logger.info(
+        "Detected {kicks} kicks ({on_beat} on beats, {off_beat} off-beat; "
+        "{sure} with confidence >= {threshold}) and {beats} beats",
+        kicks=len(kicks),
+        on_beat=on_beat,
+        off_beat=len(kicks) - on_beat,
+        sure=np.count_nonzero(confidence >= config.anchor_confidence),
+        threshold=config.anchor_confidence,
+        beats=len(detection.beats),
+    )
+
+    # One line per candidate, for tuning: its nearest grid position and features.
+    on_grid = np.abs(offset) <= windows[kind]
+    outcome = np.where(on_grid, "rejected", "off grid").astype(object)
+    outcome[kicks] = "kick"
+    shown = score.copy()
+    shown[kicks] = confidence
+    for i, frame in enumerate(candidates):
+        logger.trace(
+            "{time:8.3f} s {position:<7} {offset:+6.1f} ms | click {click:5.2f} "
+            "level {level:6.1f} dB rise {rise:+5.1f} dB jump {jump:+6.1f} Hz "
+            "gap rise {gap_rise:+5.1f} dB | score {score:.2f} {outcome}",
+            time=frame / config.fps,
+            position=KIND_NAMES[kind[i]],
+            offset=1000 * offset[i],
+            click=click[i],
+            level=level_db[i],
+            rise=rise_db[i],
+            jump=pitch_jump[i],
+            gap_rise=gap_rise_db[i],
+            score=shown[i],
+            outcome=outcome[i],
+        )
+    return detection
 
 
 def detect_kicks(path: str | Path, config: DetectorConfig | None = None) -> Detection:

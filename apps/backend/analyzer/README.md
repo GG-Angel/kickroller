@@ -7,15 +7,27 @@ Requires [uv](https://docs.astral.sh/uv/) and `ffmpeg` on `PATH` (it decodes any
 ## Usage
 
 ```sh
-uv run analyzer "track.m4a"                         # CSV to stdout, one "time,confidence" per line
-uv run analyzer "track.m4a" -o kicks.csv            # CSV file (Sonic Visualiser can import it)
-uv run analyzer "track.m4a" -f json -o kicks.json   # {"file": "track.m4a", "beats": [...], "kicks": [{"time": ..., "confidence": ...}]}
-uv run analyzer "track.m4a" -b beats.csv            # also write the beat grid, one time per line
-uv run analyzer "track.m4a" -c 0.5                  # only kicks with a confidence of at least 0.5 (default: 0.1)
-uv run analyzer "track.m4a" --sonify check.wav      # also write the track with a click at each kick (louder = more confident)
+uv run analyzer analyze "track.m4a"                         # CSV to stdout, one "time,confidence" per line
+uv run analyzer analyze "track.m4a" -o kicks.csv            # CSV file (Sonic Visualiser can import it)
+uv run analyzer analyze "track.m4a" -f json -o kicks.json   # {"file": "track.m4a", "beats": [...], "kicks": [{"time": ..., "confidence": ...}]}
+uv run analyzer analyze "track.m4a" -b beats.csv            # also write the beat grid, one time per line
+uv run analyzer analyze "track.m4a" -c 0.5                  # only kicks with a confidence of at least 0.5 (default: 0.1)
+uv run analyzer analyze "track.m4a" --sonify check.wav      # also write the track with a click at each kick (louder = more confident)
+uv run analyzer analyze "track.m4a" -v                      # show the pipeline steps (-vv: also one line per candidate attack)
+uv run analyzer analyze "track.m4a" -q                      # only show warnings and errors
 ```
 
-The first run downloads the beat_this model (about 78 MB) to the PyTorch cache.
+The first run downloads the beat_this model (about 78 MB) to the PyTorch cache. Run `uv run analyzer analyze --help` for all options.
+
+Logs go to standard error ([loguru](https://github.com/Delgan/loguru)), so standard output only has the result. The package is silent when you import it as a library; call `logger.enable("analyzer")` to see its logs.
+
+## Development
+
+```sh
+uv run ruff format   # format
+uv run ruff check    # lint
+uv run ty check      # type check
+```
 
 ## Method
 

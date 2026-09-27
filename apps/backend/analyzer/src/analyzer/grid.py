@@ -1,11 +1,15 @@
+from time import perf_counter
+
 import numpy as np
 from beat_this.inference import Audio2Beats
+from loguru import logger
 
 BEAT, EIGHTH, SIXTEENTH, TRIPLET = range(4)
 
 # Grid positions inside one beat, as a fraction of the beat, and their kinds.
 POSITIONS = np.array([0.0, 1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4, 1.0])
 KINDS = np.array([BEAT, SIXTEENTH, TRIPLET, EIGHTH, TRIPLET, SIXTEENTH, BEAT])
+KIND_NAMES = ("beat", "1/8", "1/16", "triplet")
 
 
 def track_beats(
@@ -16,9 +20,19 @@ def track_beats(
     Returns no beats for signals shorter than 1 s (beat_this fails on very short input).
     """
     if len(signal) < sample_rate:
+        logger.warning("Signal is shorter than 1 s; no beats")
         return np.empty(0)
+    logger.debug(
+        "Tracking beats with beat_this ({checkpoint} model, CPU)", checkpoint=checkpoint
+    )
+    start = perf_counter()
     beats, _ = Audio2Beats(checkpoint_path=checkpoint, device="cpu", dbn=False)(
         signal, sample_rate
+    )
+    logger.debug(
+        "beat_this found {count} beats in {seconds:.1f} s",
+        count=len(beats),
+        seconds=perf_counter() - start,
     )
     return np.asarray(beats, dtype=float)
 
@@ -34,10 +48,20 @@ def regularize_beats(
     """
     beats = np.sort(np.asarray(beats, dtype=float))
     if len(beats) < 2:
+        logger.warning("Fewer than 2 beats; no beat grid")
         return beats
     period = float(np.median(np.diff(beats)))
     target = 60.0 / np.sqrt(min_bpm * max_bpm)
-    period *= 2.0 ** round(np.log2(target / period))
+    octaves = round(np.log2(target / period))
+    if octaves:
+        logger.debug(
+            "Median beat interval is {bpm:.1f} BPM; "
+            "moved by {octaves:+d} octave(s) to {folded:.1f} BPM",
+            bpm=60.0 / period,
+            octaves=octaves,
+            folded=60.0 / (period * 2.0**octaves),
+        )
+    period *= 2.0**octaves
 
     kept = [beats[0]]
     for beat in beats[1:]:
@@ -56,6 +80,15 @@ def regularize_beats(
     before = filled[0] - period * np.arange(int(np.ceil(filled[0] / period)), 0, -1)
     after = filled[-1] + period * np.arange(
         1, int(np.ceil((duration - filled[-1]) / period)) + 1
+    )
+    logger.info(
+        "Beat grid: {bpm:.2f} BPM, {count} beats ({removed} extra beats removed, "
+        "{filled} skipped beats filled, {edges} added at the edges)",
+        bpm=60.0 / period,
+        count=len(filled) + len(before) + len(after),
+        removed=len(beats) - len(kept),
+        filled=len(filled) - len(kept),
+        edges=len(before) + len(after),
     )
     return np.concatenate([before, filled, after])
 

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pyloudnorm
+from loguru import logger
 
 SAMPLE_RATE = 44100
 TARGET_LUFS = -14.0
@@ -34,12 +35,19 @@ def load_mid(path: str | Path, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
         "-acodec", "pcm_f32le",
         "-",
     ]  # fmt: skip
+    logger.debug("Decoding {path} with ffmpeg", path=path)
     proc = subprocess.run(cmd, capture_output=True, check=False)
     if proc.returncode != 0:
         message = proc.stderr.decode(errors="replace").strip()
         raise RuntimeError(f"ffmpeg could not decode {path}: {message}")
 
     stereo = np.frombuffer(proc.stdout, dtype="<f4").reshape(-1, 2)
+    logger.info(
+        "Decoded {name}: {seconds:.1f} s at {rate} Hz",
+        name=path.name,
+        seconds=len(stereo) / sample_rate,
+        rate=sample_rate,
+    )
     return stereo.mean(axis=1)
 
 
@@ -49,8 +57,20 @@ def normalize_loudness(
     """Scale `signal` to an integrated loudness of `target_lufs` (ITU-R BS.1770)."""
     meter = pyloudnorm.Meter(sample_rate)
     if len(signal) < int(meter.block_size * sample_rate):
+        logger.warning(
+            "Signal is shorter than {block:g} s; loudness is not normalized",
+            block=meter.block_size,
+        )
         return signal
     loudness = meter.integrated_loudness(signal)
     if not np.isfinite(loudness):
+        logger.warning("Signal is silent; loudness is not normalized")
         return signal
-    return signal * 10.0 ** ((target_lufs - loudness) / 20.0)
+    gain_db = target_lufs - loudness
+    logger.debug(
+        "Loudness {loudness:.1f} LUFS; gain {gain:+.1f} dB to {target:.1f} LUFS",
+        loudness=loudness,
+        gain=gain_db,
+        target=target_lufs,
+    )
+    return signal * 10.0 ** (gain_db / 20.0)
