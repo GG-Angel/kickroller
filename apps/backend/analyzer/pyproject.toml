@@ -1,7 +1,23 @@
 [project]
 name = "analyzer"
 version = "0.1.0"
-description = "Add your description here"
+description = "Kick onset detection for rawstyle tracks"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "numpy>=2.5.3",
+    "pyloudnorm>=0.2.0",
+    "scipy>=1.18.1",
+]
+
+[project.scripts]
+analyzer = "analyzer.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.9.5,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.9",
+]
