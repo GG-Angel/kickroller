@@ -36,6 +36,14 @@ The first run decodes the samples to `models/bank/` (about 0.7 GB for 3000 sampl
 
 Good samples: complete kick one-shots with one kick each (no kick rolls), 160 BPM loops that start on a bar and have no kicks and no sub-bass (screeches, atmospheres, top loops, fills; no drum loops, full mixes or bass stems), and one-shots without a kick layer.
 
+To check the training data, write some synthetic drops and listen to them:
+
+```sh
+uv run analyzer synth bank.toml -n 8 -v   # to models/drops/ (git-ignored)
+```
+
+Each drop gives `drop_000.wav`, `drop_000.csv` (the exact kick onsets, one time in seconds per line, for example for Sonic Visualiser), `drop_000.clicks.wav` (a click at each kick onset) and `drop_000.json` (the onsets, the sample files and the mix settings). With `-v`, the log also shows the sample files of each drop. Options: `-o` (the output folder), `--seed`, `--held-out` (only held-out kick designs; with the training seed, these are the validation drops) and `--cache`.
+
 ## Development
 
 ```sh
