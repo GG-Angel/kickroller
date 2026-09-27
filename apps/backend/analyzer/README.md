@@ -47,11 +47,12 @@ uv run ty check      # type check
    Clear hardstyle kicks (new kick body or restart) score near 1. Kicks with only the capped "maybe" evidence score below 0.5.
 
 6. Grid positions, with search windows of +/-40 ms (beat), +/-30 ms (1/8) and +/-15 ms (1/16 at 1/4 and 3/4 of a beat, triplet at 1/3 and 2/3). First the beats are checked. Each beat then moves to its kick if that kick scores at least 0.5 (beat_this gives beats in 20 ms steps), and the other beats move by the median shift. Then the off-beat positions are checked between the moved beats. At each position, the highest-scoring candidate is kept. In each beat, the straight (1/8, 1/16) or the triplet kicks are kept, whichever has the higher best score.
-7. Drop kicks below the minimum confidence (default 0.1), then remove kicks closer than 40 ms to a higher-scoring kick. The output is the detected onset time, not the grid time.
-8. Beat output: the moved beats from step 6 that are inside the track. A beat with a confident kick is at the kick onset; the other beats are the beat_this beats moved by the median shift.
+7. Klaplong kicks: a punch with no bass (low band <= -20 dB after the click), then the bass half a beat later (+/-30 ms; low band >= -10 dB). The bass swells in between the two clicks, so neither click has a rise of its own (< 6 dB). The pair is one kick at the punch: the punch gets the confidence of the bass part if that is higher, and the confidence of the bass part is multiplied by (1 - the pair score).
+8. Drop kicks below the minimum confidence (default 0.1), then remove kicks closer than 40 ms to a higher-scoring kick. The output is the detected onset time, not the grid time.
+9. Beat output: the moved beats from step 6 that are inside the track. A beat with a confident kick is at the kick onset; the other beats are the beat_this beats moved by the median shift.
 
 This rejects attacks inside a kick tail (tail gating, screeches, claps) and all attacks off the grid.
 
-Known limits: the output is only as good as the beat grid; a wrong beat phase or tempo gives wrong kicks, and kicks off the grid are lost. Kicks closer than about 60 ms can fail the low-band check. The thresholds and the confidence are tuned by ear on two tracks only; the confidence ranks kicks but is not a calibrated probability.
+Known limits: the output is only as good as the beat grid; a wrong beat phase or tempo gives wrong kicks, and kicks off the grid are lost. Kicks closer than about 60 ms can fail the low-band check. The thresholds and the confidence are tuned by ear on two tracks only (the klaplong rule on one track); the confidence ranks kicks but is not a calibrated probability.
 
 Audio files must never be committed (see `.gitignore`).

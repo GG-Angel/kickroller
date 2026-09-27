@@ -85,6 +85,13 @@ class DetectorConfig:
     strong_threshold: float = 1.8
     strong_cap: float = 0.3
 
+    # Klaplong kicks: a punch with no bass, then the bass half a beat later. The
+    # bass swells in between the two clicks, so neither click has a low-band rise
+    # of its own (below min_low_rise_db). The bass part is not a new kick: its
+    # confidence moves to the punch.
+    klaplong_punch_level_db: float = -20.0  # the punch: low band at most this
+    klaplong_bass_level_db: float = -10.0  # the bass part: low band at least this
+
     @property
     def fps(self) -> float:
         return self.sample_rate / self.hop
@@ -182,6 +189,43 @@ def strongest_per_key(keys: np.ndarray, strength: np.ndarray) -> np.ndarray:
 
 def beats_in_track(beats: np.ndarray, duration: float) -> np.ndarray:
     return beats[(beats >= 0.0) & (beats <= duration)]
+
+
+def merge_klaplong(
+    times: np.ndarray,
+    level_db: np.ndarray,
+    rise_db: np.ndarray,
+    confidence: np.ndarray,
+    grid: np.ndarray,
+    config: DetectorConfig,
+) -> np.ndarray:
+    """Kick confidence after merging the parts of klaplong kicks.
+
+    A klaplong kick is a punch with no bass, then the bass half a beat later.
+    For each such pair, the bass part moves its confidence to the punch. The
+    kicks must be sorted by time and `grid` must have at least 2 beats.
+    """
+    if len(times) < 2:
+        return confidence
+    interval = np.clip(np.searchsorted(grid, times, side="right") - 1, 0, len(grid) - 2)
+    target = times + 0.5 * (grid[interval + 1] - grid[interval])
+    bass = np.clip(np.searchsorted(times, target), 1, len(times) - 1)
+    bass -= np.abs(times[bass - 1] - target) < np.abs(times[bass] - target)
+    klaplong = (
+        (np.abs(times[bass] - target) <= config.eighth_window)
+        * soft_at_least(-level_db, -config.klaplong_punch_level_db, config.db_width)
+        * soft_at_least(-rise_db, -config.min_low_rise_db, config.db_width)
+        * soft_at_least(level_db[bass], config.klaplong_bass_level_db, config.db_width)
+        * soft_at_least(-rise_db[bass], -config.min_low_rise_db, config.db_width)
+    )
+    merged = np.maximum(confidence, klaplong * confidence[bass])
+    share = np.ones(len(times))
+    np.minimum.at(share, bass, 1.0 - klaplong)
+    logger.debug(
+        "Klaplong: {pairs} punches with the bass half a beat later",
+        pairs=np.count_nonzero(klaplong >= 0.5),
+    )
+    return merged * share
 
 
 def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detection:
@@ -315,7 +359,14 @@ def detect_kicks_in_signal(signal: np.ndarray, config: DetectorConfig) -> Detect
     off_beat = off_beat[chosen]
 
     kicks = np.concatenate([beat_kicks, off_beat])
-    confidence = np.concatenate([scores[BEAT, beat_kicks], score[off_beat]])
+    kicks = kicks[np.argsort(times[kicks])]
+    confidence = np.where(np.isin(kicks, beat_kicks), scores[BEAT, kicks], score[kicks])
+
+    # 5. Klaplong kicks: the bass part half a beat after a punch is not a new kick.
+    confidence = merge_klaplong(
+        times[kicks], level_db[kicks], rise_db[kicks], confidence, anchors, config
+    )
+
     keep = confidence >= config.min_confidence
     kicks, confidence = kicks[keep], confidence[keep]
     kept = enforce_min_distance(
