@@ -1,3 +1,5 @@
+"""Audio in and out: decoding, the mid channel, loudness and WAV files."""
+
 import shutil
 import subprocess
 from pathlib import Path
@@ -5,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pyloudnorm
 from loguru import logger
+from scipy.io import wavfile
 
 SAMPLE_RATE = 44100
 TARGET_LUFS = -14.0
@@ -80,3 +83,7 @@ def normalize_loudness(
         target=target_lufs,
     )
     return signal * 10.0 ** (gain_db / 20.0)
+
+
+def write_wav(path: str | Path, signal: np.ndarray, sample_rate: int) -> None:
+    wavfile.write(path, sample_rate, signal.astype(np.float32))

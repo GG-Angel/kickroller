@@ -9,10 +9,12 @@ from loguru import logger
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, IterableDataset, get_worker_info
 
-from analyzer.bank import BankConfig, build_bank, load_bank
-from analyzer.model import KickNet, ModelConfig, save_model
-from analyzer.peaks import enforce_min_distance, local_peaks
-from analyzer.synth import Catalog, Drop, make_drop
+from analyzer.detection.peaks import enforce_min_distance, local_peaks
+from analyzer.model.checkpoint import save_model
+from analyzer.model.features import ModelConfig
+from analyzer.model.network import KickNet
+from analyzer.training.bank import BankConfig, build_bank, load_bank
+from analyzer.training.synth import Catalog, Drop, make_drop
 
 VALIDATION_DROPS = 200
 STATS_DROPS = 64

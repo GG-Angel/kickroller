@@ -1,6 +1,6 @@
 from loguru import logger
 
-from analyzer.detect import (
+from analyzer.detection.detector import (
     Detection,
     DetectorConfig,
     detect_kicks,

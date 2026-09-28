@@ -52,6 +52,16 @@ uv run ruff check    # lint
 uv run ty check      # type check
 ```
 
+The code in `src/analyzer/` is in five packages. Each package only uses the packages before it in this list:
+
+1. `audio/`: decoding with ffmpeg, the mid channel, loudness and WAV files (`io.py`), and click tracks (`sonify.py`).
+2. `model/`: the kick CNN. The input features (`features.py`), the network (`network.py`), and how to save, load and run a model (`checkpoint.py`).
+3. `detection/`: from a track to kicks and beats. The pipeline (`detector.py`), the beat grid (`grid.py`) and peak picking (`peaks.py`).
+4. `training/`: the sample bank (`bank.py`), the synthetic drops (`synth.py`) and the training loop (`train.py`).
+5. `cli/`: one module for each command (`analyze.py`, `train.py`, `synth.py`), and the shared options and logging (`options.py`).
+
+As a library, `analyzer` exports `detect_kicks`, `detect_kicks_in_signal`, `Detection` and `DetectorConfig`.
+
 ## Method
 
 1. Decode with ffmpeg to 44.1 kHz, mid channel (L+R)/2.
@@ -63,9 +73,9 @@ uv run ty check      # type check
 
 ### Kick model
 
-`model.py`: log-magnitude spectrograms at three window sizes (1024, 2048 and 4096 samples: 23, 46 and 93 ms), 80 mel bands from 27.5 Hz to 16 kHz, 10 ms hop, standardized per band with training statistics. Three 3x3 convolution layers (16, 32 and 32 channels, frequency max-pooling) read the spectrum. Six residual dilated 1D convolution layers (64 channels, dilations 1, 2, 4, 8, 16, 8) add +/-420 ms of context, about one beat on each side. About 110k parameters, one sigmoid output per frame.
+`model/`: log-magnitude spectrograms at three window sizes (1024, 2048 and 4096 samples: 23, 46 and 93 ms), 80 mel bands from 27.5 Hz to 16 kHz, 10 ms hop, standardized per band with training statistics. Three 3x3 convolution layers (16, 32 and 32 channels, frequency max-pooling) read the spectrum. Six residual dilated 1D convolution layers (64 channels, dilations 1, 2, 4, 8, 16, 8) add +/-420 ms of context, about one beat on each side. About 110k parameters, one sigmoid output per frame.
 
-`synth.py`: each training example is a synthetic 12 s drop (8 bars at 160 BPM):
+`training/synth.py`: each training example is a synthetic 12 s drop (8 bars at 160 BPM):
 
 - One kick design (all pitched versions of one kick), with a new key every two bars. Each kick cuts the tail of the one before it.
 - Kick patterns: beats, 1/8 off-beats, missing beats, single 1/16 and triplet kicks, and rolls of 1, 2 or 4 beats (1/16, triplets or 1/8) at bar ends. Some bars and drops have no kicks.
@@ -74,7 +84,7 @@ uv run ty check      # type check
 
 The targets are the exact kick onsets (the frame of the onset is 1, its two neighbors 0.5), with binary cross-entropy loss. 10% of the kick designs are held out (split by design, not by file, because the pitched versions are near-duplicates); 200 drops made from them are the validation set.
 
-`bank.py` reads the bank config, lists its samples and decodes them once to a memory-mapped cache.
+`training/bank.py` reads the bank config, lists its samples and decodes them once to a memory-mapped cache.
 
 Known limits: the output is only as good as the beat grid; a wrong beat phase or tempo gives wrong kicks, and kicks off the grid are lost. The model learns only from synthetic drops; real mixes (reverb, layered kicks, other genres) can differ. The confidence ranks kicks but is not a calibrated probability.
 

@@ -14,8 +14,8 @@ import pyloudnorm
 from scipy.ndimage import maximum_filter1d, uniform_filter1d
 from scipy.signal import butter, lfilter, sosfilt
 
-from analyzer.audio import SAMPLE_RATE, TARGET_LUFS
-from analyzer.bank import Bank, is_held_out
+from analyzer.audio.io import SAMPLE_RATE, TARGET_LUFS
+from analyzer.training.bank import Bank, is_held_out
 
 BPM = 160.0
 BEAT = 60.0 / BPM

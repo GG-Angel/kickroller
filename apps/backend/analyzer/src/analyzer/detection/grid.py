@@ -1,3 +1,5 @@
+"""The beat grid from beat_this, and the kick positions in a beat."""
+
 from time import perf_counter
 
 import numpy as np

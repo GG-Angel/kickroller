@@ -1,3 +1,5 @@
+"""The detection pipeline: beat grid, kick model, peak picking and grid positions."""
+
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
@@ -5,8 +7,8 @@ from time import perf_counter
 import numpy as np
 from loguru import logger
 
-from analyzer.audio import SAMPLE_RATE, TARGET_LUFS, load_mid, normalize_loudness
-from analyzer.grid import (
+from analyzer.audio.io import SAMPLE_RATE, TARGET_LUFS, load_mid, normalize_loudness
+from analyzer.detection.grid import (
     BEAT,
     KIND_NAMES,
     KINDS,
@@ -16,8 +18,9 @@ from analyzer.grid import (
     regularize_beats,
     track_beats,
 )
-from analyzer.model import DEFAULT_MODEL, KickNet, kick_activation, load_model
-from analyzer.peaks import enforce_min_distance, local_peaks
+from analyzer.detection.peaks import enforce_min_distance, local_peaks
+from analyzer.model.checkpoint import DEFAULT_MODEL, kick_activation, load_model
+from analyzer.model.network import KickNet
 
 
 @dataclass(frozen=True)

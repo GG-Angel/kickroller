@@ -23,7 +23,7 @@ from pathlib import Path
 import numpy as np
 from loguru import logger
 
-from analyzer.audio import SAMPLE_RATE, decode_mid
+from analyzer.audio.io import SAMPLE_RATE, decode_mid
 
 KINDS = ("kick", "loop", "clap", "impact", "hit")
 AUDIO_SUFFIXES = (".wav", ".aif", ".aiff", ".flac", ".mp3", ".ogg", ".m4a")

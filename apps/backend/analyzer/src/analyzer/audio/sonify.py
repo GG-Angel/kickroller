@@ -1,7 +1,6 @@
-from pathlib import Path
+"""Click tracks: the audio with a click at each kick, to check kicks by ear."""
 
 import numpy as np
-from scipy.io import wavfile
 
 CLICK_HZ = 2000.0
 CLICK_SECONDS = 0.06
@@ -39,7 +38,3 @@ def sonify(
         out[start:stop] += level * burst[: stop - start]
     peak = float(np.max(np.abs(out), initial=0.0))
     return out / peak if peak > 1.0 else out
-
-
-def write_wav(path: str | Path, signal: np.ndarray, sample_rate: int) -> None:
-    wavfile.write(path, sample_rate, signal.astype(np.float32))

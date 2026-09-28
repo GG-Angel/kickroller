@@ -1,3 +1,5 @@
+"""Peak picking on a frame activation."""
+
 import numpy as np
 from scipy.ndimage import maximum_filter1d
 
