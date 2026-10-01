@@ -26,7 +26,7 @@ from pathlib import Path
 import numpy as np
 from loguru import logger
 
-from analyzer.audio.io import SAMPLE_RATE, decode_mid
+from analyzer.audio.io import SAMPLE_RATE, decode_mid_channel
 
 KINDS = ("kick", "loop", "clap", "impact", "hit")
 AUDIO_SUFFIXES = (".wav", ".aif", ".aiff", ".flac", ".mp3", ".ogg", ".m4a")
@@ -40,6 +40,9 @@ KEY_SUFFIX = re.compile(
 # The longest loop, kick and hit, in seconds.
 MAX_LOOP_SECONDS = 24.0
 MAX_ONESHOT_SECONDS = 2.0
+MAX_STRETCH = 2.0  # a `bpm` tempo is BPM / this to BPM * this (more loses quality)
+SILENCE_LEVEL = 0.01  # a one-shot starts at this fraction of its peak (-40 dB)
+HASH_BUCKETS = 1000  # the held-out fraction is rounded to 1 / HASH_BUCKETS
 
 INDEX, AUDIO = "index.json", "audio.npy"
 
@@ -60,12 +63,12 @@ class Bank:
     offsets: np.ndarray  # start of each sample in `audio`, and the end
     samples: list[Sample]
 
-    def get(self, index: int) -> np.ndarray:
+    def get_audio(self, index: int) -> np.ndarray:
         return self.audio[self.offsets[index] : self.offsets[index + 1]].astype(
             np.float32
         )
 
-    def indices(self, kind: str) -> np.ndarray:
+    def get_indices(self, kind: str) -> np.ndarray:
         return np.array(
             [i for i, s in enumerate(self.samples) if s.kind == kind], dtype=int
         )
@@ -87,7 +90,7 @@ class BankConfig:
     designs: tuple[str, ...] = ()  # globs of folders that each hold one kick design
 
 
-def globs(value: object, where: str) -> tuple[str, ...]:
+def parse_globs(value: object, where: str) -> tuple[str, ...]:
     if isinstance(value, str):
         return (value,)
     if isinstance(value, list) and all(isinstance(v, str) for v in value):
@@ -95,18 +98,17 @@ def globs(value: object, where: str) -> tuple[str, ...]:
     raise ValueError(f"{where} must be a glob or a list of globs")
 
 
-def tempos(value: object, kind: str) -> tuple[tuple[str, float], ...]:
-    """The `bpm` table of a kind. Tempos are BPM/2 to 2*BPM, a stretch that keeps quality."""
+def parse_tempos(value: object, kind: str) -> tuple[tuple[str, float], ...]:
+    """The `bpm` table of a kind. Tempos are BPM / MAX_STRETCH to BPM * MAX_STRETCH."""
+    low, high = BPM / MAX_STRETCH, BPM * MAX_STRETCH
     if isinstance(value, dict) and all(
-        isinstance(v, int | float)
-        and not isinstance(v, bool)
-        and BPM / 2 <= v <= 2 * BPM
+        isinstance(v, int | float) and not isinstance(v, bool) and low <= v <= high
         for v in value.values()
     ):
         return tuple((str(glob), float(bpm)) for glob, bpm in value.items())
     raise ValueError(
-        f"[{kind}] bpm must be a table of globs and tempos from {BPM / 2:.0f} "
-        f'to {2 * BPM:.0f}, for example {{ "loops/150/*" = 150 }}'
+        f"[{kind}] bpm must be a table of globs and tempos from {low:.0f} "
+        f'to {high:.0f}, for example {{ "loops/150/*" = 150 }}'
     )
 
 
@@ -132,24 +134,24 @@ def read_config(path: Path) -> BankConfig:
         except (re.error, TypeError) as error:
             raise ValueError(f"[{kind}] exclude: {error}") from error
         sources[kind] = Source(
-            globs(table.get("files", []), f"[{kind}] files"),
+            parse_globs(table.get("files", []), f"[{kind}] files"),
             exclude,
-            tempos(table["bpm"], kind) if "bpm" in table else (),
+            parse_tempos(table["bpm"], kind) if "bpm" in table else (),
         )
     if not sources["kick"].files:
         raise ValueError("[kick] has no files")
     root = path.parent / Path(data.get("root", ".")).expanduser()
-    designs = globs(data.get("kick", {}).get("designs", []), "[kick] designs")
+    designs = parse_globs(data.get("kick", {}).get("designs", []), "[kick] designs")
     return BankConfig(root, sources, designs)
 
 
-def design_name(path: Path) -> str:
+def infer_design_name(path: Path) -> str:
     """The folder and the file name without its key suffix ("KICK 3_F#" is "KICK 3")."""
     stem = KEY_SUFFIX.sub("", path.stem.lstrip("_")).upper()
     return f"{path.parent.as_posix()}/{stem}"
 
 
-def catalog(config: BankConfig) -> list[Sample]:
+def find_samples(config: BankConfig) -> list[Sample]:
     """All samples of the config, sorted by path.
 
     A file found for more than one kind gets the first kind in KINDS. The design
@@ -164,13 +166,13 @@ def catalog(config: BankConfig) -> list[Sample]:
         if folder.is_dir()
     }
 
-    def design(path: Path) -> str:
+    def find_design(path: Path) -> str:
         folder = next((p for p in path.parents if p in folders), None)
-        return folder.as_posix() if folder else design_name(path)
+        return folder.as_posix() if folder else infer_design_name(path)
 
     matched: set[tuple[str, str]] = set()
 
-    def tempo(path: Path, kind: str) -> float | None:
+    def find_tempo(path: Path, kind: str) -> float | None:
         """The tempo of a file from the first matching `bpm` glob, if not BPM."""
         for pattern, bpm in config.sources[kind].tempos:
             if path.full_match(pattern, case_sensitive=False):
@@ -194,9 +196,9 @@ def catalog(config: BankConfig) -> list[Sample]:
                     continue
                 found[name] = Sample(
                     kind,
-                    design(relative) if kind == "kick" else name,
+                    find_design(relative) if kind == "kick" else name,
                     name,
-                    tempo(relative, kind),
+                    find_tempo(relative, kind),
                 )
     for kind, source in config.sources.items():
         for pattern, _ in source.tempos:
@@ -211,15 +213,15 @@ def catalog(config: BankConfig) -> list[Sample]:
 
 def is_held_out(design: str, fraction: float) -> bool:
     """A fixed choice of about `fraction` of the designs, from the design name."""
-    return zlib.crc32(design.encode()) % 1000 < fraction * 1000
+    return zlib.crc32(design.encode()) % HASH_BUCKETS < fraction * HASH_BUCKETS
 
 
-def trim(signal: np.ndarray, kind: str, sample_rate: int) -> np.ndarray:
+def trim_sample(signal: np.ndarray, kind: str, sample_rate: int) -> np.ndarray:
     """Remove leading silence of one-shots (so time zero is the attack) and cut to length."""
     if kind == "loop":
         return signal[: int(MAX_LOOP_SECONDS * sample_rate)]
     peak = float(np.max(np.abs(signal), initial=0.0))
-    loud = np.flatnonzero(np.abs(signal) >= 0.01 * peak)
+    loud = np.flatnonzero(np.abs(signal) >= SILENCE_LEVEL * peak)
     start = int(loud[0]) if len(loud) else 0
     return signal[start : start + int(MAX_ONESHOT_SECONDS * sample_rate)]
 
@@ -239,7 +241,7 @@ def build_bank(config: BankConfig, cache: Path, workers: int = 8) -> Bank:
     root = config.root
     if not root.is_dir():
         raise FileNotFoundError(f"the bank root {root} is not a folder")
-    samples = catalog(config)
+    samples = find_samples(config)
     if (cache / INDEX).exists() and (cache / AUDIO).exists():
         bank = load_bank(cache)
         if bank.samples == samples:
@@ -273,13 +275,13 @@ def build_bank(config: BankConfig, cache: Path, workers: int = 8) -> Bank:
             bpm=BPM,
         )
 
-    def decode(sample: Sample) -> np.ndarray:
+    def decode_sample(sample: Sample) -> np.ndarray:
         tempo = BPM / sample.bpm if sample.bpm is not None else 1.0
-        signal = decode_mid(root / sample.path, SAMPLE_RATE, tempo)
-        return trim(signal, sample.kind, SAMPLE_RATE).astype(np.float16)
+        signal = decode_mid_channel(root / sample.path, SAMPLE_RATE, tempo)
+        return trim_sample(signal, sample.kind, SAMPLE_RATE).astype(np.float16)
 
     with ThreadPoolExecutor(workers) as pool:
-        decoded = list(pool.map(decode, samples))
+        decoded = list(pool.map(decode_sample, samples))
     offsets = np.concatenate([[0], np.cumsum([len(d) for d in decoded])])
     cache.mkdir(parents=True, exist_ok=True)
     np.save(cache / AUDIO, np.concatenate(decoded))

@@ -6,16 +6,20 @@ import numpy as np
 from beat_this.inference import Audio2Beats
 from loguru import logger
 
+MIN_SIGNAL_SECONDS = 1.0  # beat_this fails on shorter input
+
 
 def track_beats(
     signal: np.ndarray, sample_rate: int, checkpoint: str = "final0"
 ) -> np.ndarray:
     """Beat times in seconds from the beat_this model (downloaded on first use).
 
-    Returns no beats for signals shorter than 1 s (beat_this fails on very short input).
+    Returns no beats for signals shorter than MIN_SIGNAL_SECONDS.
     """
-    if len(signal) < sample_rate:
-        logger.warning("Signal is shorter than 1 s; no beats")
+    if len(signal) < MIN_SIGNAL_SECONDS * sample_rate:
+        logger.warning(
+            "Signal is shorter than {seconds:g} s; no beats", seconds=MIN_SIGNAL_SECONDS
+        )
         return np.empty(0)
     logger.debug(
         "Tracking beats with beat_this ({checkpoint} model, CPU)", checkpoint=checkpoint
@@ -33,13 +37,18 @@ def track_beats(
 
 
 def regularize_beats(
-    beats: np.ndarray, duration: float, min_bpm: float, max_bpm: float
+    beats: np.ndarray,
+    duration: float,
+    min_bpm: float,
+    max_bpm: float,
+    min_interval: float,
 ) -> np.ndarray:
     """Remove extra beats, fill skipped beats and extend the beats over the full track.
 
     The beat period is the median beat interval, moved by octaves to the
-    `min_bpm`-`max_bpm` range. The result starts at or before 0 s and ends at or
-    after `duration`. Returns the beats unchanged if there are fewer than 2.
+    `min_bpm`-`max_bpm` range. A beat closer than `min_interval` beat periods to
+    the beat before it is extra. The result starts at or before 0 s and ends at
+    or after `duration`. Returns the beats unchanged if there are fewer than 2.
     """
     beats = np.sort(np.asarray(beats, dtype=float))
     if len(beats) < 2:
@@ -60,7 +69,7 @@ def regularize_beats(
 
     kept = [beats[0]]
     for beat in beats[1:]:
-        if beat - kept[-1] >= 0.75 * period:
+        if beat - kept[-1] >= min_interval * period:
             kept.append(beat)
 
     filled = [kept[0]]

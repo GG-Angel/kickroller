@@ -8,6 +8,7 @@ import typer
 
 from analyzer.cli.options import (
     MODELS,
+    SETTINGS,
     BankConfigFile,
     Cache,
     Quiet,
@@ -17,11 +18,16 @@ from analyzer.cli.options import (
 from analyzer.model.checkpoint import DEFAULT_MODEL
 from analyzer.training.bank import read_config
 
+DEFAULTS = SETTINGS.training
+
 
 class Device(StrEnum):
     mps = "mps"
     cuda = "cuda"
     cpu = "cpu"
+
+
+DEFAULT_DEVICE = Device(DEFAULTS.device)
 
 
 def train(
@@ -33,18 +39,18 @@ def train(
     cache: Cache = MODELS / "bank",
     steps: Annotated[
         int, typer.Option("--steps", min=1, help="Training steps.")
-    ] = 15000,
+    ] = DEFAULTS.steps,
     batch_size: Annotated[
         int, typer.Option("--batch-size", min=1, help="Drops per training step.")
-    ] = 16,
+    ] = DEFAULTS.batch_size,
     workers: Annotated[
         int,
         typer.Option("--workers", min=0, help="Processes that make training drops."),
-    ] = 10,
+    ] = DEFAULTS.workers,
     device: Annotated[
         Device, typer.Option("--device", help="Where to train the model.")
-    ] = Device.mps,
-    seed: Annotated[int, typer.Option("--seed", help="Random seed.")] = 0,
+    ] = DEFAULT_DEVICE,
+    seed: Annotated[int, typer.Option("--seed", help="Random seed.")] = DEFAULTS.seed,
     all_designs: Annotated[
         bool,
         typer.Option(
@@ -65,14 +71,14 @@ def train(
         bank = read_config(config)
     except ValueError as error:
         raise typer.BadParameter(str(error), param_hint="CONFIG") from error
-    train_model(
-        bank,
-        output,
-        cache,
-        steps=steps,
-        batch_size=batch_size,
-        workers=workers,
-        device=device.value,
-        seed=seed,
-        all_designs=all_designs,
+    training = DEFAULTS.model_copy(
+        update={
+            "steps": steps,
+            "batch_size": batch_size,
+            "workers": workers,
+            "device": device.value,
+            "seed": seed,
+        }
     )
+    settings = SETTINGS.model_copy(update={"training": training})
+    train_model(bank, output, cache, settings, all_designs)

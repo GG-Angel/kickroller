@@ -1,4 +1,4 @@
-"""Options and logging shared by the commands."""
+"""Options, settings and logging shared by the commands."""
 
 import sys
 from pathlib import Path
@@ -6,8 +6,10 @@ from typing import Annotated
 
 import typer
 from loguru import logger
+from pydantic import ValidationError
 
 from analyzer.model.checkpoint import DEFAULT_MODEL
+from analyzer.settings import Settings
 
 MODELS = DEFAULT_MODEL.parent
 
@@ -46,6 +48,19 @@ Cache = Annotated[
         help="Cache folder for the decoded samples (made on the first run).",
     ),
 ]
+
+
+def load_settings() -> Settings:
+    """The settings, or exit with the error if an ANALYZER_* value is not valid."""
+    try:
+        return Settings()
+    except ValidationError as error:
+        typer.echo(f"Settings error (ANALYZER_* or .env): {error}", err=True)
+        raise SystemExit(2) from error
+
+
+# The CLI option defaults come from these settings.
+SETTINGS = load_settings()
 
 
 def configure_logging(verbose: int, quiet: bool) -> None:

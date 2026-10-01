@@ -17,6 +17,9 @@ models/
 # The local sample bank config (see bank.example.toml).
 bank.toml
 
+# Local settings overrides (see README "Settings").
+.env
+
 # Python
 .venv/
 __pycache__/

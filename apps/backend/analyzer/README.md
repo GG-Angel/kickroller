@@ -32,7 +32,7 @@ The kick model learns from synthetic drops made from your own audio samples (not
 uv run analyzer train bank.toml -v   # about 20 min on an Apple M4 Max (MPS)
 ```
 
-The first run decodes the samples to `models/bank/` (about 0.7 GB for 3000 samples); a changed config decodes them again. The model with the best validation F-measure goes to `models/kick.pt`. Options: `--cache` (the decoded samples folder), `--steps` (default 15000), `--batch-size` (16), `--workers` (10 processes make the drops), `--device` (`mps`, `cuda` or `cpu`), `--seed` and `--all-designs` (also train on the held-out kick designs, for a final model after tuning; the validation F is then too high). `models/` is git-ignored: never commit samples, the bank or models.
+The first run decodes the samples to `models/bank/` (about 0.7 GB for 3000 samples); a changed config decodes them again. The model with the best validation F-measure goes to `models/kick.pt`. Options: `--cache` (the decoded samples folder), `--steps` (default 15000), `--batch-size` (16), `--workers` (10 processes make the drops), `--device` (`mps`, `cuda` or `cpu`), `--seed` and `--all-designs` (also train on the held-out kick designs, for a final model after tuning; the validation F is then too high). The option defaults and the other training values come from the [settings](#settings). `models/` is git-ignored: never commit samples, the bank or models.
 
 Good samples: complete kick one-shots with one kick each (no kick rolls), loops that start on a bar and have no kicks and no sub-bass (screeches, atmospheres, top loops, fills; no drum loops, full mixes or bass stems), and one-shots without a kick layer. Samples must be 160 BPM, or you give their tempo with `bpm` (any section, for example `[kick.bpm]`); then they are time-stretched to 160 BPM with the same pitch. This uses ffmpeg `atempo` (WSOLA), which keeps kick attacks sharp: on 155 BPM kicks the first 15 ms stay the same, and the model still finds each kick. Rubber Band smeared the attacks.
 
@@ -43,6 +43,21 @@ uv run analyzer synth bank.toml -n 8 -v   # to models/drops/ (git-ignored)
 ```
 
 Each drop gives `drop_000.wav`, `drop_000.csv` (the exact kick onsets, one time in seconds per line, for example for Sonic Visualiser), `drop_000.clicks.wav` (a click at each kick onset) and `drop_000.json` (the onsets, the sample files and the mix settings). With `-v`, the log also shows the sample files of each drop. Options: `-o` (the output folder), `--seed` (by default a new seed each run; the log shows it, so you can make the same drops again), `--held-out` (only held-out kick designs; with `--seed` set to the training seed, 0 by default, these are the validation drops) and `--cache`.
+
+## Settings
+
+All values that you can tune have a default in `src/analyzer/settings.py`, in four sections: `detector` (peak picking and the beat grid), `model` (the kick CNN for new models; a saved model keeps its own model settings), `training`, and `synth` (the random ranges and chances of the synthetic drops). To change a value without a code change, set an environment variable or write it in a `.env` file in this folder (git-ignored). The name is `ANALYZER_`, then the section and the field with `__` between them. Lists and tables are JSON:
+
+```sh
+ANALYZER_DETECTOR__MIN_CONFIDENCE=0.4
+ANALYZER_TRAINING__VALIDATION_DROPS=400
+ANALYZER_SYNTH__KICKS__ROLL_CHANCE=0.25
+ANALYZER_SYNTH__LOOPS__LEVEL_DB='[-20, 0]'                    # [low, high]
+ANALYZER_SYNTH__KICKS__ROLL_BEATS='{"1": 0.6, "2": 0.4}'      # {value: chance}; the chances add up to 1
+ANALYZER_SYNTH__TEMPOS='[[0.6, 160, 160], [0.4, 150, 170]]'   # [chance, low BPM, high BPM]
+```
+
+A command-line option (for example `-c` or `--steps`) changes its value for one run, and its default comes from these settings. A wrong value stops the command with an error: a wrong field name in a section, a range with the high value first, or chances that do not add up to 1. A wrong section name has no effect. Changes to the `synth` settings also change the drops that a seed gives.
 
 ## Development
 
@@ -60,7 +75,9 @@ The code in `src/analyzer/` is in five packages. Each package only uses the pack
 4. `training/`: the sample bank (`bank.py`), the synthetic drops (`synth.py`) and the training loop (`train.py`).
 5. `cli/`: one module for each command (`analyze.py`, `train.py`, `synth.py`), and the shared options and logging (`options.py`).
 
-As a library, `analyzer` exports `detect_kicks`, `detect_kicks_in_signal`, `Detection` and `DetectorConfig`.
+All packages can use `settings.py` (the [settings](#settings)). Values that are not settings are named constants at the top of their module.
+
+As a library, `analyzer` exports `detect_kicks`, `detect_kicks_in_signal`, `Detection`, `DetectorSettings` and `Settings`.
 
 ## Method
 

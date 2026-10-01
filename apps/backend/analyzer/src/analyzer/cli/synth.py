@@ -10,9 +10,10 @@ import typer
 from loguru import logger
 
 from analyzer.audio.io import SAMPLE_RATE, write_wav
-from analyzer.audio.sonify import sonify
+from analyzer.audio.sonify import mix_clicks
 from analyzer.cli.options import (
     MODELS,
+    SETTINGS,
     BankConfigFile,
     Cache,
     Quiet,
@@ -109,7 +110,9 @@ def synth(
     except ValueError as error:
         raise typer.BadParameter(str(error), param_hint="CONFIG") from error
     try:
-        catalog = Catalog(build_bank(bank_config, cache))
+        catalog = Catalog(
+            build_bank(bank_config, cache), SETTINGS.synth.held_out_fraction
+        )
     except (FileNotFoundError, RuntimeError) as error:
         logger.error("{error}", error=error)
         raise typer.Exit(code=1) from error
@@ -126,12 +129,12 @@ def synth(
     logger.info("Seed {seed}", seed=seed)
     rng = np.random.default_rng(seed)
     for i in range(count):
-        drop = make_drop(rng, catalog, held_out=held_out)
+        drop = make_drop(rng, catalog, SETTINGS.synth, held_out=held_out)
         name = f"drop_{i:03d}"
         write_wav(output / f"{name}.wav", drop.audio, SAMPLE_RATE)
         write_wav(
             output / f"{name}.clicks.wav",
-            sonify(drop.audio, drop.onsets, SAMPLE_RATE),
+            mix_clicks(drop.audio, drop.onsets, SAMPLE_RATE),
             SAMPLE_RATE,
         )
         (output / f"{name}.csv").write_text("".join(f"{t:.4f}\n" for t in drop.onsets))

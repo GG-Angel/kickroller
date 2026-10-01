@@ -9,17 +9,16 @@ from typing import Annotated
 import typer
 from loguru import logger
 
-from analyzer.audio.io import load_mid, normalize_loudness, write_wav
-from analyzer.audio.sonify import sonify
-from analyzer.cli.options import Quiet, Verbose, configure_logging
-from analyzer.detection.detector import (
-    Detection,
-    DetectorConfig,
-    detect_kicks_in_signal,
+from analyzer.audio.io import (
+    SAMPLE_RATE,
+    load_mid_channel,
+    normalize_loudness,
+    write_wav,
 )
+from analyzer.audio.sonify import mix_clicks
+from analyzer.cli.options import SETTINGS, Quiet, Verbose, configure_logging
+from analyzer.detection.detector import Detection, detect_kicks_in_signal
 from analyzer.model.checkpoint import DEFAULT_MODEL, load_model
-
-DEFAULTS = DetectorConfig()
 
 
 class OutputFormat(StrEnum):
@@ -27,17 +26,17 @@ class OutputFormat(StrEnum):
     json = "json"
 
 
-def format_csv(detection: Detection) -> str:
+def format_kicks_csv(detection: Detection) -> str:
     return "".join(
         f"{t:.3f},{c:.2f}\n" for t, c in zip(detection.kicks, detection.confidence)
     )
 
 
-def format_beats(detection: Detection) -> str:
+def format_beats_csv(detection: Detection) -> str:
     return "".join(f"{t:.3f}\n" for t in detection.beats)
 
 
-def format_json(path: Path, detection: Detection) -> str:
+def format_detection_json(path: Path, detection: Detection) -> str:
     beats = [round(float(t), 3) for t in detection.beats]
     kicks = [
         {"time": round(float(t), 3), "confidence": round(float(c), 2)}
@@ -77,7 +76,7 @@ def analyze(
             max=1.0,
             help="Only output kicks with at least this confidence.",
         ),
-    ] = DEFAULTS.min_confidence,
+    ] = SETTINGS.detector.min_confidence,
     beats: Annotated[
         Path | None,
         typer.Option(
@@ -106,21 +105,21 @@ def analyze(
     """Detect kick onsets and the beat grid in a rawstyle track."""
     configure_logging(verbose, quiet)
     start = perf_counter()
-    config = DetectorConfig(min_confidence=min_confidence)
-    logger.debug("Detector settings: {config}", config=config)
+    settings = SETTINGS.detector.model_copy(update={"min_confidence": min_confidence})
+    logger.debug("Detector settings: {settings}", settings=settings)
     try:
         model = load_model(model_path)
-        signal = load_mid(audio, config.sample_rate)
+        signal = load_mid_channel(audio)
     except (FileNotFoundError, RuntimeError) as error:
         logger.error("{error}", error=error)
         raise typer.Exit(code=1) from error
     logger.debug("Loaded the kick model from {path}", path=model_path)
-    detection = detect_kicks_in_signal(signal, model, config)
+    detection = detect_kicks_in_signal(signal, model, settings)
 
     text = (
-        format_json(audio, detection)
+        format_detection_json(audio, detection)
         if output_format is OutputFormat.json
-        else format_csv(detection)
+        else format_kicks_csv(detection)
     )
     if output:
         output.write_text(text)
@@ -130,22 +129,22 @@ def analyze(
     else:
         typer.echo(text, nl=False)
     if beats:
-        beats.write_text(format_beats(detection))
+        beats.write_text(format_beats_csv(detection))
         logger.info(
             "Wrote {count} beats to {path}", count=len(detection.beats), path=beats
         )
 
     if sonify_path:
-        normalized = normalize_loudness(signal, config.sample_rate, config.target_lufs)
+        normalized = normalize_loudness(signal)
         write_wav(
             sonify_path,
-            sonify(
+            mix_clicks(
                 normalized,
                 detection.kicks,
-                config.sample_rate,
+                SAMPLE_RATE,
                 confidence=detection.confidence,
             ),
-            config.sample_rate,
+            SAMPLE_RATE,
         )
         logger.info("Wrote the click track to {path}", path=sonify_path)
 

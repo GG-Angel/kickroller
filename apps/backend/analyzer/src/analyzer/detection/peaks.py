@@ -4,15 +4,19 @@ import numpy as np
 from scipy.ndimage import maximum_filter1d
 
 
-def local_peaks(odf: np.ndarray, threshold: float, local_max_frames: int) -> np.ndarray:
+def find_local_peaks(
+    activation: np.ndarray, threshold: float, local_max_frames: int
+) -> np.ndarray:
     """Frame indices that are the maximum within +/- `local_max_frames` and at least `threshold`."""
-    if len(odf) == 0:
+    if len(activation) == 0:
         return np.empty(0, dtype=int)
-    local_max = maximum_filter1d(odf, size=2 * local_max_frames + 1, mode="nearest")
-    return np.flatnonzero((odf >= local_max) & (odf >= threshold))
+    local_max = maximum_filter1d(
+        activation, size=2 * local_max_frames + 1, mode="nearest"
+    )
+    return np.flatnonzero((activation >= local_max) & (activation >= threshold))
 
 
-def interpolate_peaks(odf: np.ndarray, frames: np.ndarray) -> np.ndarray:
+def interpolate_peaks(activation: np.ndarray, frames: np.ndarray) -> np.ndarray:
     """Peak positions between frames, in fractional frames.
 
     Quadratic interpolation: a parabola through the log activation of each peak
@@ -20,8 +24,8 @@ def interpolate_peaks(odf: np.ndarray, frames: np.ndarray) -> np.ndarray:
     Spectral Peaks"). A peak at the first or last frame stays on its frame.
     """
     positions = frames.astype(float)
-    inner = (frames > 0) & (frames < len(odf) - 1)
-    log = np.log(np.maximum(odf, 1e-9))
+    inner = (frames > 0) & (frames < len(activation) - 1)
+    log = np.log(np.maximum(activation, 1e-9))
     left, center, right = (log[frames[inner] + i] for i in (-1, 0, 1))
     curvature = left - 2.0 * center + right
     safe = np.where(curvature < 0, curvature, -1.0)

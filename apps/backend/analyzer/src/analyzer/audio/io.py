@@ -9,11 +9,16 @@ import pyloudnorm
 from loguru import logger
 from scipy.io import wavfile
 
-SAMPLE_RATE = 44100
-TARGET_LUFS = -14.0
+SAMPLE_RATE = 44100  # of the sample bank, the training drops and the kick model
+TARGET_LUFS = -14.0  # the loudness of the kick model input
 
 
-def load_mid(path: str | Path, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
+def db_to_gain(level_db: float) -> float:
+    """The amplitude factor of a level in decibels."""
+    return 10.0 ** (level_db / 20.0)
+
+
+def load_mid_channel(path: str | Path, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
     """Decode an audio or video file to the mid channel (L+R)/2 at `sample_rate`.
 
     ffmpeg does the decoding and resampling. It honors gapless metadata
@@ -21,7 +26,7 @@ def load_mid(path: str | Path, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
     real sample of the track.
     """
     logger.debug("Decoding {path} with ffmpeg", path=path)
-    signal = decode_mid(path, sample_rate)
+    signal = decode_mid_channel(path, sample_rate)
     logger.info(
         "Decoded {name}: {seconds:.1f} s at {rate} Hz",
         name=Path(path).name,
@@ -31,10 +36,10 @@ def load_mid(path: str | Path, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
     return signal
 
 
-def decode_mid(
+def decode_mid_channel(
     path: str | Path, sample_rate: int = SAMPLE_RATE, tempo: float = 1.0
 ) -> np.ndarray:
-    """`load_mid` with no logs.
+    """`load_mid_channel` with no logs.
 
     A `tempo` other than 1 makes the audio faster (above 1) or slower and keeps
     its pitch, with ffmpeg's `atempo` filter (WSOLA). WSOLA copies short
@@ -91,7 +96,7 @@ def normalize_loudness(
         gain=gain_db,
         target=target_lufs,
     )
-    return signal * 10.0 ** (gain_db / 20.0)
+    return signal * db_to_gain(gain_db)
 
 
 def write_wav(path: str | Path, signal: np.ndarray, sample_rate: int) -> None:
