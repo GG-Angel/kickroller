@@ -9,7 +9,11 @@ from loguru import logger
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, IterableDataset, get_worker_info
 
-from analyzer.detection.peaks import enforce_min_distance, local_peaks
+from analyzer.detection.peaks import (
+    enforce_min_distance,
+    interpolate_peaks,
+    local_peaks,
+)
 from analyzer.model.checkpoint import save_model
 from analyzer.model.features import ModelConfig
 from analyzer.model.network import KickNet
@@ -35,13 +39,16 @@ def targets(onsets: np.ndarray, frames: int, config: ModelConfig) -> np.ndarray:
 class DropStream(IterableDataset):
     """An endless stream of (audio, targets) from training kick designs."""
 
-    def __init__(self, bank_dir: Path, config: ModelConfig, seed: int) -> None:
+    def __init__(
+        self, bank_dir: Path, config: ModelConfig, seed: int, all_designs: bool
+    ) -> None:
         self.bank_dir, self.config, self.seed = bank_dir, config, seed
+        self.all_designs = all_designs
 
     def __iter__(self):
         info = get_worker_info()
         rng = np.random.default_rng([self.seed, info.id if info else 0])
-        catalog = Catalog(load_bank(self.bank_dir))
+        catalog = Catalog(load_bank(self.bank_dir), self.all_designs)
         while True:
             drop = make_drop(rng, catalog)
             frames = len(drop.audio) // self.config.hop + 1
@@ -66,7 +73,7 @@ def match_count(detected: np.ndarray, reference: np.ndarray, tolerance: float) -
 def pick_onsets(probability: np.ndarray, threshold: float, fps: float) -> np.ndarray:
     frames = local_peaks(probability, threshold, local_max_frames=round(0.02 * fps))
     kept = enforce_min_distance(frames, probability[frames], round(0.04 * fps))
-    return frames[kept] / fps
+    return interpolate_peaks(probability, frames[kept]) / fps
 
 
 @torch.no_grad()
@@ -106,19 +113,32 @@ def train(
     validate_every: int = 500,
     device: str = "mps",
     seed: int = 0,
+    all_designs: bool = False,
 ) -> None:
-    """Train a KickNet and save the version with the best validation F-measure to `output`."""
+    """Train a KickNet and save the version with the best validation F-measure to `output`.
+
+    With `all_designs`, training also uses the held-out kick designs (for a final
+    model). The validation drops then have heard designs, so their F is too high.
+    """
     bank = build_bank(bank_config, bank_dir, workers)
-    catalog = Catalog(bank)
+    catalog = Catalog(bank, all_designs)
     if not (catalog.designs[False] and catalog.designs[True]):
         raise RuntimeError(
             "the bank needs more kick designs (about 10% are held out for validation)"
         )
-    logger.info(
-        "Kick designs: {train} for training, {held_out} held out for validation",
-        train=len(catalog.designs[False]),
-        held_out=len(catalog.designs[True]),
-    )
+    if all_designs:
+        logger.warning(
+            "Training on all {train} kick designs; the {held_out} validation designs "
+            "are also in training, so the validation F is too high",
+            train=len(catalog.designs[False]),
+            held_out=len(catalog.designs[True]),
+        )
+    else:
+        logger.info(
+            "Kick designs: {train} for training, {held_out} held out for validation",
+            train=len(catalog.designs[False]),
+            held_out=len(catalog.designs[True]),
+        )
     rng = np.random.default_rng(seed)
     validation = [
         make_drop(rng, catalog, held_out=True) for _ in range(VALIDATION_DROPS)
@@ -141,7 +161,7 @@ def train(
     )
 
     loader = DataLoader(
-        DropStream(bank_dir, config, seed + 1),
+        DropStream(bank_dir, config, seed + 1, all_designs),
         batch_size=batch_size,
         num_workers=workers,
         persistent_workers=workers > 0,

@@ -5,11 +5,14 @@ for each kind of sample, globs relative to the root:
 
 - kick: complete kick one-shots. Each has a design; the pitched versions of
   one kick have the same design, so that a held-out design is really unheard.
-- loop: 160 BPM loops with no kicks and no sub-bass (screeches, atmospheres,
-  top loops, fills). Each loop starts on a bar.
+- loop: loops with no kicks and no sub-bass (screeches, atmospheres, top loops,
+  fills). Each loop starts on a bar.
 - clap: claps, put on beats 2 and 4.
 - impact: impacts, crashes and sub drops, put at the start of a bar.
 - hit: other one-shots (snares, hats, percussion, FX, synth hits).
+
+Samples are at BPM, or at the tempo that `bpm` gives for their glob (in any
+kind). These are time-stretched to BPM, with the same pitch, when decoded.
 """
 
 import json
@@ -27,6 +30,7 @@ from analyzer.audio.io import SAMPLE_RATE, decode_mid
 
 KINDS = ("kick", "loop", "clap", "impact", "hit")
 AUDIO_SUFFIXES = (".wav", ".aif", ".aiff", ".flac", ".mp3", ".ogg", ".m4a")
+BPM = 160.0  # the tempo of the samples in the bank (synth.py resamples the loops)
 
 # Key and variation suffixes of pitched kick file names, for example "_D#_HIGH".
 KEY_SUFFIX = re.compile(
@@ -45,6 +49,7 @@ class Sample:
     kind: str
     design: str  # the same for all versions of one kick; the file for others
     path: str  # relative to the bank root
+    bpm: float | None = None  # the tempo of a file that is not at BPM
 
 
 @dataclass
@@ -72,6 +77,7 @@ class Source:
 
     files: tuple[str, ...] = ()  # globs of audio files
     exclude: re.Pattern[str] | None = None  # file names to skip
+    tempos: tuple[tuple[str, float], ...] = ()  # (glob, tempo); first match counts
 
 
 @dataclass(frozen=True)
@@ -89,6 +95,21 @@ def globs(value: object, where: str) -> tuple[str, ...]:
     raise ValueError(f"{where} must be a glob or a list of globs")
 
 
+def tempos(value: object, kind: str) -> tuple[tuple[str, float], ...]:
+    """The `bpm` table of a kind. Tempos are BPM/2 to 2*BPM, a stretch that keeps quality."""
+    if isinstance(value, dict) and all(
+        isinstance(v, int | float)
+        and not isinstance(v, bool)
+        and BPM / 2 <= v <= 2 * BPM
+        for v in value.values()
+    ):
+        return tuple((str(glob), float(bpm)) for glob, bpm in value.items())
+    raise ValueError(
+        f"[{kind}] bpm must be a table of globs and tempos from {BPM / 2:.0f} "
+        f'to {2 * BPM:.0f}, for example {{ "loops/150/*" = 150 }}'
+    )
+
+
 def read_config(path: Path) -> BankConfig:
     """The bank config in the TOML file `path`. A relative root is relative to the file."""
     data = tomllib.loads(path.read_text())
@@ -98,9 +119,7 @@ def read_config(path: Path) -> BankConfig:
     sources = {}
     for kind in KINDS:
         table = data.get(kind, {})
-        keys = (
-            ("files", "exclude", "designs") if kind == "kick" else ("files", "exclude")
-        )
+        keys = ("files", "exclude", "bpm") + (("designs",) if kind == "kick" else ())
         unknown = sorted(set(table) - set(keys))
         if unknown:
             raise ValueError(
@@ -113,7 +132,9 @@ def read_config(path: Path) -> BankConfig:
         except (re.error, TypeError) as error:
             raise ValueError(f"[{kind}] exclude: {error}") from error
         sources[kind] = Source(
-            globs(table.get("files", []), f"[{kind}] files"), exclude
+            globs(table.get("files", []), f"[{kind}] files"),
+            exclude,
+            tempos(table["bpm"], kind) if "bpm" in table else (),
         )
     if not sources["kick"].files:
         raise ValueError("[kick] has no files")
@@ -132,7 +153,8 @@ def catalog(config: BankConfig) -> list[Sample]:
     """All samples of the config, sorted by path.
 
     A file found for more than one kind gets the first kind in KINDS. The design
-    of a kick is its nearest design folder, or else the design of its name.
+    of a kick is its nearest design folder, or else the design of its name. A
+    sample gets the tempo of the first matching `bpm` glob of its kind.
     """
     root = config.root
     folders = {
@@ -146,6 +168,16 @@ def catalog(config: BankConfig) -> list[Sample]:
         folder = next((p for p in path.parents if p in folders), None)
         return folder.as_posix() if folder else design_name(path)
 
+    matched: set[tuple[str, str]] = set()
+
+    def tempo(path: Path, kind: str) -> float | None:
+        """The tempo of a file from the first matching `bpm` glob, if not BPM."""
+        for pattern, bpm in config.sources[kind].tempos:
+            if path.full_match(pattern, case_sensitive=False):
+                matched.add((kind, pattern))
+                return None if bpm == BPM else bpm
+        return None
+
     found: dict[str, Sample] = {}
     for kind, source in config.sources.items():
         for pattern in source.files:
@@ -158,9 +190,21 @@ def catalog(config: BankConfig) -> list[Sample]:
                     continue
                 relative = path.relative_to(root)
                 name = relative.as_posix()
-                found.setdefault(
+                if name in found:
+                    continue
+                found[name] = Sample(
+                    kind,
+                    design(relative) if kind == "kick" else name,
                     name,
-                    Sample(kind, design(relative) if kind == "kick" else name, name),
+                    tempo(relative, kind),
+                )
+    for kind, source in config.sources.items():
+        for pattern, _ in source.tempos:
+            if (kind, pattern) not in matched:
+                logger.warning(
+                    "[{kind}] bpm: {pattern} matches no {kind} file",
+                    kind=kind,
+                    pattern=pattern,
                 )
     return sorted(found.values(), key=lambda s: s.path)
 
@@ -221,8 +265,17 @@ def build_bank(config: BankConfig, cache: Path, workers: int = 8) -> Bank:
         hits=counts["hit"],
     )
 
+    stretched = sum(s.bpm is not None for s in samples)
+    if stretched:
+        logger.info(
+            "Time-stretching {count} samples to {bpm:.0f} BPM (same pitch)",
+            count=stretched,
+            bpm=BPM,
+        )
+
     def decode(sample: Sample) -> np.ndarray:
-        signal = decode_mid(root / sample.path, SAMPLE_RATE)
+        tempo = BPM / sample.bpm if sample.bpm is not None else 1.0
+        signal = decode_mid(root / sample.path, SAMPLE_RATE, tempo)
         return trim(signal, sample.kind, SAMPLE_RATE).astype(np.float16)
 
     with ThreadPoolExecutor(workers) as pool:

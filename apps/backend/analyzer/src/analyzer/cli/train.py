@@ -45,6 +45,15 @@ def train(
         Device, typer.Option("--device", help="Where to train the model.")
     ] = Device.mps,
     seed: Annotated[int, typer.Option("--seed", help="Random seed.")] = 0,
+    all_designs: Annotated[
+        bool,
+        typer.Option(
+            "--all-designs",
+            help="Also train on the held-out kick designs, for a final model after "
+            "tuning. The validation drops then have heard designs, so their F is "
+            "too high.",
+        ),
+    ] = False,
     verbose: Verbose = 0,
     quiet: Quiet = False,
 ) -> None:
@@ -65,4 +74,5 @@ def train(
         workers=workers,
         device=device.value,
         seed=seed,
+        all_designs=all_designs,
     )

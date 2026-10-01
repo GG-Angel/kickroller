@@ -1,9 +1,11 @@
-"""Synthetic 160 BPM rawstyle drops from the sample bank, with exact kick onsets.
+"""Synthetic rawstyle drops from the sample bank, with exact kick onsets.
 
-A drop has one kick design (a new key every two bars), a kick pattern with
-beats, off-beats, rolls, triplets and gaps, up to three ducked loop layers, and
-one-shot hits. The mix is mastered with EQ, soft clipping and a limiter, then
-its tempo changes a little. Each kick cuts the tail of the one before it.
+A drop has a tempo of 150-200 BPM (160 BPM in half of the drops), one kick
+design (a new key every two bars), a kick pattern with beats, off-beats, rolls,
+triplets and gaps, up to three ducked loop layers, and one-shot hits. The kicks
+and one-shots keep their sound at every tempo; only the loops (160 BPM in the
+bank) are resampled to the drop tempo. The mix is mastered with EQ, soft
+clipping and a limiter. Each kick cuts the tail of the one before it.
 """
 
 from dataclasses import dataclass, field
@@ -12,15 +14,15 @@ from typing import Any
 import numpy as np
 import pyloudnorm
 from scipy.ndimage import maximum_filter1d, uniform_filter1d
-from scipy.signal import butter, lfilter, sosfilt
+from scipy.signal import butter, lfilter, resample_poly, sosfilt
 
 from analyzer.audio.io import SAMPLE_RATE, TARGET_LUFS
-from analyzer.training.bank import Bank, is_held_out
+from analyzer.training.bank import BPM, Bank, is_held_out
 
-BPM = 160.0
-BEAT = 60.0 / BPM
+# (probability, lowest BPM, highest BPM) of the drop tempo, a whole BPM.
+TEMPOS = ((0.5, 160, 160), (0.25, 150, 159), (0.15, 161, 170), (0.1, 171, 200))
 TICKS = 12  # grid ticks per beat: 1/16 notes are 3 ticks and triplets 4 ticks
-DROP_SECONDS = 12.0  # 8 bars at 160 BPM
+DROP_SECONDS = 12.0  # 8 bars at 160 BPM (7.5 to 10 bars at 150-200 BPM)
 HELD_OUT = 0.1  # fraction of the kick designs used only for validation
 CUT_FADE = 0.003  # fade-out when the next kick cuts the tail, in seconds
 
@@ -35,9 +37,12 @@ class Drop:
 
 
 class Catalog:
-    """The bank samples by role, split into training and held-out kick designs."""
+    """The bank samples by role, split into training and held-out kick designs.
 
-    def __init__(self, bank: Bank) -> None:
+    With `all_designs` (for a final model), training also uses the held-out designs.
+    """
+
+    def __init__(self, bank: Bank, all_designs: bool = False) -> None:
         self.bank = bank
         designs: dict[str, list[int]] = {}
         for i in bank.indices("kick"):
@@ -50,6 +55,8 @@ class Catalog:
             ]
             for held_out in (False, True)
         }
+        if all_designs:
+            self.designs[False] = [files for _, files in sorted(designs.items())]
         self.loops = bank.indices("loop")
         self.claps = bank.indices("clap")
         self.impacts = bank.indices("impact")
@@ -69,6 +76,13 @@ def place(out: np.ndarray, sound: np.ndarray, start: int, gain: float = 1.0) -> 
     begin, end = max(start, 0), min(start + len(sound), len(out))
     if begin < end:
         out[begin:end] += gain * sound[begin - start : end - start]
+
+
+def drop_tempo(rng: np.random.Generator) -> int:
+    """A whole BPM from TEMPOS."""
+    choice = rng.choice(len(TEMPOS), p=[p for p, _, _ in TEMPOS])
+    _, low, high = TEMPOS[choice]
+    return int(rng.integers(low, high + 1))
 
 
 def kick_pattern(rng: np.random.Generator, bars: int) -> list[tuple[int, bool]]:
@@ -107,11 +121,11 @@ def render_kicks(
     starts: np.ndarray,
     in_roll: np.ndarray,
     length: int,
+    bar_samples: float,
 ) -> tuple[np.ndarray, list[int]]:
     """The kick bus (each kick plays until the next kick starts) and the files used."""
     out = np.zeros(length, dtype=np.float32)
     used: list[int] = []
-    bar_samples = 4 * BEAT * SAMPLE_RATE
     key, key_bar = int(rng.choice(files)), -1
     fade = int(CUT_FADE * SAMPLE_RATE)
     for i, start in enumerate(starts):
@@ -149,10 +163,9 @@ def high_pass(x: np.ndarray, cutoff: float) -> np.ndarray:
 
 
 def render_loop(
-    rng: np.random.Generator, loop: np.ndarray, origin: int, length: int
+    rng: np.random.Generator, loop: np.ndarray, origin: int, length: int, bar: float
 ) -> np.ndarray:
-    """A loop tiled over the drop, starting on a bar (sometimes off the bar)."""
-    bar = 4 * BEAT * SAMPLE_RATE
+    """A loop tiled over the drop, on bars of `bar` samples (sometimes off the bar)."""
     period = int(max(1, round(len(loop) / bar)) * bar)
     tile = np.zeros(period, dtype=np.float32)
     tile[: min(period, len(loop))] = loop[:period]
@@ -207,27 +220,28 @@ def make_drop(
 ) -> Drop:
     """One synthetic drop of DROP_SECONDS; `held_out` uses only held-out kick designs."""
     bank = catalog.bank
-    tempo = rng.uniform(0.94, 1.06) if rng.random() < 0.8 else 1.0
-    length = int(np.ceil(DROP_SECONDS * tempo * SAMPLE_RATE))
-    origin = -int(rng.uniform(0.0, 4 * BEAT) * SAMPLE_RATE)  # first beat of bar 1
-    bars = int(np.ceil((length - origin) / (4 * BEAT * SAMPLE_RATE)))
-    tick = BEAT * SAMPLE_RATE / TICKS
+    bpm = drop_tempo(rng)
+    beat = 60.0 / bpm * SAMPLE_RATE  # in samples
+    length = int(DROP_SECONDS * SAMPLE_RATE)
+    origin = -int(rng.uniform(0.0, 4 * beat))  # first beat of bar 1
+    bars = int(np.ceil((length - origin) / (4 * beat)))
+    tick = beat / TICKS
 
     pattern = kick_pattern(rng, bars)
     starts = np.array([origin + round(t * tick) for t, _ in pattern], dtype=float)
     in_roll = np.array([r for _, r in pattern], dtype=bool)
     files = catalog.designs[held_out][int(rng.integers(len(catalog.designs[held_out])))]
-    kicks, used = render_kicks(rng, bank, files, starts, in_roll, length)
-    reference = rms(bank.get(files[0])[: int(BEAT * SAMPLE_RATE)])
+    kicks, used = render_kicks(rng, bank, files, starts, in_roll, length, 4 * beat)
+    reference = rms(bank.get(files[0])[: int(60.0 / BPM * SAMPLE_RATE)])
 
     def at_time(sample: float) -> float:
-        """The time in the finished drop of a sample position in the mix."""
-        return round(sample / SAMPLE_RATE / tempo, 3)
+        """The time in the drop of a sample position, in seconds."""
+        return round(sample / SAMPLE_RATE, 3)
 
     path = [s.path for s in bank.samples]
     info: dict[str, Any] = {
         "held_out": held_out,
-        "bpm": round(BPM * tempo, 2),
+        "bpm": bpm,
         "kick_design": bank.samples[files[0]].design,
         "kick_files": [path[i] for i in used],
         "loops": [],
@@ -241,7 +255,10 @@ def make_drop(
     layers = int(rng.choice([0, 1, 2, 3], p=[0.1, 0.35, 0.35, 0.2]))
     for _ in range(layers if len(catalog.loops) else 0):
         index = int(rng.choice(catalog.loops))
-        loop = render_loop(rng, bank.get(index), origin, length)
+        loop = bank.get(index)
+        if bpm != BPM:  # the bank loops are at 160 BPM
+            loop = resample_poly(loop, int(BPM), bpm).astype(np.float32)
+        loop = render_loop(rng, loop, origin, length, 4 * beat)
         cutoff = None
         if rng.random() < 0.85:  # the kick owns the sub band in a drop
             cutoff = rng.uniform(100.0, 250.0)
@@ -259,21 +276,20 @@ def make_drop(
             }
         )
 
-    beat_samples = BEAT * SAMPLE_RATE
     if len(catalog.claps) and rng.random() < 0.6:
         index = int(rng.choice(catalog.claps))
         clap = bank.get(index)
         level = rng.uniform(-12.0, -2.0)
         gain = db(level) * reference / rms(clap[: len(clap) // 4 + 1])
-        for beat in range(1, 4 * bars, 2):
+        for b in range(1, 4 * bars, 2):
             if rng.random() < 0.9:
-                place(mix, clap, origin + round(beat * beat_samples), gain)
+                place(mix, clap, origin + round(b * beat), gain)
         info["clap"] = {"path": path[index], "level_db": round(level, 1)}
     hits = int(rng.poisson(8.0))
     for _ in range(hits if len(catalog.hits) else 0):
         index = int(rng.choice(catalog.hits))
         hit = bank.get(index)
-        at = int(rng.integers(0, 4 * bars * 4)) * beat_samples / 4
+        at = int(rng.integers(0, 4 * bars * 4)) * beat / 4
         if rng.random() < 0.2:
             at += rng.uniform(-0.05, 0.05) * SAMPLE_RATE
         level = rng.uniform(-18.0, -3.0)
@@ -292,7 +308,7 @@ def make_drop(
         impact = bank.get(index)
         level = rng.uniform(-12.0, 0.0)
         gain = db(level) * reference / rms(impact)
-        at = origin + round(4 * beat_samples * rng.choice([0, 4]))
+        at = origin + round(4 * beat * rng.choice([0, 4]))
         place(mix, impact, at, gain)
         info["impact"] = {
             "path": path[index],
@@ -302,12 +318,6 @@ def make_drop(
 
     mix, info["master"] = master(rng, mix)
     onsets = starts / SAMPLE_RATE
-    if tempo != 1.0:
-        n = int(len(mix) / tempo)
-        mix = np.interp(np.arange(n) * tempo, np.arange(len(mix)), mix)
-        onsets = onsets / tempo
-    n = int(DROP_SECONDS * SAMPLE_RATE)
-    mix = np.pad(mix[:n], (0, max(0, n - len(mix))))
     gain_db = rng.uniform(-6.0, 6.0)
     mix = normalize(mix) * db(gain_db)
     info["gain_db"] = round(gain_db, 1)

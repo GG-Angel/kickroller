@@ -5,6 +5,11 @@
 # "*" stays in one folder and "**" also goes into subfolders. "exclude" is a
 # regular expression for file names to skip. Only [kick] is necessary. A file
 # found for more than one kind gets the first of kick, loop, clap, impact, hit.
+#
+# Samples are 160 BPM, or "bpm" in any kind gives the tempo (80-320) of the
+# files that a glob matches (the first matching glob counts). These files are
+# time-stretched to 160 BPM when the bank is built, with the same pitch (ffmpeg
+# atempo, which keeps kick attacks sharp). Use a [kind.bpm] table for many globs.
 
 root = "/path/to/samples" # a relative root is relative to this file
 
@@ -18,11 +23,15 @@ files = ["kicks/*", "kicks/raw/**/*", "kicks/pitched/*/*"]
 designs = ["kicks/pitched/*"]
 exclude = 'KICK_ROLL' # kick rolls have more than one kick
 
-# 160 BPM loops that start on a bar and have no kicks and no sub-bass:
-# screeches, atmospheres, top loops, fills. Not drum loops or full mixes.
+[kick.bpm]
+"kicks/raw/*_155.wav" = 155
+
+# Loops that start on a bar and have no kicks and no sub-bass: screeches,
+# atmospheres, top loops, fills. Not drum loops or full mixes.
 [loop]
-files = ["loops/screeches/*", "loops/tops/*"]
+files = ["loops/screeches/*", "loops/tops/*", "loops/150/*"]
 exclude = '_(FULL|DRUMS|KICK|BASS)\.wav$'
+bpm = { "loops/150/*" = 150 }
 
 # Claps, put on beats 2 and 4.
 [clap]

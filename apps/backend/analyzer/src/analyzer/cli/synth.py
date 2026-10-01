@@ -1,6 +1,7 @@
 """The synth command: write synthetic training drops, to check the training data."""
 
 import json
+import secrets
 from pathlib import Path
 from typing import Annotated
 
@@ -24,7 +25,7 @@ from analyzer.training.bank import build_bank, read_config
 def log_drop(name: str, info: dict) -> None:
     """The kick design at INFO; the loops, one-shots and mastering at DEBUG (-v)."""
     logger.info(
-        "Wrote {name}: {kicks} kicks at {bpm:.1f} BPM, kick design {design}",
+        "Wrote {name}: {kicks} kicks at {bpm} BPM, kick design {design}",
         name=name,
         kicks=info["kicks"],
         bpm=info["bpm"],
@@ -75,13 +76,19 @@ def synth(
     count: Annotated[
         int, typer.Option("--count", "-n", min=1, help="Number of drops.")
     ] = 4,
-    seed: Annotated[int, typer.Option("--seed", help="Random seed.")] = 0,
+    seed: Annotated[
+        int | None,
+        typer.Option(
+            "--seed",
+            help="Random seed (default: a new seed each run, shown in the log).",
+        ),
+    ] = None,
     held_out: Annotated[
         bool,
         typer.Option(
             "--held-out",
-            help="Use only held-out kick designs. With the training seed, these "
-            "are the validation drops.",
+            help="Use only held-out kick designs. With --seed set to the training "
+            "seed (0 by default), these are the validation drops.",
         ),
     ] = False,
     cache: Cache = MODELS / "bank",
@@ -114,6 +121,9 @@ def synth(
         raise typer.Exit(code=1)
 
     output.mkdir(parents=True, exist_ok=True)
+    if seed is None:
+        seed = secrets.randbelow(2**32)
+    logger.info("Seed {seed}", seed=seed)
     rng = np.random.default_rng(seed)
     for i in range(count):
         drop = make_drop(rng, catalog, held_out=held_out)

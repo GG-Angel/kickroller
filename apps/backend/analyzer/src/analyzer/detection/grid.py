@@ -1,17 +1,10 @@
-"""The beat grid from beat_this, and the kick positions in a beat."""
+"""The beat grid from beat_this."""
 
 from time import perf_counter
 
 import numpy as np
 from beat_this.inference import Audio2Beats
 from loguru import logger
-
-BEAT, EIGHTH, SIXTEENTH, TRIPLET = range(4)
-
-# Grid positions inside one beat, as a fraction of the beat, and their kinds.
-POSITIONS = np.array([0.0, 1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4, 1.0])
-KINDS = np.array([BEAT, SIXTEENTH, TRIPLET, EIGHTH, TRIPLET, SIXTEENTH, BEAT])
-KIND_NAMES = ("beat", "1/8", "1/16", "triplet")
 
 
 def track_beats(
@@ -93,19 +86,3 @@ def regularize_beats(
         edges=len(before) + len(after),
     )
     return np.concatenate([before, filled, after])
-
-
-def nearest_position(
-    times: np.ndarray, grid: np.ndarray
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Nearest grid position for each time.
-
-    Returns (interval, position, offset): the index of the beat interval
-    [grid[i], grid[i + 1]), the index into POSITIONS, and the time minus the
-    position time in seconds. `grid` must have at least 2 beats.
-    """
-    interval = np.clip(np.searchsorted(grid, times, side="right") - 1, 0, len(grid) - 2)
-    length = grid[interval + 1] - grid[interval]
-    fraction = (times - grid[interval]) / length
-    position = np.abs(fraction[:, None] - POSITIONS).argmin(axis=1)
-    return interval, position, (fraction - POSITIONS[position]) * length

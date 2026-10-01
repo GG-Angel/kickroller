@@ -31,20 +31,29 @@ def load_mid(path: str | Path, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
     return signal
 
 
-def decode_mid(path: str | Path, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
-    """`load_mid` with no logs."""
+def decode_mid(
+    path: str | Path, sample_rate: int = SAMPLE_RATE, tempo: float = 1.0
+) -> np.ndarray:
+    """`load_mid` with no logs.
+
+    A `tempo` other than 1 makes the audio faster (above 1) or slower and keeps
+    its pitch, with ffmpeg's `atempo` filter (WSOLA). WSOLA copies short
+    segments of the input, so a kick attack stays as sharp as in the source.
+    """
     if shutil.which("ffmpeg") is None:
         raise RuntimeError("ffmpeg is not on PATH; install it to decode audio")
     path = Path(path)
     if not path.is_file():
         raise FileNotFoundError(f"file not found: {path}")
 
+    stretch = ["-af", f"atempo={tempo:.6f}"] if tempo != 1.0 else []
     cmd = [
         "ffmpeg",
         "-nostdin",
         "-v", "error",
         "-i", str(path),
         "-map", "0:a:0",
+        *stretch,
         "-ac", "2",
         "-ar", str(sample_rate),
         "-f", "f32le",
