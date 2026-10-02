@@ -51,7 +51,7 @@ def decode_mid_channel(
     if not path.is_file():
         raise FileNotFoundError(f"file not found: {path}")
 
-    stretch = ["-af", f"atempo={tempo:.6f}"] if tempo != 1.0 else []
+    stretch = ["-af", f"atempo={tempo:.6f}"] if not np.isclose(tempo, 1.0) else []
     cmd = [
         "ffmpeg",
         "-nostdin",

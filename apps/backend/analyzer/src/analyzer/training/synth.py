@@ -11,7 +11,7 @@ The chances, ranges and levels are in `SynthSettings` (analyzer.settings).
 """
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pyloudnorm
@@ -189,7 +189,7 @@ def make_sidechain_curve(
 
 def high_pass(signal: np.ndarray, cutoff_hz: float) -> np.ndarray:
     sos = butter(HIGH_PASS_ORDER, cutoff_hz, "highpass", fs=SAMPLE_RATE, output="sos")
-    return sosfilt(sos, signal).astype(np.float32)
+    return cast(np.ndarray, sosfilt(sos, signal)).astype(np.float32)
 
 
 def render_loop(
@@ -219,8 +219,11 @@ def master_mix(
     used: dict[str, Any] = {"eq_tilt": None}
     if rng.random() < settings.eq_tilt_chance:
         corner = rng.uniform(*settings.eq_corner_hz)
-        b, a = butter(1, corner, fs=SAMPLE_RATE)  # first-order low band
-        low = lfilter(b, a, mix)
+        b, a = cast(
+            tuple[np.ndarray, np.ndarray],
+            butter(1, corner, fs=SAMPLE_RATE, output="ba"),
+        )  # first-order low band
+        low = cast(np.ndarray, lfilter(b, a, mix))
         low_db, high_db = rng.uniform(*settings.eq_gain_db, size=2)
         mix = low * db_to_gain(low_db) + (mix - low) * db_to_gain(high_db)
         used["eq_tilt"] = {

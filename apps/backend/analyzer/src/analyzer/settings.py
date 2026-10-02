@@ -57,15 +57,15 @@ class DetectorSettings(Section):
     peak_window: Seconds = 0.02  # a kick is the maximum within +/- this time
     # Remove kicks closer than this to a more probable kick, in beats (1/10 of a
     # beat is 80% of a 1/32 note), but never more than `min_distance` seconds.
-    min_distance_beats: float = Field(0.1, gt=0.0)
+    min_distance_beats: float = Field(default=0.1, gt=0.0)
     min_distance: Seconds = 0.04
     min_confidence: Chance = 0.5
     chunk_seconds: Seconds = 60.0  # the model reads long tracks in chunks
     beat_checkpoint: str = "final0"  # the beat_this model
     # The beat grid tempo is moved by octaves into this range.
-    min_bpm: float = Field(150.0, gt=0.0)
-    max_bpm: float = Field(170.0, gt=0.0)
-    min_beat_interval: float = Field(0.75, gt=0.0)  # in beat periods; closer is extra
+    min_bpm: float = Field(default=150.0, gt=0.0)
+    max_bpm: float = Field(default=170.0, gt=0.0)
+    min_beat_interval: float = Field(default=0.75, gt=0.0)  # in beat periods; closer is extra
     beat_window: Seconds = 0.04  # a beat moves to a confident kick within +/- this
     anchor_confidence: Chance = 0.5  # the confidence of a kick that a beat moves to
 
@@ -76,9 +76,9 @@ class ModelSettings(Section):
     hop: Count = 441  # samples from one frame to the next (10 ms)
     windows: tuple[Count, ...] = (1024, 2048, 4096)  # STFT sizes: 23, 46 and 93 ms
     bands: Count = 80  # mel bands
-    fmin: float = Field(27.5, gt=0.0)  # in Hz
-    fmax: float = Field(16000.0, gt=0.0)  # in Hz
-    log_compression: float = Field(1000.0, gt=0.0)  # log(1 + this * magnitude)
+    fmin: float = Field(default=27.5, gt=0.0)  # in Hz
+    fmax: float = Field(default=16000.0, gt=0.0)  # in Hz
+    log_compression: float = Field(default=1000.0, gt=0.0)  # log(1 + this * magnitude)
     # Channels of the 3x3 convolution layers; each halves the bands.
     frontend_channels: tuple[Count, ...] = (16, 32, 32)
     channels: Count = 64  # of the dilated layers
@@ -101,11 +101,11 @@ class ModelSettings(Section):
 class TrainingSettings(Section):
     steps: Count = 15000
     batch_size: Count = 16  # drops per step
-    workers: int = Field(10, ge=0)  # processes that make drops
+    workers: int = Field(default=10, ge=0)  # processes that make drops
     device: Literal["mps", "cuda", "cpu"] = "mps"
     seed: int = 0
-    learning_rate: float = Field(2e-3, gt=0.0)  # the peak of the one-cycle schedule
-    weight_decay: float = Field(1e-4, ge=0.0)
+    learning_rate: float = Field(default=2e-3, gt=0.0)  # the peak of the one-cycle schedule
+    weight_decay: float = Field(default=1e-4, ge=0.0)
     neighbor_target: Chance = 0.5  # the target of the frames next to an onset frame
     validate_every: Count = 500  # steps
     log_every: Count = 100  # steps
@@ -168,7 +168,7 @@ class ClapSettings(Section):
 
 
 class HitSettings(Section):
-    mean_count: float = Field(8.0, ge=0.0)  # per drop (Poisson)
+    mean_count: float = Field(default=8.0, ge=0.0)  # per drop (Poisson)
     off_grid_chance: Chance = 0.2  # moved off the 1/16 grid
     off_grid_shift: Range = (-0.05, 0.05)
     level_db: Range = (-18.0, -3.0)  # relative to the kick
@@ -188,7 +188,7 @@ class MasterSettings(Section):
     clipper_chance: Chance = 0.7  # tanh soft clipper
     limiter_chance: Chance = 0.6
     limiter_window: Seconds = 0.005
-    limiter_ceiling: float = Field(0.95, gt=0.0, le=1.0)  # peak level
+    limiter_ceiling: float = Field(default=0.95, gt=0.0, le=1.0)  # peak level
     output_gain_db: Range = (-6.0, 6.0)  # after loudness normalization
 
 
