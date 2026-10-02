@@ -1,18 +1,5 @@
-import typer
-
-app = typer.Typer()
+from .commands import app
 
 
-@app.command("analyze")
-def analyze():
-    pass
-
-
-@app.command("train")
-def train():
-    pass
-
-
-@app.command("generate")
-def generate():
-    pass
+def main() -> None:
+    app()
