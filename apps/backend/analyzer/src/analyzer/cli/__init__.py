@@ -8,7 +8,7 @@ app = typer.Typer(add_completion=False, no_args_is_help=True)
 
 
 @app.callback()
-def cli() -> None:
+def _cli() -> None:
     """Find the kicks and the beat grid of rawstyle tracks."""
 
 

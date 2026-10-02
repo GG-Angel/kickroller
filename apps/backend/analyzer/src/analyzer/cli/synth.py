@@ -23,7 +23,7 @@ from analyzer.cli.options import (
 from analyzer.training.bank import build_bank, read_config
 
 
-def log_drop(name: str, info: dict) -> None:
+def _log_drop(name: str, info: dict) -> None:
     """The kick design at INFO; the loops, one-shots and mastering at DEBUG (-v)."""
     logger.info(
         "Wrote {name}: {kicks} kicks at {bpm} BPM, kick design {design}",
@@ -142,5 +142,5 @@ def synth(
         (output / f"{name}.json").write_text(
             json.dumps({"onsets": onsets, **drop.info}, indent=2) + "\n"
         )
-        log_drop(name, drop.info)
+        _log_drop(name, drop.info)
     logger.info("Wrote {count} drops to {path}", count=count, path=output)

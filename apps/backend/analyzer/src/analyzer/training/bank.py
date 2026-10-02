@@ -90,7 +90,7 @@ class BankConfig:
     designs: tuple[str, ...] = ()  # globs of folders that each hold one kick design
 
 
-def parse_globs(value: object, where: str) -> tuple[str, ...]:
+def _parse_globs(value: object, where: str) -> tuple[str, ...]:
     if isinstance(value, str):
         return (value,)
     if isinstance(value, list) and all(isinstance(v, str) for v in value):
@@ -98,7 +98,7 @@ def parse_globs(value: object, where: str) -> tuple[str, ...]:
     raise ValueError(f"{where} must be a glob or a list of globs")
 
 
-def parse_tempos(value: object, kind: str) -> tuple[tuple[str, float], ...]:
+def _parse_tempos(value: object, kind: str) -> tuple[tuple[str, float], ...]:
     """The `bpm` table of a kind. Tempos are BPM / MAX_STRETCH to BPM * MAX_STRETCH."""
     low, high = BPM / MAX_STRETCH, BPM * MAX_STRETCH
     if isinstance(value, dict) and all(
@@ -134,24 +134,24 @@ def read_config(path: Path) -> BankConfig:
         except (re.error, TypeError) as error:
             raise ValueError(f"[{kind}] exclude: {error}") from error
         sources[kind] = Source(
-            parse_globs(table.get("files", []), f"[{kind}] files"),
+            _parse_globs(table.get("files", []), f"[{kind}] files"),
             exclude,
-            parse_tempos(table["bpm"], kind) if "bpm" in table else (),
+            _parse_tempos(table["bpm"], kind) if "bpm" in table else (),
         )
     if not sources["kick"].files:
         raise ValueError("[kick] has no files")
     root = path.parent / Path(data.get("root", ".")).expanduser()
-    designs = parse_globs(data.get("kick", {}).get("designs", []), "[kick] designs")
+    designs = _parse_globs(data.get("kick", {}).get("designs", []), "[kick] designs")
     return BankConfig(root, sources, designs)
 
 
-def infer_design_name(path: Path) -> str:
+def _infer_design_name(path: Path) -> str:
     """The folder and the file name without its key suffix ("KICK 3_F#" is "KICK 3")."""
     stem = KEY_SUFFIX.sub("", path.stem.lstrip("_")).upper()
     return f"{path.parent.as_posix()}/{stem}"
 
 
-def find_samples(config: BankConfig) -> list[Sample]:
+def _find_samples(config: BankConfig) -> list[Sample]:
     """All samples of the config, sorted by path.
 
     A file found for more than one kind gets the first kind in KINDS. The design
@@ -168,7 +168,7 @@ def find_samples(config: BankConfig) -> list[Sample]:
 
     def find_design(path: Path) -> str:
         folder = next((p for p in path.parents if p in folders), None)
-        return folder.as_posix() if folder else infer_design_name(path)
+        return folder.as_posix() if folder else _infer_design_name(path)
 
     matched: set[tuple[str, str]] = set()
 
@@ -216,7 +216,7 @@ def is_held_out(design: str, fraction: float) -> bool:
     return zlib.crc32(design.encode()) % HASH_BUCKETS < fraction * HASH_BUCKETS
 
 
-def trim_sample(signal: np.ndarray, kind: str, sample_rate: int) -> np.ndarray:
+def _trim_sample(signal: np.ndarray, kind: str, sample_rate: int) -> np.ndarray:
     """Remove leading silence of one-shots (so time zero is the attack) and cut to length."""
     if kind == "loop":
         return signal[: int(MAX_LOOP_SECONDS * sample_rate)]
@@ -241,7 +241,7 @@ def build_bank(config: BankConfig, cache: Path, workers: int = 8) -> Bank:
     root = config.root
     if not root.is_dir():
         raise FileNotFoundError(f"the bank root {root} is not a folder")
-    samples = find_samples(config)
+    samples = _find_samples(config)
     if (cache / INDEX).exists() and (cache / AUDIO).exists():
         bank = load_bank(cache)
         if bank.samples == samples:
@@ -278,7 +278,7 @@ def build_bank(config: BankConfig, cache: Path, workers: int = 8) -> Bank:
     def decode_sample(sample: Sample) -> np.ndarray:
         tempo = BPM / sample.bpm if sample.bpm is not None else 1.0
         signal = decode_mid_channel(root / sample.path, SAMPLE_RATE, tempo)
-        return trim_sample(signal, sample.kind, SAMPLE_RATE).astype(np.float16)
+        return _trim_sample(signal, sample.kind, SAMPLE_RATE).astype(np.float16)
 
     with ThreadPoolExecutor(workers) as pool:
         decoded = list(pool.map(decode_sample, samples))

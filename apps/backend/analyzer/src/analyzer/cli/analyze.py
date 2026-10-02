@@ -26,17 +26,17 @@ class OutputFormat(StrEnum):
     json = "json"
 
 
-def format_kicks_csv(detection: Detection) -> str:
+def _format_kicks_csv(detection: Detection) -> str:
     return "".join(
         f"{t:.3f},{c:.2f}\n" for t, c in zip(detection.kicks, detection.confidence)
     )
 
 
-def format_beats_csv(detection: Detection) -> str:
+def _format_beats_csv(detection: Detection) -> str:
     return "".join(f"{t:.3f}\n" for t in detection.beats)
 
 
-def format_detection_json(path: Path, detection: Detection) -> str:
+def _format_detection_json(path: Path, detection: Detection) -> str:
     beats = [round(float(t), 3) for t in detection.beats]
     kicks = [
         {"time": round(float(t), 3), "confidence": round(float(c), 2)}
@@ -117,9 +117,9 @@ def analyze(
     detection = detect_kicks_in_signal(signal, model, settings)
 
     text = (
-        format_detection_json(audio, detection)
+        _format_detection_json(audio, detection)
         if output_format is OutputFormat.json
-        else format_kicks_csv(detection)
+        else _format_kicks_csv(detection)
     )
     if output:
         output.write_text(text)
@@ -129,7 +129,7 @@ def analyze(
     else:
         typer.echo(text, nl=False)
     if beats:
-        beats.write_text(format_beats_csv(detection))
+        beats.write_text(_format_beats_csv(detection))
         logger.info(
             "Wrote {count} beats to {path}", count=len(detection.beats), path=beats
         )

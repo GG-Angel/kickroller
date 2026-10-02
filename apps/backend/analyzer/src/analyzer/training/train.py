@@ -21,7 +21,7 @@ from analyzer.training.bank import BankConfig, build_bank, load_bank
 from analyzer.training.synth import Catalog, Drop, make_drop
 
 
-def make_targets(
+def _make_targets(
     onsets: np.ndarray, frames: int, fps: float, neighbor_target: float
 ) -> np.ndarray:
     """1 at each onset frame and `neighbor_target` at its two neighbors."""
@@ -52,13 +52,15 @@ class DropStream(IterableDataset):
         while True:
             drop = make_drop(rng, catalog, synth)
             frames = len(drop.audio) // model.hop + 1
-            targets = make_targets(
+            targets = _make_targets(
                 drop.onsets, frames, model.fps, self.settings.training.neighbor_target
             )
             yield torch.from_numpy(drop.audio), torch.from_numpy(targets)
 
 
-def count_matches(detected: np.ndarray, reference: np.ndarray, tolerance: float) -> int:
+def _count_matches(
+    detected: np.ndarray, reference: np.ndarray, tolerance: float
+) -> int:
     """Onsets that match one-to-one within `tolerance` (greedy, in time order)."""
     matched, j = 0, 0
     for time in detected:
@@ -70,7 +72,7 @@ def count_matches(detected: np.ndarray, reference: np.ndarray, tolerance: float)
     return matched
 
 
-def pick_onsets(
+def _pick_onsets(
     probability: np.ndarray, threshold: float, fps: float, settings: DetectorSettings
 ) -> np.ndarray:
     """Onset times in seconds: the detector's peak picking, without the beat grid."""
@@ -84,7 +86,7 @@ def pick_onsets(
 
 
 @torch.no_grad()
-def validate(
+def _validate(
     model: KickNet, drops: list[Drop], settings: Settings
 ) -> tuple[float, float, float, float]:
     """Best (F-measure, precision, recall, threshold) over the thresholds on the drops."""
@@ -103,11 +105,11 @@ def validate(
     for threshold in training.thresholds:
         found = matched = 0
         for drop, probability in zip(drops, probabilities):
-            onsets = pick_onsets(
+            onsets = _pick_onsets(
                 probability, threshold, model.settings.fps, settings.detector
             )
             found += len(onsets)
-            matched += count_matches(onsets, drop.onsets, training.tolerance)
+            matched += _count_matches(onsets, drop.onsets, training.tolerance)
         precision, recall = matched / max(found, 1), matched / max(reference, 1)
         f = 2 * precision * recall / max(precision + recall, 1e-9)
         if f > best[0]:
@@ -206,7 +208,7 @@ def train(
             )
             running = 0.0
         if step % training.validate_every == 0 or step == steps:
-            f, precision, recall, threshold = validate(model, validation, settings)
+            f, precision, recall, threshold = _validate(model, validation, settings)
             improved = f > best_f
             if improved:
                 best_f = f

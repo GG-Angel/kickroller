@@ -27,7 +27,7 @@ class TemporalBlock(nn.Module):
         return x + self.layers(x)
 
 
-def make_conv_block(inputs: int, outputs: int) -> nn.Sequential:
+def _make_conv_block(inputs: int, outputs: int) -> nn.Sequential:
     """A 2D convolution layer that halves the frequency bands and keeps every frame."""
     return nn.Sequential(
         nn.Conv2d(inputs, outputs, KERNEL_SIZE, padding=KERNEL_SIZE // 2),
@@ -46,7 +46,7 @@ class KickNet(nn.Module):
         self.features = Features(settings)
         channels = (len(settings.windows), *settings.frontend_channels)
         self.frontend = nn.Sequential(
-            *(make_conv_block(a, b) for a, b in pairwise(channels))
+            *(_make_conv_block(a, b) for a, b in pairwise(channels))
         )
         bands = settings.bands // 2 ** len(settings.frontend_channels)
         self.project = nn.Conv1d(channels[-1] * bands, settings.channels, 1)

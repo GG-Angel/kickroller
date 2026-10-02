@@ -12,7 +12,7 @@ MIN_CLICK_LEVEL = 0.2  # click level at confidence 0, relative to confidence 1
 TRACK_GAIN_DB = -12.0  # the track is quieter, so the clicks are clear
 
 
-def make_click(sample_rate: int) -> np.ndarray:
+def _make_click(sample_rate: int) -> np.ndarray:
     """A short sine burst with an exponential decay."""
     t = np.arange(int(CLICK_SECONDS * sample_rate)) / sample_rate
     return np.sin(2.0 * np.pi * CLICK_HZ * t) * np.exp(-t / CLICK_DECAY_SECONDS)
@@ -29,7 +29,7 @@ def mix_clicks(
     With `confidence` (0-1 per time), the click is louder for higher confidence.
     """
     out = signal.astype(np.float32) * db_to_gain(TRACK_GAIN_DB)
-    burst = (CLICK_GAIN * make_click(sample_rate)).astype(np.float32)
+    burst = (CLICK_GAIN * _make_click(sample_rate)).astype(np.float32)
     if confidence is None:
         confidence = np.ones(len(times))
     levels = MIN_CLICK_LEVEL + (1.0 - MIN_CLICK_LEVEL) * np.clip(confidence, 0.0, 1.0)

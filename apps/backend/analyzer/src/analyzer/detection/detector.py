@@ -35,7 +35,7 @@ class Detection:
     confidence: np.ndarray  # confidence (0-1) of each kick
 
 
-def select_strongest_per_key(keys: np.ndarray, strength: np.ndarray) -> np.ndarray:
+def _select_strongest_per_key(keys: np.ndarray, strength: np.ndarray) -> np.ndarray:
     """Index of the strongest item for each distinct key."""
     if len(keys) == 0:
         return np.empty(0, dtype=int)
@@ -44,11 +44,11 @@ def select_strongest_per_key(keys: np.ndarray, strength: np.ndarray) -> np.ndarr
     return order[first]
 
 
-def keep_beats_in_track(beats: np.ndarray, duration: float) -> np.ndarray:
+def _keep_beats_in_track(beats: np.ndarray, duration: float) -> np.ndarray:
     return beats[(beats >= 0.0) & (beats <= duration)]
 
 
-def compute_kick_min_distance(grid: np.ndarray, settings: DetectorSettings) -> float:
+def _compute_kick_min_distance(grid: np.ndarray, settings: DetectorSettings) -> float:
     """The minimum distance between kicks in seconds, from the tempo of the beat grid.
 
     The result is at most `settings.min_distance`: a wrong tempo can only make the
@@ -74,7 +74,7 @@ def compute_kick_min_distance(grid: np.ndarray, settings: DetectorSettings) -> f
     return distance
 
 
-def pick_kicks(
+def _pick_kicks(
     probability: np.ndarray, fps: float, min_distance: float, settings: DetectorSettings
 ) -> tuple[np.ndarray, np.ndarray]:
     """Kick onset times in seconds and their confidence: the peaks of the kick probability."""
@@ -106,7 +106,7 @@ def pick_kicks(
     return times[kept], probability[candidates[kept]]
 
 
-def align_beats(
+def _align_beats(
     beats: np.ndarray,
     kicks: np.ndarray,
     confidence: np.ndarray,
@@ -130,7 +130,7 @@ def align_beats(
     nearest -= (times - beats[nearest - 1]) < (beats[nearest] - times)
     offset = times - beats[nearest]
     near = np.flatnonzero(np.abs(offset) <= settings.beat_window)
-    near = near[select_strongest_per_key(nearest[near], scores[near])]
+    near = near[_select_strongest_per_key(nearest[near], scores[near])]
     if len(near) == 0:
         logger.warning("No confident kick is near a beat; the beats are not moved")
         return beats
@@ -174,15 +174,15 @@ def detect_kicks_in_signal(
         settings.max_bpm,
         settings.min_beat_interval,
     )
-    min_distance = compute_kick_min_distance(grid, settings)
-    kicks, confidence = pick_kicks(
+    min_distance = _compute_kick_min_distance(grid, settings)
+    kicks, confidence = _pick_kicks(
         probability, model.settings.fps, min_distance, settings
     )
     if len(kicks) == 0:
         logger.warning("The kick model found no kicks")
 
-    beats = keep_beats_in_track(
-        align_beats(grid, kicks, confidence, settings), duration
+    beats = _keep_beats_in_track(
+        _align_beats(grid, kicks, confidence, settings), duration
     )
     logger.info(
         "Detected {kicks} kicks ({sure} with confidence >= {threshold}) "

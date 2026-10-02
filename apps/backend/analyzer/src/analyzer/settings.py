@@ -27,13 +27,13 @@ Seconds = Annotated[float, Field(gt=0.0)]
 Count = Annotated[int, Field(ge=1)]
 
 
-def check_range(value: tuple[float, float]) -> tuple[float, float]:
+def _check_range(value: tuple[float, float]) -> tuple[float, float]:
     if value[0] > value[1]:
         raise ValueError(f"the first value of a range must be the lower one: {value}")
     return value
 
 
-def check_distribution(value: dict[int, float]) -> dict[int, float]:
+def _check_distribution(value: dict[int, float]) -> dict[int, float]:
     if min(value.values(), default=-1.0) < 0.0 or abs(sum(value.values()) - 1.0) > 1e-6:
         raise ValueError(
             f"the probabilities must be 0 or more and add up to 1: {value}"
@@ -41,8 +41,8 @@ def check_distribution(value: dict[int, float]) -> dict[int, float]:
     return value
 
 
-Range = Annotated[tuple[float, float], AfterValidator(check_range)]
-Distribution = Annotated[dict[int, float], AfterValidator(check_distribution)]
+Range = Annotated[tuple[float, float], AfterValidator(_check_range)]
+Distribution = Annotated[dict[int, float], AfterValidator(_check_distribution)]
 
 
 class Section(BaseModel):
@@ -65,7 +65,9 @@ class DetectorSettings(Section):
     # The beat grid tempo is moved by octaves into this range.
     min_bpm: float = Field(default=150.0, gt=0.0)
     max_bpm: float = Field(default=170.0, gt=0.0)
-    min_beat_interval: float = Field(default=0.75, gt=0.0)  # in beat periods; closer is extra
+    min_beat_interval: float = Field(
+        default=0.75, gt=0.0
+    )  # in beat periods; closer is extra
     beat_window: Seconds = 0.04  # a beat moves to a confident kick within +/- this
     anchor_confidence: Chance = 0.5  # the confidence of a kick that a beat moves to
 
@@ -104,7 +106,9 @@ class TrainingSettings(Section):
     workers: int = Field(default=10, ge=0)  # processes that make drops
     device: Literal["mps", "cuda", "cpu"] = "mps"
     seed: int = 0
-    learning_rate: float = Field(default=2e-3, gt=0.0)  # the peak of the one-cycle schedule
+    learning_rate: float = Field(
+        default=2e-3, gt=0.0
+    )  # the peak of the one-cycle schedule
     weight_decay: float = Field(default=1e-4, ge=0.0)
     neighbor_target: Chance = 0.5  # the target of the frames next to an onset frame
     validate_every: Count = 500  # steps
@@ -122,10 +126,10 @@ class TempoBand(NamedTuple):
     high_bpm: int
 
 
-def check_tempos(value: tuple[TempoBand, ...]) -> tuple[TempoBand, ...]:
-    check_distribution(dict(enumerate(band.chance for band in value)))
+def _check_tempos(value: tuple[TempoBand, ...]) -> tuple[TempoBand, ...]:
+    _check_distribution(dict(enumerate(band.chance for band in value)))
     for band in value:
-        check_range((band.low_bpm, band.high_bpm))
+        _check_range((band.low_bpm, band.high_bpm))
     return value
 
 
@@ -196,7 +200,7 @@ class SynthSettings(Section):
     """The synthetic training drops."""
 
     # The drop tempo: a whole BPM from a band, drawn with the band's chance.
-    tempos: Annotated[tuple[TempoBand, ...], AfterValidator(check_tempos)] = (
+    tempos: Annotated[tuple[TempoBand, ...], AfterValidator(_check_tempos)] = (
         TempoBand(0.5, 160, 160),
         TempoBand(0.25, 150, 159),
         TempoBand(0.15, 161, 170),

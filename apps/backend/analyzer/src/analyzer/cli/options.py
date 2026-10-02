@@ -50,7 +50,7 @@ Cache = Annotated[
 ]
 
 
-def load_settings() -> Settings:
+def _load_settings() -> Settings:
     """The settings, or exit with the error if an ANALYZER_* value is not valid."""
     try:
         return Settings()
@@ -60,7 +60,7 @@ def load_settings() -> Settings:
 
 
 # The CLI option defaults come from these settings.
-SETTINGS = load_settings()
+SETTINGS = _load_settings()
 
 
 def configure_logging(verbose: int, quiet: bool) -> None:

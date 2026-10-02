@@ -13,20 +13,20 @@ MEL_BREAK_HZ = 700.0
 MIN_STD = 1e-3  # the lowest standardization divisor, for near-constant bands
 
 
-def hz_to_mel(hz: np.ndarray) -> np.ndarray:
+def _hz_to_mel(hz: np.ndarray) -> np.ndarray:
     return MEL_FACTOR * np.log10(1.0 + hz / MEL_BREAK_HZ)
 
 
-def mel_to_hz(mel: np.ndarray) -> np.ndarray:
+def _mel_to_hz(mel: np.ndarray) -> np.ndarray:
     return MEL_BREAK_HZ * (10.0 ** (mel / MEL_FACTOR) - 1.0)
 
 
-def build_mel_filterbank(settings: ModelSettings, n_fft: int) -> torch.Tensor:
+def _build_mel_filterbank(settings: ModelSettings, n_fft: int) -> torch.Tensor:
     """Triangular mel filters, (bins, bands). A band narrower than one bin uses its nearest bin."""
-    edges = mel_to_hz(
+    edges = _mel_to_hz(
         np.linspace(
-            hz_to_mel(np.array(settings.fmin)),
-            hz_to_mel(np.array(settings.fmax)),
+            _hz_to_mel(np.array(settings.fmin)),
+            _hz_to_mel(np.array(settings.fmax)),
             settings.bands + 2,
         )
     )
@@ -52,13 +52,13 @@ class Features(nn.Module):
         for n_fft in settings.windows:
             self.register_buffer(f"window_{n_fft}", torch.hann_window(n_fft))
             self.register_buffer(
-                f"filters_{n_fft}", build_mel_filterbank(settings, n_fft)
+                f"filters_{n_fft}", _build_mel_filterbank(settings, n_fft)
             )
         shape = (len(settings.windows), settings.bands, 1)
         self.register_buffer("mean", torch.zeros(shape))
         self.register_buffer("std", torch.ones(shape))
 
-    def compute_log_spectrogram(self, audio: torch.Tensor) -> torch.Tensor:
+    def _compute_log_spectrogram(self, audio: torch.Tensor) -> torch.Tensor:
         layers = []
         for n_fft in self.settings.windows:
             window = getattr(self, f"window_{n_fft}")
@@ -81,9 +81,9 @@ class Features(nn.Module):
     @torch.no_grad()
     def fit(self, audio: torch.Tensor) -> None:
         """Set the standardization from example audio (batch, samples)."""
-        x = self.compute_log_spectrogram(audio)
+        x = self._compute_log_spectrogram(audio)
         self.mean.copy_(x.mean(dim=(0, 3)).unsqueeze(-1))
         self.std.copy_(x.std(dim=(0, 3)).unsqueeze(-1).clamp_min(MIN_STD))
 
     def forward(self, audio: torch.Tensor) -> torch.Tensor:
-        return (self.compute_log_spectrogram(audio) - self.mean) / self.std
+        return (self._compute_log_spectrogram(audio) - self.mean) / self.std

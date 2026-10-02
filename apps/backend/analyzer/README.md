@@ -75,7 +75,7 @@ The code in `src/analyzer/` is in five packages. Each package only uses the pack
 4. `training/`: the sample bank (`bank.py`), the synthetic drops (`synth.py`) and the training loop (`train.py`).
 5. `cli/`: one module for each command (`analyze.py`, `train.py`, `synth.py`), and the shared options and logging (`options.py`).
 
-All packages can use `settings.py` (the [settings](#settings)). Values that are not settings are named constants at the top of their module.
+All packages can use `settings.py` (the [settings](#settings)). Values that are not settings are named constants at the top of their module. Functions whose names start with `_` are only for use in their own module.
 
 As a library, `analyzer` exports `detect_kicks`, `detect_kicks_in_signal`, `Detection`, `DetectorSettings` and `Settings`.
 
