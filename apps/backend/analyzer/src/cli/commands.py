@@ -5,7 +5,7 @@ import typer
 from loguru import logger
 
 from core.logging import configure_logging
-from services.synthesizer.bank import read_bank
+from services.synthesizer.bank import load_bank_from_file
 
 app = typer.Typer(
     help="Detects kick onsets in a hardstyle track.",
@@ -51,7 +51,7 @@ def synth(
     ] = Path("bank.toml"),
 ) -> None:
     """Generate a synthetic drop with labeled kick onsets."""
-    bank = read_bank(path=bank_path)
+    bank = load_bank_from_file(path=bank_path)
     logger.info(
         "Loaded bank: {kicks} kicks, {loops} loops, {claps} claps, {hits} hits, {impacts} impacts",
         kicks=len(bank.kicks),

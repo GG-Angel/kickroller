@@ -4,17 +4,15 @@ from pathlib import Path
 
 from services.storage.io import load_audio_file
 
-from .models import Bank, BankSampleSettings, BankSettings, Sample, SampleKind
+from .models import Bank, BankConfig, Sample, SampleConfig, SampleKind
 
 AUDIO_SUFFIXES = {".wav", ".aif", ".aiff", ".flac", ".mp3", ".ogg"}
 
 
-def get_samples(
-    settings: BankSampleSettings, kind: SampleKind, root: Path
-) -> list[Sample]:
+def load_samples(config: SampleConfig, kind: SampleKind, root: Path) -> list[Sample]:
     samples: list[Sample] = []
-    exclude = re.compile(settings.exclude, re.IGNORECASE) if settings.exclude else None
-    for pattern in settings.files:
+    exclude = re.compile(config.exclude, re.IGNORECASE) if config.exclude else None
+    for pattern in config.files:
         for path in root.glob(pattern.as_posix()):
             if (
                 not path.is_file()
@@ -24,11 +22,11 @@ def get_samples(
                 continue  # skip non-audio or excluded files
 
             audio = load_audio_file(path)
-            samples.append(Sample(kind=kind, path=path, bpm=settings.bpm, audio=audio))
+            samples.append(Sample(kind=kind, path=path, bpm=config.bpm, audio=audio))
     return samples
 
 
-def get_bank(settings: BankSettings) -> Bank:
+def load_bank(config: BankConfig) -> Bank:
     samples_by_kind: dict[SampleKind, list[Sample]] = {
         "kick": [],
         "loop": [],
@@ -36,12 +34,12 @@ def get_bank(settings: BankSettings) -> Bank:
         "impact": [],
         "hit": [],
     }
-    for group in settings.samples:
+    for group in config.samples:
         samples_by_kind[group.kind].extend(
-            get_samples(
+            load_samples(
                 group,
                 group.kind,
-                settings.root,
+                config.root,
             )
         )
     return Bank(
@@ -53,6 +51,6 @@ def get_bank(settings: BankSettings) -> Bank:
     )
 
 
-def read_bank(path: Path) -> Bank:
-    settings = BankSettings.model_validate(tomllib.loads(path.read_text()))
-    return get_bank(settings)
+def load_bank_from_file(path: Path) -> Bank:
+    settings = BankConfig.model_validate(tomllib.loads(path.read_text()))
+    return load_bank(settings)
