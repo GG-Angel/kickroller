@@ -29,17 +29,20 @@ class SynthSettings(BaseModel):
     kickroll_level_db_range: tuple[float, float] = (-6.0, 0.0)
     kick_tail_fade_seconds: float = 0.003
 
-    max_simultaneous_loops: int = 3
+    max_simultaneous_loops: int = 4
     loop_level_db_range: tuple[float, float] = (-18.0, 3.0)
     loop_high_pass_cutoff_hz_range: tuple[float, float] = (100.0, 300.0)
     loop_high_pass_filter_order: int = 2
     loop_duck_depth_range: tuple[float, float] = (0.4, 1.0)
     loop_duck_release_seconds_range: tuple[float, float] = (0.05, 0.25)
+
     clap_layer_probability: float = 0.6
     clap_level_db_range: tuple[float, float] = (-12.0, -2.0)
+
     mean_random_hits_per_drop: float = 8.0
     random_hit_level_db_range: tuple[float, float] = (-18.0, -3.0)
-    impact_layer_probability: float = 0.3
+
+    impact_layer_probability: float = 0.25
     impact_level_db_range: tuple[float, float] = (-12.0, 0.0)
 
     one_shot_silence_trim_threshold_db: float = 40.0
