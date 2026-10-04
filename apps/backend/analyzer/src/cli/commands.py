@@ -5,7 +5,7 @@ import typer
 from loguru import logger
 
 from core.logging import configure_logging
-from services.generator.bank import read_bank
+from services.synthesizer.bank import read_bank
 
 app = typer.Typer(
     help="Detects kick onsets in a hardstyle track.",
@@ -34,13 +34,13 @@ def main(
 @app.command(name="analyze")
 def analyze() -> None:
     """Detect kick onsets and the beat grid in a hardstyle track."""
-    pass
+    logger.info("erm")
 
 
 @app.command(name="train")
 def train() -> None:
     """Train the kick onset detection model."""
-    pass
+    logger.info("erm")
 
 
 @app.command(name="synth")

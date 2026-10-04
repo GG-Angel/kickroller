@@ -62,9 +62,8 @@ A command-line option (for example `-c` or `--steps`) changes its value for one 
 ## Development
 
 ```sh
-uv run ruff format   # format
-uv run ruff check    # lint
-uv run ty check      # type check
+just check   # ty, Ruff lint and formatting checks
+just fix     # apply Ruff fixes, then run all checks
 ```
 
 The code in `src/analyzer/` is in five packages. Each package only uses the packages before it in this list:
