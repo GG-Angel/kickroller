@@ -3,13 +3,13 @@ from pydantic_settings import BaseSettings
 
 
 class SynthSettings(BaseModel):
-    drop_seconds: float = 12.0
+    drop_duration_seconds: float = 12.0
     beats_per_bar: int = 4
-    sixteenths_per_beat: int = 4
-    phrase_bars: int = 4
-    peak_db: float = -1.0
+    sixteenth_notes_per_beat: int = 4
+    bars_per_phrase: int = 4
+    drop_peak_level_db: float = -1.0
 
-    bpm_weights: tuple[tuple[int, float], ...] = (
+    bpm_probability_weights: tuple[tuple[int, float], ...] = (
         (140, 0.02),
         (150, 0.20),
         (155, 0.15),
@@ -20,32 +20,32 @@ class SynthSettings(BaseModel):
         (200, 0.04),
     )
 
-    missing_rate: tuple[float, float] = (0.0, 0.15)
-    kickless_beat_rate: tuple[float, float] = (0.05, 0.12)
-    triplet_chance: float = 0.5
-    kickroll_chance: tuple[float, float] = (0.10, 0.30)
-    kickroll_resolution_weights: tuple[float, float, float] = (4.0, 2.0, 1.0)
-    kick_level_db: tuple[float, float] = (-1.0, 0.0)
-    roll_level_db: tuple[float, float] = (-6.0, 0.0)
-    cut_fade_seconds: float = 0.003
+    kickless_drop_probability_range: tuple[float, float] = (0.0, 0.15)
+    kickless_beat_probability_range: tuple[float, float] = (0.05, 0.12)
+    triplet_grid_probability: float = 0.3
+    per_beat_kickroll_probability_range: tuple[float, float] = (0.10, 0.30)
+    kickroll_hits_per_beat_weights: tuple[float, float, float] = (4.0, 2.0, 1.0)
+    regular_kick_level_db_range: tuple[float, float] = (-1.0, 0.0)
+    kickroll_level_db_range: tuple[float, float] = (-6.0, 0.0)
+    kick_tail_fade_seconds: float = 0.003
 
-    max_loops: int = 3
-    loop_level_db: tuple[float, float] = (-18.0, 3.0)
-    high_pass_hz: tuple[float, float] = (100.0, 250.0)
-    high_pass_order: int = 2
-    duck_depth: tuple[float, float] = (0.4, 1.0)
-    duck_release_seconds: tuple[float, float] = (0.05, 0.25)
-    clap_chance: float = 0.6
-    clap_level_db: tuple[float, float] = (-12.0, -2.0)
-    mean_hits: float = 8.0
-    hit_level_db: tuple[float, float] = (-18.0, -3.0)
-    impact_chance: float = 0.3
-    impact_level_db: tuple[float, float] = (-12.0, 0.0)
+    max_simultaneous_loops: int = 3
+    loop_level_db_range: tuple[float, float] = (-18.0, 3.0)
+    loop_high_pass_cutoff_hz_range: tuple[float, float] = (100.0, 300.0)
+    loop_high_pass_filter_order: int = 2
+    loop_duck_depth_range: tuple[float, float] = (0.4, 1.0)
+    loop_duck_release_seconds_range: tuple[float, float] = (0.05, 0.25)
+    clap_layer_probability: float = 0.6
+    clap_level_db_range: tuple[float, float] = (-12.0, -2.0)
+    mean_random_hits_per_drop: float = 8.0
+    random_hit_level_db_range: tuple[float, float] = (-18.0, -3.0)
+    impact_layer_probability: float = 0.3
+    impact_level_db_range: tuple[float, float] = (-12.0, 0.0)
 
-    trim_top_db: float = 40.0
-    trim_frame_length: int = 64
-    trim_hop_length: int = 16
-    attack_seconds: float = 0.1
+    one_shot_silence_trim_threshold_db: float = 40.0
+    one_shot_trim_frame_samples: int = 64
+    one_shot_trim_hop_samples: int = 16
+    one_shot_attack_window_seconds: float = 0.1
 
 
 class Settings(BaseSettings):
