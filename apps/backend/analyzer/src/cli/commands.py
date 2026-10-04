@@ -1,8 +1,11 @@
+from pathlib import Path
 from typing import Annotated
 
 import typer
+from loguru import logger
 
 from core.logging import configure_logging
+from services.generator.bank import read_bank
 
 app = typer.Typer(
     help="Detects kick onsets in a hardstyle track.",
@@ -41,6 +44,12 @@ def train() -> None:
 
 
 @app.command(name="generate")
-def generate() -> None:
+def generate(
+    bank_file: Annotated[
+        Path,
+        typer.Option("--bank", "-b", help="Path to the sample bank configuration."),
+    ] = Path("bank.toml"),
+) -> None:
     """Generate a synthetic drop with labeled kick onsets."""
-    pass
+    bank = read_bank(bank_file)
+    logger.info("Loaded bank: %s", bank)

@@ -1,48 +1,52 @@
-# Sample bank for `analyzer train`. Copy this file to bank.toml
+# Sample bank for `analyzer generate`. Copy this file to bank.toml
 # (git-ignored), set the root to your samples folder and list its files.
 #
-# "files" are globs of audio files, relative to the root and not case-sensitive:
-# "*" stays in one folder and "**" also goes into subfolders. "exclude" is a
-# regular expression for file names to skip. Only [kick] is necessary. A file
-# found for more than one kind gets the first of kick, loop, clap, impact, hit.
+# "files" are globs of audio files relative to root: "*" stays in one folder
+# and "**" also matches subfolders. "exclude" is a regular expression applied
+# to file names. Each [[samples]] group has one kind; use separate groups when
+# files need different kinds, BPMs, or exclusions.
 #
-# Samples are 160 BPM, or "bpm" in any kind gives the tempo (80-320) of the
-# files that a glob matches (the first matching glob counts). These files are
-# time-stretched to 160 BPM when the bank is built, with the same pitch (ffmpeg
-# atempo, which keeps kick attacks sharp). Use a [kind.bpm] table for many globs.
+# BPM defaults to 160. Set it once per group, so files with different tempos
+# should be listed in separate groups.
 
 root = "/path/to/samples" # a relative root is relative to this file
 
-# Complete kick one-shots, one kick each. 10% of the kick designs are held out
-# for validation, so the pitched versions of one kick must be one design. The
-# design of a kick is the folder and the file name without its key suffix
-# ("Kick 3_F#.wav" and "Kick 3_G.wav" are "KICK 3"). "designs" are globs of
-# folders that each hold one design (all kicks below the folder).
-[kick]
-files = ["kicks/*", "kicks/raw/**/*", "kicks/pitched/*/*"]
-designs = ["kicks/pitched/*"]
-exclude = 'KICK_ROLL' # kick rolls have more than one kick
+# Complete kick one-shots, one kick each.
+[[samples]]
+kind = "kick"
+files = ["kicks/*", "kicks/pitched/*/*"]
+exclude = "KICK_ROLL"                    # kick rolls have more than one kick
 
-[kick.bpm]
-"kicks/raw/*_155.wav" = 155
+[[samples]]
+kind = "kick"
+files = ["kicks/raw/*_155.wav"]
+bpm = 155
 
 # Loops that start on a bar and have no kicks and no sub-bass: screeches,
 # atmospheres, top loops, fills. Not drum loops or full mixes.
-[loop]
-files = ["loops/screeches/*", "loops/tops/*", "loops/150/*"]
+[[samples]]
+kind = "loop"
+files = ["loops/screeches/*", "loops/tops/*"]
 exclude = '_(FULL|DRUMS|KICK|BASS)\.wav$'
-bpm = { "loops/150/*" = 150 }
+
+[[samples]]
+kind = "loop"
+files = ["loops/150/*"]
+bpm = 150
 
 # Claps, put on beats 2 and 4.
-[clap]
+[[samples]]
+kind = "clap"
 files = ["drums/claps/*"]
-exclude = 'KICK' # kick and clap layers
+exclude = "KICK"          # kick and clap layers
 
 # Impacts, crashes and sub drops, put at the start of a bar.
-[impact]
+[[samples]]
+kind = "impact"
 files = ["fx/impacts/*", "fx/sub drops/*"]
 
 # Other one-shots: snares, hats, percussion, FX, synth hits. No kick layers.
-[hit]
+[[samples]]
+kind = "hit"
 files = ["drums/snares/*", "drums/hats/*", "fx/other/*"]
-exclude = 'KICK'
+exclude = "KICK"
