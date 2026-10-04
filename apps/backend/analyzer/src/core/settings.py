@@ -20,14 +20,11 @@ class SynthSettings(BaseModel):
         (200, 0.04),
     )
 
-    kickless_bar_chance: float = 0.05
     missing_rate: tuple[float, float] = (0.0, 0.15)
-    off_beat_rate: tuple[float, float] = (0.0, 0.3)
-    syncopated_chance: float = 0.03
-    syncopated_positions: tuple[float, ...] = (1 / 4, 1 / 3, 2 / 3, 3 / 4)
-    roll_chance: float = 0.2
-    roll_beats: tuple[int, ...] = (1, 2, 4)
-    roll_steps: tuple[float, ...] = (1 / 4, 1 / 3, 1 / 2)
+    kickless_beat_rate: tuple[float, float] = (0.05, 0.12)
+    triplet_chance: float = 0.5
+    kickroll_chance: tuple[float, float] = (0.10, 0.30)
+    kickroll_resolution_weights: tuple[float, float, float] = (4.0, 2.0, 1.0)
     kick_level_db: tuple[float, float] = (-1.0, 0.0)
     roll_level_db: tuple[float, float] = (-6.0, 0.0)
     cut_fade_seconds: float = 0.003
