@@ -43,13 +43,20 @@ def train() -> None:
     pass
 
 
-@app.command(name="generate")
-def generate(
-    bank_file: Annotated[
+@app.command(name="synth")
+def synth(
+    bank_path: Annotated[
         Path,
         typer.Option("--bank", "-b", help="Path to the sample bank configuration."),
     ] = Path("bank.toml"),
 ) -> None:
     """Generate a synthetic drop with labeled kick onsets."""
-    bank = read_bank(bank_file)
-    logger.info("Loaded bank: %s", bank)
+    bank = read_bank(path=bank_path)
+    logger.info(
+        "Loaded bank: {kicks} kicks, {loops} loops, {claps} claps, {hits} hits, {impacts} impacts",
+        kicks=len(bank.kicks),
+        loops=len(bank.loops),
+        claps=len(bank.claps),
+        hits=len(bank.hits),
+        impacts=len(bank.impacts),
+    )
