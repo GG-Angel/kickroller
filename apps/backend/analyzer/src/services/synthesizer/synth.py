@@ -74,6 +74,7 @@ class Grid:
 
 
 def _compute_rms(signal: np.ndarray) -> float:
+    """Compute the RMS level of a signal."""
     return float(np.sqrt(np.mean(np.square(signal))))
 
 
@@ -120,11 +121,12 @@ def _high_pass(signal: np.ndarray, cutoff_hz: float) -> np.ndarray:
 
 
 def _draw_sample(rng: np.random.Generator, samples: list[Sample]) -> Sample:
+    """Draw a random sample from the list of samples."""
     return samples[int(rng.integers(len(samples)))]
 
 
 def _trim_silence(sound: np.ndarray) -> np.ndarray:
-    """A one-shot without silence at its ends, so that it starts at its attack."""
+    """Trim silence from the start and end of the sound."""
     trimmed, _ = librosa.effects.trim(
         sound,
         top_db=SYNTH.trim_top_db,
@@ -135,6 +137,7 @@ def _trim_silence(sound: np.ndarray) -> np.ndarray:
 
 
 def _draw_one_shot(rng: np.random.Generator, samples: list[Sample]) -> np.ndarray:
+    """Draw a random one-shot sample and trim its silence."""
     return _trim_silence(_draw_sample(rng, samples).audio)
 
 
@@ -142,17 +145,20 @@ def _draw_one_shot(rng: np.random.Generator, samples: list[Sample]) -> np.ndarra
 
 
 def _draw_grid(rng: np.random.Generator) -> Grid:
-    if rng.random() < SYNTH.target_bpm_chance:
-        bpm = SYNTH.target_bpm
-    else:
-        bpm = int(rng.integers(low=SYNTH.bpm_range[0], high=SYNTH.bpm_range[1] + 1))
+    """Draw a random grid with a BPM chosen according to the configured weights."""
+    bpm = int(
+        rng.choice(
+            [bpm for bpm, _ in SYNTH.bpm_weights],
+            p=[weight for _, weight in SYNTH.bpm_weights],
+        )
+    )
     return Grid(bpm=bpm, phase=rng.random())
 
 
 def _draw_beat(
     rng: np.random.Generator, beat: int, missing_rate: float, off_beat_rate: float
 ) -> list[float]:
-    """The kicks of one beat: on the beat, then a 1/8 off-beat or a syncopated kick."""
+    """Draw the kick positions for a single beat."""
     kicks: list[float] = []
     if rng.random() >= missing_rate:
         kicks.append(beat)

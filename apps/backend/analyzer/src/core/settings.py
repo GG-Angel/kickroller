@@ -9,9 +9,16 @@ class SynthSettings(BaseModel):
     phrase_bars: int = 4
     peak_db: float = -1.0
 
-    target_bpm: int = 160
-    target_bpm_chance: float = 0.5
-    bpm_range: tuple[int, int] = (150, 170)
+    bpm_weights: tuple[tuple[int, float], ...] = (
+        (140, 0.02),
+        (150, 0.20),
+        (155, 0.15),
+        (160, 0.40),
+        (165, 0.10),
+        (170, 0.05),
+        (180, 0.04),
+        (200, 0.04),
+    )
 
     kickless_bar_chance: float = 0.05
     missing_rate: tuple[float, float] = (0.0, 0.15)
