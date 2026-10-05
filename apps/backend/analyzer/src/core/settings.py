@@ -8,6 +8,7 @@ class SynthSettings(BaseModel):
     sixteenth_notes_per_beat: int = 4
     bars_per_phrase: int = 4
     drop_peak_level_db: float = -1.0
+    level_window_seconds: float = 0.1  # a sample level is the RMS of its loudest window
 
     # bpm_probability_weights: tuple[tuple[int, float], ...] = (
     #     (150, 0.1),
@@ -17,7 +18,7 @@ class SynthSettings(BaseModel):
     #     (180, 0.05),
     # )
 
-    bpm_probability_weights: tuple[tuple[int, float], ...] = ((160, 1.00),)
+    bpm_probability_weights: tuple[tuple[int, float], ...] = ((165, 1.00),)
 
     kickless_drop_probability: float = 0.075
     kickless_bar_probability: float = 0.05
@@ -41,12 +42,14 @@ class SynthSettings(BaseModel):
     regular_kick_level_db_range: tuple[float, float] = (-1.0, 0.0)
     kickroll_level_db_range: tuple[float, float] = (-6.0, 0.0)
     kick_tail_fade_seconds: float = 0.003
-    kick_key_change_bars: int = 2
-    kick_key_change_probability: float = 0.5  # every `kick_key_change_bars` bars
-    held_out_kick_design_fraction: float = 0.1  # only for validation drops
+    held_out_kick_fraction: float = 0.1  # only for validation drops
 
-    max_simultaneous_loops: int = 3
-    loop_level_db_range: tuple[float, float] = (-18.0, 3.0)
+    loop_count_weights: tuple[tuple[int, float], ...] = (
+        (0, 0.10),
+        (1, 0.75),
+        (2, 0.15),
+    )  # the number of loops played at the same time
+    loop_level_db_range: tuple[float, float] = (-12.0, 0.0)
     loop_high_pass_cutoff_hz_range: tuple[float, float] = (100.0, 300.0)
     loop_high_pass_filter_order: int = 2
     loop_duck_depth_range: tuple[float, float] = (0.4, 1.0)
@@ -56,7 +59,7 @@ class SynthSettings(BaseModel):
     clap_level_db_range: tuple[float, float] = (-12.0, -2.0)
 
     mean_random_hits_per_drop: float = 8.0
-    random_hit_level_db_range: tuple[float, float] = (-18.0, -3.0)
+    random_hit_level_db_range: tuple[float, float] = (-15.0, -6.0)
 
     impact_layer_probability: float = 0.25
     impact_level_db_range: tuple[float, float] = (-12.0, 0.0)
@@ -64,7 +67,6 @@ class SynthSettings(BaseModel):
     one_shot_silence_trim_threshold_db: float = 40.0
     one_shot_trim_frame_samples: int = 64
     one_shot_trim_hop_samples: int = 16
-    one_shot_attack_window_seconds: float = 0.1
 
     master_eq_tilt_probability: float = 0.5
     master_eq_tilt_corner_hz_range: tuple[float, float] = (300.0, 3000.0)

@@ -2,18 +2,19 @@
 
 A drop is rendered on a bar grid that starts up to one bar before the drop:
 
-- Kicks: one kick design (all keys of one kick), with a new key every few bars.
-    Each beat can have a kick, a 1/8 off-beat kick or a syncopated kick. Some
-    bars end with a kickroll (1/16 notes, 1/8 triplets or 1/8 notes), more
-    often at the end of a phrase. Each kick cuts the tail of the kick before it.
+- Kicks: one kick sample. Each beat can have a kick, a 1/8 off-beat kick or a
+    syncopated kick. Some bars end with a kickroll (1/16 notes, 1/8 triplets or
+    1/8 notes), more often at the end of a phrase. Each kick cuts the tail of
+    the kick before it.
 - Loops: stretched to the drop tempo, high-passed and ducked at each kick.
 - Claps on beats 2 and 4, random hits on the 1/16 grid, and sometimes an impact.
 
-The levels are relative to the kick. Last, the drop is mastered (EQ tilt,
-clipping and limiting). A fixed part of the kick designs is held out, for
-validation drops only.
+The level of each sample is the RMS of its loudest part, relative to the kick.
+Last, the drop is mastered (EQ tilt, clipping and limiting). A fixed part of the
+kicks is held out, for validation drops only.
 """
 
+import warnings
 import zlib
 from dataclasses import dataclass
 from math import ceil
@@ -21,15 +22,23 @@ from math import ceil
 import librosa
 import numpy as np
 from loguru import logger
+from scipy.ndimage import uniform_filter1d
 from scipy.signal import butter, sosfilt
 
 from core.settings import SETTINGS
 
 from .mastering import master_drop
-from .models import Bank, KickDesign, LabeledDrop, Sample
+from .models import Bank, LabeledDrop, Sample
 
 SAMPLE_RATE = SETTINGS.sample_rate
 SYNTH = SETTINGS.synth
+
+warnings.filterwarnings(
+    "ignore",
+    message="The `(hop_length|n_fft)` parameter is deprecated",
+    category=FutureWarning,
+    module="librosa",
+)
 
 
 @dataclass(frozen=True)
@@ -86,19 +95,14 @@ class KickPattern:
     in_roll: np.ndarray  # whether each kick is part of a kickroll
 
 
-def _compute_rms(signal: np.ndarray) -> float:
-    """Compute the RMS level of a signal."""
-    return float(np.sqrt(np.mean(np.square(signal))))
-
-
-def _compute_attack_rms(sound: np.ndarray) -> float:
-    """The RMS level of the attack and body of a one-shot."""
-    attack_length = round(SYNTH.one_shot_attack_window_seconds * SAMPLE_RATE)
-    return _compute_rms(sound[:attack_length])
+def _compute_level(sound: np.ndarray) -> float:
+    """The RMS level of the loudest `level_window_seconds` of a sound."""
+    window = round(SYNTH.level_window_seconds * SAMPLE_RATE)
+    return float(np.sqrt(uniform_filter1d(np.square(sound), window).max()))
 
 
 def _relative_gain(level_db: float, reference: float, level: float) -> float:
-    """The gain that puts a sound with RMS `level` at `level_db` relative to `reference`."""
+    """The gain that puts a sound at `level` at `level_db` relative to `reference`."""
     return float(librosa.db_to_amplitude(level_db)) * reference / max(level, 1e-9)
 
 
@@ -252,55 +256,23 @@ def _draw_kick_pattern(rng: np.random.Generator, bars: int) -> KickPattern:
     return KickPattern(positions=positions[order], in_roll=in_roll[order])
 
 
-def _is_held_out(design: KickDesign) -> bool:
-    """A fixed `held_out_kick_design_fraction` of the designs, chosen by name."""
-    return (
-        zlib.crc32(design.name.encode()) / 2**32 < SYNTH.held_out_kick_design_fraction
-    )
+def _is_held_out(kick: Sample) -> bool:
+    """A fixed `held_out_kick_fraction` of the kicks, chosen by name."""
+    return zlib.crc32(kick.name.encode()) / 2**32 < SYNTH.held_out_kick_fraction
 
 
-def _draw_kick_design(
-    rng: np.random.Generator, bank: Bank, held_out: bool
-) -> KickDesign:
-    """A random kick design from the held-out designs, or from the other designs."""
-    designs = [d for d in bank.kick_designs if _is_held_out(d) == held_out]
-    if not designs:
+def _draw_kick(rng: np.random.Generator, kicks: list[Sample], held_out: bool) -> Sample:
+    """A random kick from the held-out kicks, or from the other kicks."""
+    candidates = [kick for kick in kicks if _is_held_out(kick) == held_out]
+    if not candidates:
         kind = "held-out" if held_out else "training"
-        raise ValueError(f"The bank has no {kind} kick designs")
-    return designs[int(rng.integers(len(designs)))]
-
-
-def _draw_kick_keys(
-    rng: np.random.Generator, design: KickDesign, grid: Grid
-) -> list[np.ndarray]:
-    """One kick of the design for each section of `kick_key_change_bars` bars.
-
-    Each section after the first can have a new key (or the same key again).
-    """
-    section_length = SYNTH.kick_key_change_bars * grid.bar
-    keys: list[np.ndarray] = []
-    previous: Sample | None = None
-    for section in range(ceil(grid.bars / SYNTH.kick_key_change_bars)):
-        if previous is not None and rng.random() >= SYNTH.kick_key_change_probability:
-            keys.append(keys[-1])
-            continue
-        kick = _draw_sample(rng, design.kicks)
-        if kick is previous:
-            keys.append(keys[-1])
-            continue
-        logger.debug(
-            "Kick {path} from {time:.2f} s",
-            path=kick.name,
-            time=max(grid.to_drop_seconds(section * section_length), 0.0),
-        )
-        keys.append(_trim_silence(kick.audio))
-        previous = kick
-    return keys
+        raise ValueError(f"The bank has no {kind} kicks")
+    return _draw_sample(rng, candidates)
 
 
 def _render_kicks(
     rng: np.random.Generator,
-    keys: list[np.ndarray],
+    kick: np.ndarray,
     starts: np.ndarray,
     in_roll: np.ndarray,
     grid: Grid,
@@ -315,13 +287,10 @@ def _render_kicks(
         rng.uniform(*SYNTH.kickroll_level_db_range, size=len(starts)),
         rng.uniform(*SYNTH.regular_kick_level_db_range, size=len(starts)),
     )
-    sections = starts // (SYNTH.kick_key_change_bars * grid.bar)
     ends = np.append(starts[1:], grid.length)
-    for start, end, section, level_db in zip(
-        starts, ends, sections.astype(int), levels_db, strict=True
-    ):
-        kick = _cut_tail(keys[section], end - start)
-        _mix_into(out, kick, start, float(librosa.db_to_amplitude(level_db)))
+    for start, end, level_db in zip(starts, ends, levels_db, strict=True):
+        gain = float(librosa.db_to_amplitude(level_db))
+        _mix_into(out, _cut_tail(kick, end - start), start, gain)
     return out
 
 
@@ -332,11 +301,11 @@ def _render_loops(
     grid: Grid,
     reference: float,
 ) -> np.ndarray:
-    """The loop track: up to the configured number of loops, ducked at each kick."""
+    """The loop track: a random number of loops, ducked at each kick."""
     out = np.zeros(grid.length, dtype=np.float32)
     if not loops:
         return out
-    for _ in range(int(rng.integers(0, SYNTH.max_simultaneous_loops + 1))):
+    for _ in range(_draw_weighted(rng, SYNTH.loop_count_weights)):
         sample = _draw_sample(rng, loops)
         high_pass_hz = rng.uniform(*SYNTH.loop_high_pass_cutoff_hz_range)
         loop = _fit_loop_to_grid(sample, grid, high_pass_hz)
@@ -347,7 +316,7 @@ def _render_loops(
             high_pass_hz=high_pass_hz,
             level_db=level_db,
         )
-        out += _relative_gain(level_db, reference, _compute_rms(loop)) * loop
+        out += _relative_gain(level_db, reference, _compute_level(loop)) * loop
     return out * _make_sidechain_curve(rng, starts, grid.length)
 
 
@@ -366,7 +335,7 @@ def _render_claps(
         path=sample.name,
         level_db=level_db,
     )
-    gain = _relative_gain(level_db, reference, _compute_attack_rms(clap))
+    gain = _relative_gain(level_db, reference, _compute_level(clap))
     for start in grid.to_samples(np.arange(1, grid.bars * SYNTH.beats_per_bar, 2)):
         _mix_into(out, clap, start, gain)
     return out
@@ -393,7 +362,7 @@ def _render_hits(
             time=grid.to_drop_seconds(start),
             level_db=level_db,
         )
-        gain = _relative_gain(level_db, reference, _compute_attack_rms(hit))
+        gain = _relative_gain(level_db, reference, _compute_level(hit))
         _mix_into(out, hit, start, gain)
     return out
 
@@ -416,7 +385,7 @@ def _render_impact(
         time=grid.to_drop_seconds(start),
         level_db=level_db,
     )
-    gain = _relative_gain(level_db, reference, _compute_attack_rms(impact))
+    gain = _relative_gain(level_db, reference, _compute_level(impact))
     _mix_into(out, impact, start, gain)
     return out
 
@@ -426,21 +395,21 @@ def create_drop(
 ) -> LabeledDrop:
     """A random drop of the configured duration and each kick onset in seconds.
 
-    With `held_out`, the kick is from the held-out designs (for validation drops).
+    With `held_out`, the kick is from the held-out kicks (for validation drops).
     """
-    design = _draw_kick_design(rng, bank, held_out)
+    kick_sample = _draw_kick(rng, bank.kicks, held_out)
     grid = _draw_grid(rng)
     kick_pattern = _draw_kick_pattern(rng, grid.bars)
     kick_starts = grid.to_samples(kick_pattern.positions)
-    kick_keys = _draw_kick_keys(rng, design, grid)
-    kick_attack_rms = _compute_attack_rms(kick_keys[0])
+    kick = _trim_silence(kick_sample.audio)
+    kick_level = _compute_level(kick)
 
     mix = (
-        _render_kicks(rng, kick_keys, kick_starts, kick_pattern.in_roll, grid)
-        + _render_loops(rng, bank.loops, kick_starts, grid, kick_attack_rms)
-        + _render_claps(rng, bank.claps, grid, kick_attack_rms)
-        + _render_hits(rng, bank.hits, grid, kick_attack_rms)
-        + _render_impact(rng, bank.impacts, grid, kick_attack_rms)
+        _render_kicks(rng, kick, kick_starts, kick_pattern.in_roll, grid)
+        + _render_loops(rng, bank.loops, kick_starts, grid, kick_level)
+        + _render_claps(rng, bank.claps, grid, kick_level)
+        + _render_hits(rng, bank.hits, grid, kick_level)
+        + _render_impact(rng, bank.impacts, grid, kick_level)
     )
 
     drop_length = round(SYNTH.drop_duration_seconds * SAMPLE_RATE)
@@ -455,5 +424,5 @@ def create_drop(
         audio=audio.astype(np.float32),
         onsets=onsets,
         bpm=grid.bpm,
-        kick_design=design.name,
+        kick_name=kick_sample.name,
     )

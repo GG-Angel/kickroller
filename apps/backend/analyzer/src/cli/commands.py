@@ -75,7 +75,7 @@ def synth(
     ] = False,
     held_out: Annotated[
         bool,
-        typer.Option("--held-out", help="Use only the held-out kick designs."),
+        typer.Option("--held-out", help="Use only the held-out kicks."),
     ] = False,
 ) -> None:
     """Write synthetic drops with labeled kick onsets, to check the training data."""

@@ -38,7 +38,7 @@ def export_drops(
     include_clicks: bool = False,
     held_out: bool = False,
 ) -> None:
-    """Create and export synthetic drops (`held_out`: from held-out kick designs)."""
+    """Create and export synthetic drops."""
     seed_sequence = np.random.SeedSequence(seed)
     logger.info("Seed {seed}", seed=seed_sequence.entropy)
     rng = np.random.default_rng(seed_sequence)
@@ -48,10 +48,10 @@ def export_drops(
         name = f"drop_{i:03d}"
         _write_drop(folder / name, drop, include_clicks)
         logger.info(
-            "Wrote {name}: {kicks} kicks at {bpm} BPM, kick design {design}",
+            "Wrote {name}: {kicks} kicks at {bpm} BPM, kick {kick}",
             name=name,
             kicks=len(drop.onsets),
             bpm=drop.bpm,
-            design=drop.kick_design,
+            kick=drop.kick_name,
         )
     logger.info("Wrote {count} drops to {folder}", count=num_drops, folder=folder)

@@ -17,7 +17,6 @@ class SampleConfig(BaseModel):
 
 class BankConfig(BaseModel):
     root: Path = Path(".")
-    kick_design_folders: list[Path] = Field(default_factory=list)
     samples: list[SampleConfig] = Field(default_factory=list)
 
 
@@ -54,16 +53,8 @@ class Sample:
 
 
 @dataclass(frozen=True)
-class KickDesign:
-    """All versions (keys) of one kick. The name is a path relative to the bank root."""
-
-    name: str
-    kicks: list[Sample]
-
-
-@dataclass(frozen=True)
 class Bank:
-    kick_designs: list[KickDesign]
+    kicks: list[Sample]
     loops: list[Sample]
     claps: list[Sample]
     impacts: list[Sample]
@@ -75,4 +66,4 @@ class LabeledDrop:
     audio: np.ndarray
     onsets: np.ndarray
     bpm: int
-    kick_design: str
+    kick_name: str
