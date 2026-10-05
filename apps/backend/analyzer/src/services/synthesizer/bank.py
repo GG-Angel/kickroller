@@ -3,6 +3,9 @@
 The cache has the audio of all files one after the other (float16, read as a
 memory map, so it is not loaded into memory) and an index of the files. If the
 files of the config or the sample rate change, the cache is made again.
+
+The kicks are grouped into designs (all keys of one kick), so that a held-out
+design is really unheard in training.
 """
 
 import re
@@ -17,7 +20,7 @@ from pydantic import ValidationError
 from core.settings import SETTINGS
 from services.storage.io import load_audio_file
 
-from .models import Bank, BankCacheIndex, BankConfig, Sample, SampleFile
+from .models import Bank, BankCacheIndex, BankConfig, KickDesign, Sample, SampleFile
 
 AUDIO_SUFFIXES = {".wav", ".aif", ".aiff", ".flac", ".mp3", ".ogg"}
 CACHE_INDEX_FILE = "index.json"
@@ -92,6 +95,26 @@ def _open_cache(cache: Path) -> list[Sample]:
     ]
 
 
+def _group_kick_designs(config: BankConfig, kicks: list[Sample]) -> list[KickDesign]:
+    """The kicks grouped by design.
+
+    The design of a kick is its nearest folder in `config.kick_design_folders`.
+    A kick that is not in one of these folders is a design of its own.
+    """
+    folders = {
+        folder
+        for pattern in config.kick_design_folders
+        for folder in config.root.glob(pattern.as_posix())
+        if folder.is_dir()
+    }
+    designs: dict[str, list[Sample]] = {}
+    for kick in kicks:
+        folder = next((p for p in kick.path.parents if p in folders), kick.path)
+        name = folder.relative_to(config.root).as_posix()
+        designs.setdefault(name, []).append(kick)
+    return [KickDesign(name=name, kicks=group) for name, group in designs.items()]
+
+
 def load_bank(config: BankConfig, cache: Path) -> Bank:
     """The samples of `config`. They are decoded into `cache` only if it is not current."""
     files = find_sample_files(config)
@@ -105,8 +128,9 @@ def load_bank(config: BankConfig, cache: Path) -> Bank:
         )
         _write_cache(cache, files)
     samples = _open_cache(cache)
+    kicks = [s for s in samples if s.kind == "kick"]
     return Bank(
-        kicks=[s for s in samples if s.kind == "kick"],
+        kick_designs=_group_kick_designs(config, kicks),
         loops=[s for s in samples if s.kind == "loop"],
         claps=[s for s in samples if s.kind == "clap"],
         impacts=[s for s in samples if s.kind == "impact"],
@@ -118,8 +142,10 @@ def load_bank_from_file(path: Path, cache: Path) -> Bank:
     config = BankConfig.model_validate(tomllib.loads(path.read_text()))
     bank = load_bank(config, cache)
     logger.info(
-        "Loaded bank: {kicks} kicks, {loops} loops, {claps} claps, {hits} hits, {impacts} impacts",
-        kicks=len(bank.kicks),
+        "Loaded bank: {kicks} kicks in {designs} designs, {loops} loops, "
+        "{claps} claps, {hits} hits, {impacts} impacts",
+        kicks=sum(len(design.kicks) for design in bank.kick_designs),
+        designs=len(bank.kick_designs),
         loops=len(bank.loops),
         claps=len(bank.claps),
         hits=len(bank.hits),

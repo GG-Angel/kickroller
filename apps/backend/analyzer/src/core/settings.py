@@ -17,14 +17,31 @@ class SynthSettings(BaseModel):
         (180, 0.05),
     )
 
-    kickless_drop_probability_range: tuple[float, float] = (0.0, 0.15)
+    kickless_drop_probability: float = 0.075
+    kickless_bar_probability: float = 0.05
     kickless_beat_probability_range: tuple[float, float] = (0.05, 0.15)
-    triplet_grid_probability: float = 0.3
-    per_beat_kickroll_probability_range: tuple[float, float] = (0.2, 0.4)
-    kickroll_hits_per_beat_weights: tuple[float, float, float] = (1.0, 4.0, 2.0)
+    off_beat_kick_probability_range: tuple[float, float] = (0.0, 0.3)  # 1/8 off-beat
+    syncopated_kick_probability: float = 0.03  # per beat with no off-beat kick
+    syncopated_kick_offsets_beats: tuple[float, ...] = (0.25, 1 / 3, 2 / 3, 0.75)
+    kickroll_probability_per_bar: float = 0.15
+    phrase_end_kickroll_probability: float = 0.4  # in the last bar of a phrase
+    kickroll_length_beats_weights: tuple[tuple[int, float], ...] = (
+        (1, 0.5),
+        (2, 0.25),
+        (4, 0.25),
+    )  # a kickroll fills the last beats of its bar
+    kickroll_kicks_per_beat_weights: tuple[tuple[int, float], ...] = (
+        (4, 0.45),  # 1/16 notes
+        (3, 0.30),  # 1/8 triplets
+        (2, 0.25),  # 1/8 notes
+    )
+    late_kickroll_probability: float = 0.2  # the first kick is one step after the beat
     regular_kick_level_db_range: tuple[float, float] = (-1.0, 0.0)
     kickroll_level_db_range: tuple[float, float] = (-6.0, 0.0)
     kick_tail_fade_seconds: float = 0.003
+    kick_key_change_bars: int = 2
+    kick_key_change_probability: float = 0.5  # every `kick_key_change_bars` bars
+    held_out_kick_design_fraction: float = 0.1  # only for validation drops
 
     max_simultaneous_loops: int = 3
     loop_level_db_range: tuple[float, float] = (-18.0, 3.0)
@@ -46,6 +63,17 @@ class SynthSettings(BaseModel):
     one_shot_trim_frame_samples: int = 64
     one_shot_trim_hop_samples: int = 16
     one_shot_attack_window_seconds: float = 0.1
+
+    master_eq_tilt_probability: float = 0.5
+    master_eq_tilt_corner_hz_range: tuple[float, float] = (300.0, 3000.0)
+    master_eq_tilt_gain_db_range: tuple[float, float] = (-4.0, 4.0)  # of each band
+    master_eq_tilt_filter_order: int = 1
+    master_reference_loudness_lufs: float = -14.0  # the loudness before the drive
+    master_drive_db_range: tuple[float, float] = (0.0, 12.0)
+    master_soft_clipper_probability: float = 0.7
+    master_limiter_probability: float = 0.6
+    master_limiter_window_seconds: float = 0.005
+    master_limiter_ceiling: float = 0.95  # peak level
 
     label_click_frequency_hz: float = 3000.0  # above the kick body, easy to hear
 

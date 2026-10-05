@@ -73,6 +73,10 @@ def synth(
         bool,
         typer.Option("--clicks", help="Also write each drop with its kick clicks."),
     ] = False,
+    held_out: Annotated[
+        bool,
+        typer.Option("--held-out", help="Use only the held-out kick designs."),
+    ] = False,
 ) -> None:
     """Write synthetic drops with labeled kick onsets, to check the training data."""
     bank = load_bank_from_file(path=bank_path, cache=cache)
@@ -82,4 +86,5 @@ def synth(
         num_drops=count,
         seed=seed,
         include_clicks=clicks,
+        held_out=held_out,
     )

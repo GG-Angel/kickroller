@@ -2,16 +2,19 @@
 
 A drop is rendered on a bar grid that starts up to one bar before the drop:
 
-- Kicks: beats may be empty, have one kick, or contain a kickroll. Each drop
-    uses either straight or triplet subdivisions, and each kick cuts the tail of
-    the kick before it.
+- Kicks: one kick design (all keys of one kick), with a new key every few bars.
+    Each beat can have a kick, a 1/8 off-beat kick or a syncopated kick. Some
+    bars end with a kickroll (1/16 notes, 1/8 triplets or 1/8 notes), more
+    often at the end of a phrase. Each kick cuts the tail of the kick before it.
 - Loops: stretched to the drop tempo, high-passed and ducked at each kick.
 - Claps on beats 2 and 4, random hits on the 1/16 grid, and sometimes an impact.
 
-The levels are relative to the kick. Mastering (EQ, clipping, limiting and
-encoding) is not done here, because it is a training augmentation.
+The levels are relative to the kick. Last, the drop is mastered (EQ tilt,
+clipping and limiting). A fixed part of the kick designs is held out, for
+validation drops only.
 """
 
+import zlib
 from dataclasses import dataclass
 from math import ceil
 
@@ -21,7 +24,8 @@ from scipy.signal import butter, sosfilt
 
 from core.settings import SETTINGS
 
-from .models import Bank, LabeledDrop, Sample
+from .mastering import master_drop
+from .models import Bank, KickDesign, LabeledDrop, Sample
 
 SAMPLE_RATE = SETTINGS.sample_rate
 SYNTH = SETTINGS.synth
@@ -71,8 +75,10 @@ class Grid:
 
 @dataclass(frozen=True)
 class KickPattern:
-    positions: tuple[float, ...]
-    in_roll: tuple[bool, ...]
+    """Kick positions in beats from the first bar, in time order."""
+
+    positions: np.ndarray
+    in_roll: np.ndarray  # whether each kick is part of a kickroll
 
 
 def _compute_rms(signal: np.ndarray) -> float:
@@ -158,6 +164,14 @@ def _trim_silence(sound: np.ndarray) -> np.ndarray:
     return trimmed
 
 
+def _draw_weighted[T](
+    rng: np.random.Generator, table: tuple[tuple[T, float], ...]
+) -> T:
+    """A value from (value, weight) pairs, drawn in proportion to its weight."""
+    weights = np.array([weight for _, weight in table])
+    return table[int(rng.choice(len(table), p=weights / weights.sum()))][0]
+
+
 def _draw_sample(rng: np.random.Generator, samples: list[Sample]) -> Sample:
     """Draw a random sample from the list of samples."""
     return samples[int(rng.integers(len(samples)))]
@@ -170,65 +184,113 @@ def _draw_one_shot(rng: np.random.Generator, samples: list[Sample]) -> np.ndarra
 
 def _draw_grid(rng: np.random.Generator) -> Grid:
     """Draw a random grid with a BPM chosen according to the configured weights."""
-    bpm = int(
-        rng.choice(
-            [bpm for bpm, _ in SYNTH.bpm_probability_weights],
-            p=[weight for _, weight in SYNTH.bpm_probability_weights],
-        )
-    )
+    bpm = _draw_weighted(rng, SYNTH.bpm_probability_weights)
     return Grid(bpm=bpm, phase=rng.random())
 
 
-def _draw_kick_pattern_for_beat(
+def _draw_kickroll_length(rng: np.random.Generator, bar: int) -> int:
+    """The number of beats at the end of `bar` that are a kickroll (0: no kickroll)."""
+    phrase_end = bar % SYNTH.bars_per_phrase == SYNTH.bars_per_phrase - 1
+    probability = (
+        SYNTH.phrase_end_kickroll_probability
+        if phrase_end
+        else SYNTH.kickroll_probability_per_bar
+    )
+    if rng.random() >= probability:
+        return 0
+    return _draw_weighted(rng, SYNTH.kickroll_length_beats_weights)
+
+
+def _draw_kickroll(
+    rng: np.random.Generator, first_beat: int, beats: int
+) -> list[float]:
+    """A kickroll of `beats` beats from `first_beat`, with a kick on each step."""
+    kicks_per_beat = _draw_weighted(rng, SYNTH.kickroll_kicks_per_beat_weights)
+    first_step = 1 if rng.random() < SYNTH.late_kickroll_probability else 0
+    steps = np.arange(first_step, beats * kicks_per_beat)
+    return (first_beat + steps / kicks_per_beat).tolist()
+
+
+def _draw_beat_kicks(
     rng: np.random.Generator,
     beat: int,
-    kickless_beat_rate: float,
-    kickroll_chance: float,
-    triplet: bool,
-) -> KickPattern:
-    """Draw the kick pattern for a single beat (no kick, on-beat kick, or kickroll)."""
-    if rng.random() < kickless_beat_rate:
-        return KickPattern(positions=(), in_roll=())  # no kick
-    if rng.random() >= kickroll_chance:
-        return KickPattern(positions=(float(beat),), in_roll=(False,))  # on-beat kick
-
-    # kickroll
-    subdivisions = (1, 3, 6) if triplet else (1, 2, 4)
-    weights = np.asarray(SYNTH.kickroll_hits_per_beat_weights)
-    count = int(rng.choice(subdivisions, p=weights / weights.sum()))
-    positions = beat + np.arange(count) / count
-    selected = rng.random(count) < 0.5
-    if not np.any(selected):
-        selected[rng.integers(count)] = True
-
-    kicks = tuple(float(position) for position in positions[selected])
-    return KickPattern(positions=kicks, in_roll=(True,) * len(kicks))
+    kickless_beat_probability: float,
+    off_beat_kick_probability: float,
+) -> list[float]:
+    """The kicks of one beat: on the beat, then an off-beat or a syncopated kick."""
+    kicks: list[float] = []
+    if rng.random() >= kickless_beat_probability:
+        kicks.append(beat)
+    if rng.random() < off_beat_kick_probability:
+        kicks.append(beat + 0.5)
+    elif rng.random() < SYNTH.syncopated_kick_probability:
+        kicks.append(beat + float(rng.choice(SYNTH.syncopated_kick_offsets_beats)))
+    return kicks
 
 
 def _draw_kick_pattern(rng: np.random.Generator, bars: int) -> KickPattern:
-    """Draw the kick pattern for the entire drop."""
-    kickless_drop_probability = rng.uniform(*SYNTH.kickless_drop_probability_range)
-    if rng.random() < kickless_drop_probability:
-        return KickPattern(positions=(), in_roll=())  # no kicks for this drop
+    """The kicks of the drop. Some bars have no kicks, and some end with a kickroll."""
+    beat_kicks: list[float] = []
+    roll_kicks: list[float] = []
+    if rng.random() >= SYNTH.kickless_drop_probability:
+        kickless_beat_probability = rng.uniform(*SYNTH.kickless_beat_probability_range)
+        off_beat_kick_probability = rng.uniform(*SYNTH.off_beat_kick_probability_range)
+        for bar in range(bars):
+            if rng.random() < SYNTH.kickless_bar_probability:
+                continue
+            first_beat = bar * SYNTH.beats_per_bar
+            roll_beats = _draw_kickroll_length(rng, bar)
+            roll_start = first_beat + SYNTH.beats_per_bar - roll_beats
+            for beat in range(first_beat, roll_start):
+                beat_kicks += _draw_beat_kicks(
+                    rng, beat, kickless_beat_probability, off_beat_kick_probability
+                )
+            if roll_beats:
+                roll_kicks += _draw_kickroll(rng, roll_start, roll_beats)
 
-    kickless_beat_probability = rng.uniform(*SYNTH.kickless_beat_probability_range)
-    kickroll_probability = rng.uniform(*SYNTH.per_beat_kickroll_probability_range)
-    triplet = rng.random() < SYNTH.triplet_grid_probability
-    positions: list[float] = []
-    in_roll: list[bool] = []
-    for bar in range(bars):
-        for beat in range(bar * SYNTH.beats_per_bar, (bar + 1) * SYNTH.beats_per_bar):
-            pattern = _draw_kick_pattern_for_beat(
-                rng, beat, kickless_beat_probability, kickroll_probability, triplet
-            )
-            positions.extend(pattern.positions)
-            in_roll.extend(pattern.in_roll)
-    return KickPattern(positions=tuple(positions), in_roll=tuple(in_roll))
+    positions = np.array(beat_kicks + roll_kicks, dtype=float)
+    in_roll = np.arange(len(positions)) >= len(beat_kicks)
+    order = np.argsort(positions, kind="stable")
+    return KickPattern(positions=positions[order], in_roll=in_roll[order])
+
+
+def _is_held_out(design: KickDesign) -> bool:
+    """A fixed `held_out_kick_design_fraction` of the designs, chosen by name."""
+    return (
+        zlib.crc32(design.name.encode()) / 2**32 < SYNTH.held_out_kick_design_fraction
+    )
+
+
+def _draw_kick_design(
+    rng: np.random.Generator, bank: Bank, held_out: bool
+) -> KickDesign:
+    """A random kick design from the held-out designs, or from the other designs."""
+    designs = [d for d in bank.kick_designs if _is_held_out(d) == held_out]
+    if not designs:
+        kind = "held-out" if held_out else "training"
+        raise ValueError(f"The bank has no {kind} kick designs")
+    return designs[int(rng.integers(len(designs)))]
+
+
+def _draw_kick_keys(
+    rng: np.random.Generator, design: KickDesign, grid: Grid
+) -> list[np.ndarray]:
+    """One kick of the design for each section of `kick_key_change_bars` bars.
+
+    Each section can have a new key (or the same key again).
+    """
+    keys = [_draw_one_shot(rng, design.kicks)]
+    for _ in range(1, ceil(grid.bars / SYNTH.kick_key_change_bars)):
+        if rng.random() < SYNTH.kick_key_change_probability:
+            keys.append(_draw_one_shot(rng, design.kicks))
+        else:
+            keys.append(keys[-1])
+    return keys
 
 
 def _render_kicks(
     rng: np.random.Generator,
-    kick: np.ndarray,
+    keys: list[np.ndarray],
     starts: np.ndarray,
     in_roll: np.ndarray,
     grid: Grid,
@@ -243,10 +305,13 @@ def _render_kicks(
         rng.uniform(*SYNTH.kickroll_level_db_range, size=len(starts)),
         rng.uniform(*SYNTH.regular_kick_level_db_range, size=len(starts)),
     )
+    sections = starts // (SYNTH.kick_key_change_bars * grid.bar)
     ends = np.append(starts[1:], grid.length)
-    for start, end, level_db in zip(starts, ends, levels_db, strict=True):
-        gain = float(librosa.db_to_amplitude(level_db))
-        _mix_into(out, _cut_tail(kick, end - start), start, gain)
+    for start, end, section, level_db in zip(
+        starts, ends, sections.astype(int), levels_db, strict=True
+    ):
+        kick = _cut_tail(keys[section], end - start)
+        _mix_into(out, kick, start, float(librosa.db_to_amplitude(level_db)))
     return out
 
 
@@ -317,21 +382,22 @@ def _render_impact(
     return out
 
 
-def create_drop(bank: Bank, rng: np.random.Generator) -> LabeledDrop:
-    """A random drop of the configured duration and each kick onset in seconds."""
-    if not bank.kicks:
-        raise ValueError("The bank has no kicks")
+def create_drop(
+    bank: Bank, rng: np.random.Generator, held_out: bool = False
+) -> LabeledDrop:
+    """A random drop of the configured duration and each kick onset in seconds.
 
+    With `held_out`, the kick is from the held-out designs (for validation drops).
+    """
+    design = _draw_kick_design(rng, bank, held_out)
     grid = _draw_grid(rng)
     kick_pattern = _draw_kick_pattern(rng, grid.bars)
-    kick_starts = grid.to_samples(beats=np.asarray(kick_pattern.positions, dtype=float))
-    in_roll = np.asarray(kick_pattern.in_roll, dtype=bool)
-
-    kick = _draw_one_shot(rng, bank.kicks)
-    kick_attack_rms = _compute_attack_rms(kick)
+    kick_starts = grid.to_samples(kick_pattern.positions)
+    kick_keys = _draw_kick_keys(rng, design, grid)
+    kick_attack_rms = _compute_attack_rms(kick_keys[0])
 
     mix = (
-        _render_kicks(rng, kick, kick_starts, in_roll, grid)
+        _render_kicks(rng, kick_keys, kick_starts, kick_pattern.in_roll, grid)
         + _render_loops(rng, bank.loops, kick_starts, grid, kick_attack_rms)
         + _render_claps(rng, bank.claps, grid, kick_attack_rms)
         + _render_hits(rng, bank.hits, grid, kick_attack_rms)
@@ -339,7 +405,7 @@ def create_drop(bank: Bank, rng: np.random.Generator) -> LabeledDrop:
     )
 
     drop_length = round(SYNTH.drop_duration_seconds * SAMPLE_RATE)
-    drop = mix[grid.offset : grid.offset + drop_length]
+    drop = master_drop(rng, mix[grid.offset : grid.offset + drop_length])
 
     audio = librosa.util.normalize(drop) * librosa.db_to_amplitude(
         SYNTH.drop_peak_level_db

@@ -11,6 +11,12 @@
 
 root = "/path/to/samples" # a relative root is relative to this file
 
+# Folders that each hold all versions (keys) of one kick design. The design of
+# a kick is its nearest folder in this list; a kick that is not in one of these
+# folders is a design of its own. Some designs are held out for validation, so
+# all keys of a design must be in one design.
+kick_design_folders = ["kicks/pitched/*"]
+
 # Complete kick one-shots, one kick each.
 [[samples]]
 kind = "kick"

@@ -36,14 +36,15 @@ def export_drops(
     num_drops: int,
     seed: int | None = None,
     include_clicks: bool = False,
+    held_out: bool = False,
 ) -> None:
-    """Create and export synthetic drops."""
+    """Create and export synthetic drops (`held_out`: from held-out kick designs)."""
     seed_sequence = np.random.SeedSequence(seed)
     logger.info("Seed {seed}", seed=seed_sequence.entropy)
     rng = np.random.default_rng(seed_sequence)
     folder.mkdir(parents=True, exist_ok=True)
     for i in range(num_drops):
-        drop = create_drop(bank, rng)
+        drop = create_drop(bank, rng, held_out=held_out)
         name = f"drop_{i:03d}"
         _write_drop(folder / name, drop, include_clicks)
         logger.info("Wrote {name}: {kicks} kicks", name=name, kicks=len(drop.onsets))
