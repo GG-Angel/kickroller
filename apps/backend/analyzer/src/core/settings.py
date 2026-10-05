@@ -10,20 +10,17 @@ class SynthSettings(BaseModel):
     drop_peak_level_db: float = -1.0
 
     bpm_probability_weights: tuple[tuple[int, float], ...] = (
-        (140, 0.02),
-        (150, 0.20),
+        (150, 0.1),
         (155, 0.15),
-        (160, 0.40),
-        (165, 0.10),
-        (170, 0.05),
-        (180, 0.04),
-        (200, 0.04),
+        (160, 0.50),
+        (165, 0.20),
+        (180, 0.05),
     )
 
     kickless_drop_probability_range: tuple[float, float] = (0.0, 0.15)
-    kickless_beat_probability_range: tuple[float, float] = (0.05, 0.12)
+    kickless_beat_probability_range: tuple[float, float] = (0.05, 0.15)
     triplet_grid_probability: float = 0.3
-    per_beat_kickroll_probability_range: tuple[float, float] = (0.10, 0.30)
+    per_beat_kickroll_probability_range: tuple[float, float] = (0.15, 0.30)
     kickroll_hits_per_beat_weights: tuple[float, float, float] = (4.0, 2.0, 1.0)
     regular_kick_level_db_range: tuple[float, float] = (-1.0, 0.0)
     kickroll_level_db_range: tuple[float, float] = (-6.0, 0.0)

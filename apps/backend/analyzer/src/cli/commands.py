@@ -50,6 +50,14 @@ def synth(
         Path,
         typer.Option("--bank", "-b", help="Path to the sample bank configuration."),
     ] = Path("bank.toml"),
+    cache: Annotated[
+        Path,
+        typer.Option(
+            "--cache",
+            file_okay=False,
+            help="Cache folder for the decoded samples (made on the first run).",
+        ),
+    ] = Path("models/bank"),
     output: Annotated[
         Path,
         typer.Option("--output", "-o", file_okay=False, help="Output folder."),
@@ -67,7 +75,7 @@ def synth(
     ] = False,
 ) -> None:
     """Write synthetic drops with labeled kick onsets, to check the training data."""
-    bank = load_bank_from_file(path=bank_path)
+    bank = load_bank_from_file(path=bank_path, cache=cache)
     export_drops(
         bank,
         folder=output,

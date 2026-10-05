@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 SampleKind = Literal["kick", "loop", "clap", "impact", "hit"]
 
@@ -20,12 +20,35 @@ class BankConfig(BaseModel):
     samples: list[SampleConfig] = Field(default_factory=list)
 
 
+class SampleFile(BaseModel):
+    """An audio file of the bank, before it is decoded."""
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: SampleKind
+    path: Path
+    bpm: float
+
+
+class BankCacheIndex(BaseModel):
+    """The files in the bank cache. The audio of file i is from offsets[i] to offsets[i + 1]."""
+
+    sample_rate: int
+    files: list[SampleFile]
+    offsets: list[int]
+
+
 @dataclass(frozen=True)
 class Sample:
     kind: SampleKind
     path: Path
     bpm: float
-    audio: np.ndarray
+    cached_audio: np.ndarray  # float16, memory-mapped from the bank cache
+
+    @property
+    def audio(self) -> np.ndarray:
+        """The audio as a float32 copy."""
+        return self.cached_audio.astype(np.float32)
 
 
 @dataclass(frozen=True)
