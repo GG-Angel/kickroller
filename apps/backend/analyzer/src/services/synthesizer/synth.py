@@ -235,6 +235,9 @@ def _render_kicks(
 ) -> np.ndarray:
     """The kick track: each kick plays until the next kick starts."""
     out = np.zeros(grid.length, dtype=np.float32)
+    if not len(starts):
+        return out
+
     levels_db = np.where(
         in_roll,
         rng.uniform(*SYNTH.kickroll_level_db_range, size=len(starts)),

@@ -20,13 +20,13 @@ class SynthSettings(BaseModel):
     kickless_drop_probability_range: tuple[float, float] = (0.0, 0.15)
     kickless_beat_probability_range: tuple[float, float] = (0.05, 0.15)
     triplet_grid_probability: float = 0.3
-    per_beat_kickroll_probability_range: tuple[float, float] = (0.15, 0.30)
-    kickroll_hits_per_beat_weights: tuple[float, float, float] = (4.0, 2.0, 1.0)
+    per_beat_kickroll_probability_range: tuple[float, float] = (0.2, 0.4)
+    kickroll_hits_per_beat_weights: tuple[float, float, float] = (1.0, 4.0, 2.0)
     regular_kick_level_db_range: tuple[float, float] = (-1.0, 0.0)
     kickroll_level_db_range: tuple[float, float] = (-6.0, 0.0)
     kick_tail_fade_seconds: float = 0.003
 
-    max_simultaneous_loops: int = 4
+    max_simultaneous_loops: int = 3
     loop_level_db_range: tuple[float, float] = (-18.0, 3.0)
     loop_high_pass_cutoff_hz_range: tuple[float, float] = (100.0, 300.0)
     loop_high_pass_filter_order: int = 2
