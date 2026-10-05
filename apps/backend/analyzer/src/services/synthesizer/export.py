@@ -47,5 +47,11 @@ def export_drops(
         drop = create_drop(bank, rng, held_out=held_out)
         name = f"drop_{i:03d}"
         _write_drop(folder / name, drop, include_clicks)
-        logger.info("Wrote {name}: {kicks} kicks", name=name, kicks=len(drop.onsets))
+        logger.info(
+            "Wrote {name}: {kicks} kicks at {bpm} BPM, kick design {design}",
+            name=name,
+            kicks=len(drop.onsets),
+            bpm=drop.bpm,
+            design=drop.kick_design,
+        )
     logger.info("Wrote {count} drops to {folder}", count=num_drops, folder=folder)

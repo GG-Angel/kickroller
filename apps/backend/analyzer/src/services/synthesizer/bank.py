@@ -83,13 +83,17 @@ def _write_cache(cache: Path, files: list[SampleFile]) -> None:
     (cache / CACHE_INDEX_FILE).write_text(index.model_dump_json())
 
 
-def _open_cache(cache: Path) -> list[Sample]:
+def _open_cache(cache: Path, root: Path) -> list[Sample]:
     """The samples in the cache, with their audio memory-mapped."""
     index = BankCacheIndex.model_validate_json((cache / CACHE_INDEX_FILE).read_text())
     audio = np.memmap(cache / CACHE_AUDIO_FILE, dtype=CACHE_DTYPE, mode="r")
     return [
         Sample(
-            kind=file.kind, path=file.path, bpm=file.bpm, cached_audio=audio[start:end]
+            kind=file.kind,
+            path=file.path,
+            name=file.path.relative_to(root).as_posix(),
+            bpm=file.bpm,
+            cached_audio=audio[start:end],
         )
         for file, (start, end) in zip(index.files, pairwise(index.offsets), strict=True)
     ]
@@ -127,7 +131,7 @@ def load_bank(config: BankConfig, cache: Path) -> Bank:
             "Decoding {count} samples into {cache}", count=len(files), cache=cache
         )
         _write_cache(cache, files)
-    samples = _open_cache(cache)
+    samples = _open_cache(cache, config.root)
     kicks = [s for s in samples if s.kind == "kick"]
     return Bank(
         kick_designs=_group_kick_designs(config, kicks),

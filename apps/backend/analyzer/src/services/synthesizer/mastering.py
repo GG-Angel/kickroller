@@ -8,6 +8,7 @@ soft clipper or the limiter. Mastering does not move the kick onsets.
 import librosa
 import numpy as np
 import pyloudnorm
+from loguru import logger
 from scipy.ndimage import maximum_filter1d, uniform_filter1d
 from scipy.signal import butter, sosfilt
 
@@ -21,17 +22,23 @@ _METER = pyloudnorm.Meter(SAMPLE_RATE)
 
 def _tilt_eq(rng: np.random.Generator, audio: np.ndarray) -> np.ndarray:
     """A low and a high band, each with a random gain."""
+    corner_hz = rng.uniform(*SYNTH.master_eq_tilt_corner_hz_range)
     sos = butter(
         SYNTH.master_eq_tilt_filter_order,
-        rng.uniform(*SYNTH.master_eq_tilt_corner_hz_range),
+        corner_hz,
         btype="lowpass",
         fs=SAMPLE_RATE,
         output="sos",
     )
     low = sosfilt(sos, audio)
-    low_gain, high_gain = librosa.db_to_amplitude(
-        rng.uniform(*SYNTH.master_eq_tilt_gain_db_range, size=2)
+    low_db, high_db = rng.uniform(*SYNTH.master_eq_tilt_gain_db_range, size=2)
+    logger.debug(
+        "EQ tilt at {corner_hz:.0f} Hz: low {low_db:+.1f} dB, high {high_db:+.1f} dB",
+        corner_hz=corner_hz,
+        low_db=low_db,
+        high_db=high_db,
     )
+    low_gain, high_gain = librosa.db_to_amplitude(np.array([low_db, high_db]))
     return low_gain * low + high_gain * (audio - low)
 
 
@@ -58,8 +65,16 @@ def master_drop(rng: np.random.Generator, audio: np.ndarray) -> np.ndarray:
     drive_db = rng.uniform(*SYNTH.master_drive_db_range)
     audio = _normalize_loudness(audio, SYNTH.master_reference_loudness_lufs)
     audio = audio * librosa.db_to_amplitude(drive_db)
-    if rng.random() < SYNTH.master_soft_clipper_probability:
+    soft_clip = rng.random() < SYNTH.master_soft_clipper_probability
+    if soft_clip:
         audio = np.tanh(audio)
-    if rng.random() < SYNTH.master_limiter_probability:
+    limit = rng.random() < SYNTH.master_limiter_probability
+    if limit:
         audio = _limit_peaks(audio)
+    logger.debug(
+        "Master: drive {drive_db:+.1f} dB, soft clipper {soft_clip}, limiter {limit}",
+        drive_db=drive_db,
+        soft_clip="on" if soft_clip else "off",
+        limit="on" if limit else "off",
+    )
     return np.clip(audio, -1.0, 1.0).astype(np.float32)

@@ -43,6 +43,7 @@ class BankCacheIndex(BaseModel):
 class Sample:
     kind: SampleKind
     path: Path
+    name: str  # the path relative to the bank root
     bpm: float
     cached_audio: np.ndarray  # float16, memory-mapped from the bank cache
 
@@ -73,3 +74,5 @@ class Bank:
 class LabeledDrop:
     audio: np.ndarray
     onsets: np.ndarray
+    bpm: int
+    kick_design: str

@@ -9,13 +9,15 @@ class SynthSettings(BaseModel):
     bars_per_phrase: int = 4
     drop_peak_level_db: float = -1.0
 
-    bpm_probability_weights: tuple[tuple[int, float], ...] = (
-        (150, 0.1),
-        (155, 0.15),
-        (160, 0.50),
-        (165, 0.20),
-        (180, 0.05),
-    )
+    # bpm_probability_weights: tuple[tuple[int, float], ...] = (
+    #     (150, 0.1),
+    #     (155, 0.15),
+    #     (160, 0.50),
+    #     (165, 0.20),
+    #     (180, 0.05),
+    # )
+
+    bpm_probability_weights: tuple[tuple[int, float], ...] = ((160, 1.00),)
 
     kickless_drop_probability: float = 0.075
     kickless_bar_probability: float = 0.05

@@ -20,6 +20,7 @@ from math import ceil
 
 import librosa
 import numpy as np
+from loguru import logger
 from scipy.signal import butter, sosfilt
 
 from core.settings import SETTINGS
@@ -71,6 +72,10 @@ class Grid:
     def to_samples(self, beats: np.ndarray) -> np.ndarray:
         """Positions in beats as positions in samples."""
         return librosa.time_to_samples(beats * 60.0 / self.bpm, sr=SAMPLE_RATE)
+
+    def to_drop_seconds(self, position: float) -> float:
+        """A position in samples as seconds from the drop start (negative: before it)."""
+        return (position - self.offset) / SAMPLE_RATE
 
 
 @dataclass(frozen=True)
@@ -125,16 +130,14 @@ def _high_pass(signal: np.ndarray, cutoff_hz: float) -> np.ndarray:
     return np.asarray(sosfilt(sos, signal), dtype=np.float32)
 
 
-def _fit_loop_to_grid(
-    rng: np.random.Generator, sample: Sample, grid: Grid
-) -> np.ndarray:
+def _fit_loop_to_grid(sample: Sample, grid: Grid, high_pass_hz: float) -> np.ndarray:
     """A loop stretched to the drop tempo, high-passed and repeated over the grid."""
     loop = sample.audio
     if sample.bpm != grid.bpm:
         loop = librosa.effects.time_stretch(loop, rate=grid.bpm / sample.bpm)
     bars = max(1, round(len(loop) / grid.bar))
     loop = librosa.util.fix_length(loop, size=round(bars * grid.bar))
-    loop = _high_pass(loop, rng.uniform(*SYNTH.loop_high_pass_cutoff_hz_range))
+    loop = _high_pass(loop, high_pass_hz)
     return np.resize(loop, grid.length)
 
 
@@ -175,11 +178,6 @@ def _draw_weighted[T](
 def _draw_sample(rng: np.random.Generator, samples: list[Sample]) -> Sample:
     """Draw a random sample from the list of samples."""
     return samples[int(rng.integers(len(samples)))]
-
-
-def _draw_one_shot(rng: np.random.Generator, samples: list[Sample]) -> np.ndarray:
-    """Draw a random one-shot sample and trim its silence."""
-    return _trim_silence(_draw_sample(rng, samples).audio)
 
 
 def _draw_grid(rng: np.random.Generator) -> Grid:
@@ -277,14 +275,26 @@ def _draw_kick_keys(
 ) -> list[np.ndarray]:
     """One kick of the design for each section of `kick_key_change_bars` bars.
 
-    Each section can have a new key (or the same key again).
+    Each section after the first can have a new key (or the same key again).
     """
-    keys = [_draw_one_shot(rng, design.kicks)]
-    for _ in range(1, ceil(grid.bars / SYNTH.kick_key_change_bars)):
-        if rng.random() < SYNTH.kick_key_change_probability:
-            keys.append(_draw_one_shot(rng, design.kicks))
-        else:
+    section_length = SYNTH.kick_key_change_bars * grid.bar
+    keys: list[np.ndarray] = []
+    previous: Sample | None = None
+    for section in range(ceil(grid.bars / SYNTH.kick_key_change_bars)):
+        if previous is not None and rng.random() >= SYNTH.kick_key_change_probability:
             keys.append(keys[-1])
+            continue
+        kick = _draw_sample(rng, design.kicks)
+        if kick is previous:
+            keys.append(keys[-1])
+            continue
+        logger.debug(
+            "Kick {path} from {time:.2f} s",
+            path=kick.name,
+            time=max(grid.to_drop_seconds(section * section_length), 0.0),
+        )
+        keys.append(_trim_silence(kick.audio))
+        previous = kick
     return keys
 
 
@@ -327,8 +337,16 @@ def _render_loops(
     if not loops:
         return out
     for _ in range(int(rng.integers(0, SYNTH.max_simultaneous_loops + 1))):
-        loop = _fit_loop_to_grid(rng, _draw_sample(rng, loops), grid)
+        sample = _draw_sample(rng, loops)
+        high_pass_hz = rng.uniform(*SYNTH.loop_high_pass_cutoff_hz_range)
+        loop = _fit_loop_to_grid(sample, grid, high_pass_hz)
         level_db = rng.uniform(*SYNTH.loop_level_db_range)
+        logger.debug(
+            "Loop {path}: high-passed at {high_pass_hz:.0f} Hz, {level_db:+.1f} dB",
+            path=sample.name,
+            high_pass_hz=high_pass_hz,
+            level_db=level_db,
+        )
         out += _relative_gain(level_db, reference, _compute_rms(loop)) * loop
     return out * _make_sidechain_curve(rng, starts, grid.length)
 
@@ -340,8 +358,14 @@ def _render_claps(
     out = np.zeros(grid.length, dtype=np.float32)
     if not claps or rng.random() >= SYNTH.clap_layer_probability:
         return out
-    clap = _draw_one_shot(rng, claps)
+    sample = _draw_sample(rng, claps)
+    clap = _trim_silence(sample.audio)
     level_db = rng.uniform(*SYNTH.clap_level_db_range)
+    logger.debug(
+        "Clap {path} on beats 2 and 4: {level_db:+.1f} dB",
+        path=sample.name,
+        level_db=level_db,
+    )
     gain = _relative_gain(level_db, reference, _compute_attack_rms(clap))
     for start in grid.to_samples(np.arange(1, grid.bars * SYNTH.beats_per_bar, 2)):
         _mix_into(out, clap, start, gain)
@@ -360,8 +384,15 @@ def _render_hits(
         0, sixteenths, size=rng.poisson(SYNTH.mean_random_hits_per_drop)
     )
     for start in grid.to_samples(positions / SYNTH.sixteenth_notes_per_beat):
-        hit = _draw_one_shot(rng, hits)
+        sample = _draw_sample(rng, hits)
+        hit = _trim_silence(sample.audio)
         level_db = rng.uniform(*SYNTH.random_hit_level_db_range)
+        logger.debug(
+            "Hit {path} at {time:.2f} s: {level_db:+.1f} dB",
+            path=sample.name,
+            time=grid.to_drop_seconds(start),
+            level_db=level_db,
+        )
         gain = _relative_gain(level_db, reference, _compute_attack_rms(hit))
         _mix_into(out, hit, start, gain)
     return out
@@ -374,11 +405,19 @@ def _render_impact(
     out = np.zeros(grid.length, dtype=np.float32)
     if not impacts or rng.random() >= SYNTH.impact_layer_probability:
         return out
-    impact = _draw_one_shot(rng, impacts)
+    sample = _draw_sample(rng, impacts)
+    impact = _trim_silence(sample.audio)
     bar = rng.choice(np.arange(0, grid.bars, SYNTH.bars_per_phrase))
     level_db = rng.uniform(*SYNTH.impact_level_db_range)
+    start = round(bar * grid.bar)
+    logger.debug(
+        "Impact {path} at {time:.2f} s: {level_db:+.1f} dB",
+        path=sample.name,
+        time=grid.to_drop_seconds(start),
+        level_db=level_db,
+    )
     gain = _relative_gain(level_db, reference, _compute_attack_rms(impact))
-    _mix_into(out, impact, round(bar * grid.bar), gain)
+    _mix_into(out, impact, start, gain)
     return out
 
 
@@ -412,4 +451,9 @@ def create_drop(
     )
     in_drop = (kick_starts >= grid.offset) & (kick_starts < grid.offset + drop_length)
     onsets = librosa.samples_to_time(kick_starts[in_drop] - grid.offset, sr=SAMPLE_RATE)
-    return LabeledDrop(audio=audio.astype(np.float32), onsets=onsets)
+    return LabeledDrop(
+        audio=audio.astype(np.float32),
+        onsets=onsets,
+        bpm=grid.bpm,
+        kick_design=design.name,
+    )
