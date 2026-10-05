@@ -8,17 +8,15 @@ class SynthSettings(BaseModel):
     sixteenth_notes_per_beat: int = 4
     bars_per_phrase: int = 4
     drop_peak_level_db: float = -1.0
-    level_window_seconds: float = 0.1  # a sample level is the RMS of its loudest window
+    level_window_seconds: float = 0.1
 
-    # bpm_probability_weights: tuple[tuple[int, float], ...] = (
-    #     (150, 0.1),
-    #     (155, 0.15),
-    #     (160, 0.50),
-    #     (165, 0.20),
-    #     (180, 0.05),
-    # )
-
-    bpm_probability_weights: tuple[tuple[int, float], ...] = ((165, 1.00),)
+    bpm_probability_weights: tuple[tuple[int, float], ...] = (
+        (150, 0.10),
+        (155, 0.15),
+        (160, 0.50),
+        (165, 0.20),
+        (180, 0.05),
+    )
 
     kickless_drop_probability: float = 0.075
     kickless_bar_probability: float = 0.05
@@ -32,23 +30,25 @@ class SynthSettings(BaseModel):
         (1, 0.5),
         (2, 0.25),
         (4, 0.25),
-    )  # a kickroll fills the last beats of its bar
+    )
     kickroll_kicks_per_beat_weights: tuple[tuple[int, float], ...] = (
         (4, 0.45),  # 1/16 notes
         (3, 0.30),  # 1/8 triplets
         (2, 0.25),  # 1/8 notes
     )
-    late_kickroll_probability: float = 0.2  # the first kick is one step after the beat
+    late_kickroll_probability: float = 0.2
     regular_kick_level_db_range: tuple[float, float] = (-1.0, 0.0)
     kickroll_level_db_range: tuple[float, float] = (-6.0, 0.0)
     kick_tail_fade_seconds: float = 0.003
-    held_out_kick_fraction: float = 0.1  # only for validation drops
+    held_out_kick_fraction: float = 0.1
 
     loop_count_weights: tuple[tuple[int, float], ...] = (
-        (0, 0.10),
-        (1, 0.75),
-        (2, 0.15),
-    )  # the number of loops played at the same time
+        (0, 0.05),
+        (1, 0.20),
+        (2, 0.45),
+        (3, 0.25),
+        (4, 0.05),
+    )
     loop_level_db_range: tuple[float, float] = (-12.0, 0.0)
     loop_high_pass_cutoff_hz_range: tuple[float, float] = (100.0, 300.0)
     loop_high_pass_filter_order: int = 2
@@ -70,16 +70,16 @@ class SynthSettings(BaseModel):
 
     master_eq_tilt_probability: float = 0.5
     master_eq_tilt_corner_hz_range: tuple[float, float] = (300.0, 3000.0)
-    master_eq_tilt_gain_db_range: tuple[float, float] = (-4.0, 4.0)  # of each band
+    master_eq_tilt_gain_db_range: tuple[float, float] = (-4.0, 4.0)
     master_eq_tilt_filter_order: int = 1
-    master_reference_loudness_lufs: float = -14.0  # the loudness before the drive
+    master_reference_loudness_lufs: float = -14.0
     master_drive_db_range: tuple[float, float] = (0.0, 12.0)
     master_soft_clipper_probability: float = 0.7
     master_limiter_probability: float = 0.6
     master_limiter_window_seconds: float = 0.005
-    master_limiter_ceiling: float = 0.95  # peak level
+    master_limiter_ceiling: float = 0.95
 
-    label_click_frequency_hz: float = 3000.0  # above the kick body, easy to hear
+    label_click_frequency_hz: float = 3000.0
 
 
 class Settings(BaseSettings):
