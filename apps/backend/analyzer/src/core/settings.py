@@ -50,6 +50,8 @@ class SynthSettings(BaseModel):
     one_shot_trim_hop_samples: int = 16
     one_shot_attack_window_seconds: float = 0.1
 
+    label_click_frequency_hz: float = 3000.0  # above the kick body, easy to hear
+
 
 class Settings(BaseSettings):
     debug: bool = False

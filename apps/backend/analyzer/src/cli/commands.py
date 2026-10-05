@@ -6,6 +6,7 @@ from loguru import logger
 
 from core.logging import configure_logging
 from services.synthesizer.bank import load_bank_from_file
+from services.synthesizer.export import export_drops
 
 app = typer.Typer(
     help="Detects kick onsets in a hardstyle track.",
@@ -49,14 +50,28 @@ def synth(
         Path,
         typer.Option("--bank", "-b", help="Path to the sample bank configuration."),
     ] = Path("bank.toml"),
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", file_okay=False, help="Output folder."),
+    ] = Path("models/drops"),
+    count: Annotated[
+        int, typer.Option("--count", "-n", min=1, help="Number of drops.")
+    ] = 4,
+    seed: Annotated[
+        int | None,
+        typer.Option(min=0, help="Random seed (default: a new seed in the log)."),
+    ] = None,
+    clicks: Annotated[
+        bool,
+        typer.Option("--clicks", help="Also write each drop with its kick clicks."),
+    ] = False,
 ) -> None:
-    """Generate a synthetic drop with labeled kick onsets."""
+    """Write synthetic drops with labeled kick onsets, to check the training data."""
     bank = load_bank_from_file(path=bank_path)
-    logger.info(
-        "Loaded bank: {kicks} kicks, {loops} loops, {claps} claps, {hits} hits, {impacts} impacts",
-        kicks=len(bank.kicks),
-        loops=len(bank.loops),
-        claps=len(bank.claps),
-        hits=len(bank.hits),
-        impacts=len(bank.impacts),
+    export_drops(
+        bank,
+        folder=output,
+        num_drops=count,
+        seed=seed,
+        include_clicks=clicks,
     )

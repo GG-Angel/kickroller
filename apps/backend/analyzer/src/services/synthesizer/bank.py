@@ -2,6 +2,8 @@ import re
 import tomllib
 from pathlib import Path
 
+from loguru import logger
+
 from services.storage.io import load_audio_file
 
 from .models import Bank, BankConfig, Sample, SampleConfig, SampleKind
@@ -53,4 +55,13 @@ def load_bank(config: BankConfig) -> Bank:
 
 def load_bank_from_file(path: Path) -> Bank:
     settings = BankConfig.model_validate(tomllib.loads(path.read_text()))
-    return load_bank(settings)
+    bank = load_bank(settings)
+    logger.info(
+        "Loaded bank: {kicks} kicks, {loops} loops, {claps} claps, {hits} hits, {impacts} impacts",
+        kicks=len(bank.kicks),
+        loops=len(bank.loops),
+        claps=len(bank.claps),
+        hits=len(bank.hits),
+        impacts=len(bank.impacts),
+    )
+    return bank
