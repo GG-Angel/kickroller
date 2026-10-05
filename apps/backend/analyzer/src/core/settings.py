@@ -22,7 +22,7 @@ class SynthSettings(BaseModel):
 
     kickless_drop_probability: float = 0.075
     kickless_bar_probability: float = 0.05
-    kickless_beat_probability_range: tuple[float, float] = (0.05, 0.15)
+    kickless_beat_probability_range: tuple[float, float] = (0.05, 0.1)
     off_beat_kick_probability_range: tuple[float, float] = (0.0, 0.3)  # 1/8 off-beat
     syncopated_kick_probability: float = 0.03  # per beat with no off-beat kick
     syncopated_kick_offsets_beats: tuple[float, ...] = (0.25, 1 / 3, 2 / 3, 0.75)
