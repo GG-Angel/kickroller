@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",
     "pytest>=9.1.1",
+    "pyyaml>=6.0.3",
     "scipy>=1.18.1",
     "typer>=0.27.2",
 ]
@@ -22,10 +23,10 @@ dev = ["ruff>=0.16.10", "ty>=0.0.84"]
 [project.scripts]
 trainer = "src.cli:main"
 
-[build-system]
-requires = ["uv_build>=0.9.5,<0.10.0"]
-build-backend = "uv_build"
 
-[tool.uv.build-backend]
-module-name = "src"
-module-root = ""
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]

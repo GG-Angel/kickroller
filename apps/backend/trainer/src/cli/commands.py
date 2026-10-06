@@ -1,6 +1,8 @@
+from pathlib import Path
 import typer
 
 from src.core.logging import configure_logging
+from src.services.synthesis.bank import load_sample_bank_config
 
 app = typer.Typer(
     help="Find kick onsets in a hardstyle track.",
@@ -39,6 +41,14 @@ def train() -> None:
 
 
 @app.command()
-def synth() -> None:
+def synth(
+    bank_file: Path = typer.Option(
+        Path("bank.yaml"),
+        "--bank-file",
+        "-b",
+        help="Path to the sample bank configuration file.",
+    ),
+) -> None:
     """Synthesize audio."""
-    typer.echo("Synth is not implemented yet.")
+    bank_config = load_sample_bank_config(bank_file)
+    typer.echo(bank_config)
