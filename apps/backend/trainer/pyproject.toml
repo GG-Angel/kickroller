@@ -1,14 +1,27 @@
 [project]
 name = "trainer"
 version = "0.1.0"
-description = "Add your description here"
+description = "Kick onset detection for hardstyle tracks"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "librosa>=1.0.0",
     "loguru>=0.7.3",
+    "numpy>=2.5.3",
     "pedalboard>=0.9.25",
+    "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",
     "pytest>=9.1.1",
+    "scipy>=1.18.1",
     "typer>=0.27.2",
 ]
+
+[dependency-groups]
+dev = ["ruff>=0.16.10", "ty>=0.0.84"]
+
+[project.scripts]
+trainer = "cli:main"
+
+[build-system]
+requires = ["uv_build>=0.9.5,<0.10.0"]
+build-backend = "uv_build"
