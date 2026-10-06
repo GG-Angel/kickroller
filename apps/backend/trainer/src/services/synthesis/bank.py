@@ -18,6 +18,21 @@ SampleKind = Literal[
     "fx",
 ]
 
+AUDIO_EXTENSIONS = {
+    ".aif",
+    ".aiff",
+    ".aifc",
+    ".au",
+    ".flac",
+    ".m4a",
+    ".mp3",
+    ".mp4",
+    ".ogg",
+    ".opus",
+    ".wav",
+    ".wave",
+}
+
 
 @dataclass(frozen=True)
 class Sample:
@@ -61,9 +76,15 @@ def load_sample_bank(config: SampleBankConfig) -> SampleBank:
                 if config.workspace
                 else configured_path
             )
-            paths = sorted(Path(path) for path in glob.glob(str(path_pattern)))
+            paths = sorted(
+                Path(path)
+                for path in glob.glob(str(path_pattern))
+                if Path(path).suffix.lower() in AUDIO_EXTENSIONS
+            )
             if not paths:
-                raise FileNotFoundError(f"No files matched sample path: {path_pattern}")
+                raise FileNotFoundError(
+                    f"No audio files matched sample path: {path_pattern}"
+                )
 
             for path in paths:
                 name = path.stem

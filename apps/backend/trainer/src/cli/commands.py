@@ -1,8 +1,9 @@
 from pathlib import Path
+
 import typer
 
 from src.core.logging import configure_logging
-from src.services.synthesis.bank import load_sample_bank_config
+from src.services.synthesis.bank import load_sample_bank_from_file
 
 app = typer.Typer(
     help="Find kick onsets in a hardstyle track.",
@@ -24,7 +25,9 @@ def configure_cli(
     ),
 ) -> None:
     if verbose and quiet:
-        raise typer.BadParameter("--verbose and --quiet cannot be used together.")
+        raise typer.BadParameter(
+            "--verbose and --quiet cannot be used together."
+        )
     configure_logging(verbose=verbose, quiet=quiet)
 
 
@@ -50,5 +53,5 @@ def synth(
     ),
 ) -> None:
     """Synthesize audio."""
-    bank_config = load_sample_bank_config(bank_file)
-    typer.echo(bank_config)
+    bank = load_sample_bank_from_file(bank_file)
+    typer.echo(f"Loaded bank with {len(bank.samples)} samples.")
