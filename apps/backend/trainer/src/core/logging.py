@@ -9,9 +9,6 @@ LOG_FORMAT = (
 
 
 def configure_logging(verbose: bool = False, quiet: bool = False) -> None:
-    if verbose and quiet:
-        raise ValueError("Cannot be both verbose and quiet.")
-
     if verbose:
         level = "DEBUG"
     elif quiet:

@@ -20,8 +20,12 @@ dependencies = [
 dev = ["ruff>=0.16.10", "ty>=0.0.84"]
 
 [project.scripts]
-trainer = "cli:main"
+trainer = "src.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.9.5,<0.10.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "src"
+module-root = ""
