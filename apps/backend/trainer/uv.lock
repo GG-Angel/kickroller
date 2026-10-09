@@ -236,23 +236,6 @@ wheels = [
 ]
 
 [[package]]
-name = "dawdreamer"
-version = "0.9.0"
-source = { registry = "https://pypi.org/simple" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5c/ef/618c87afdd0e403d535a38f3502f7ce5c1a3881dc4c96b40bbbc994fc96b/dawdreamer-0.9.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:d814e249b5b680c3db61c48cd278ac1b060ac362538ca54f6901d97353fdd4b1", size = 39745723, upload-time = "2026-08-12T14:47:48.641Z" },
-    { url = "https://files.pythonhosted.org/packages/a9/da/c1ada5c7a0875fd81fd28bbae3933411c1aedcd9397a9c645af2b99103b7/dawdreamer-0.9.0-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:274f61dca97afde2d37fc3b53bb0b8eee10a6cbcbc22d08ef3050684fd320c84", size = 44401994, upload-time = "2026-08-12T14:47:51.083Z" },
-    { url = "https://files.pythonhosted.org/packages/44/8c/f96e435d774da406ebfae96bd82e0c5a3daee2aeda41411ca83055ae9405/dawdreamer-0.9.0-cp313-cp313-manylinux_2_34_aarch64.whl", hash = "sha256:38cb8c4325b3ab82a71d573bd5b09708b5a54b3aa18eefaaa291b790c698cbd1", size = 40638982, upload-time = "2026-08-12T16:05:28.257Z" },
-    { url = "https://files.pythonhosted.org/packages/99/1b/20923cd2c69a0ab571258882ec3c94c262fabdda496eefc19ef4de1afd19/dawdreamer-0.9.0-cp313-cp313-manylinux_2_34_x86_64.whl", hash = "sha256:1ff4812ff8b371d7996bfcf693ba26979c8fa050cfefab2f5ea9bb497cee61f3", size = 40197414, upload-time = "2026-08-12T16:05:34.151Z" },
-    { url = "https://files.pythonhosted.org/packages/21/37/073d80a4816d0ab69a468ae067555724f704a0f32640351644e5655b586b/dawdreamer-0.9.0-cp313-cp313-win_amd64.whl", hash = "sha256:90a226c989f8228e2c053bc8b8f94ff7890d0484977b11bf182bd4f0108bc159", size = 23089363, upload-time = "2026-08-12T16:05:38.439Z" },
-    { url = "https://files.pythonhosted.org/packages/68/0e/11837ab31b3f8fbc791a10cbd522dbc9d2c8989e07eabd19f49e18ac2bb0/dawdreamer-0.9.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:1ca73180447622d65b310181d23fe13a5571061f974c78aa56de1d2049cb5db1", size = 39748006, upload-time = "2026-08-12T16:05:44.802Z" },
-    { url = "https://files.pythonhosted.org/packages/e1/e2/21d4fa2012abe6fcfef5f1366740c86029f6c41ee4241eac02f4391e53f9/dawdreamer-0.9.0-cp314-cp314-macosx_11_0_x86_64.whl", hash = "sha256:3fe528ae5255ea27032fd45ef5199e1dcd000eaa42bb8ec62a5618a551c1a207", size = 44401751, upload-time = "2026-08-12T16:05:50.613Z" },
-    { url = "https://files.pythonhosted.org/packages/68/95/0cf8b535921b9ab1f2575415de3a000a991c30cc3b324a949c9f3a341d70/dawdreamer-0.9.0-cp314-cp314-manylinux_2_34_aarch64.whl", hash = "sha256:542cce12cbdb9019154bf7127ce4ebb2ba7ee224a99d5a5745329e29bbe4f5e8", size = 40639435, upload-time = "2026-08-12T16:05:56.694Z" },
-    { url = "https://files.pythonhosted.org/packages/4a/03/94d97eca493a078d57de264fd7f78aaca5ef0ac7d147c6be7546fb65c4cc/dawdreamer-0.9.0-cp314-cp314-manylinux_2_34_x86_64.whl", hash = "sha256:7c9e30a803e2e16f675de089193336ddcbd772d0cb5d1fda36272dc6497caf21", size = 40200641, upload-time = "2026-08-12T16:06:07.623Z" },
-    { url = "https://files.pythonhosted.org/packages/e9/c5/2f63cf387ddb5fac0d40982ea3e8b742988d01e420603b3b6810204d64b5/dawdreamer-0.9.0-cp314-cp314-win_amd64.whl", hash = "sha256:1acf899aafbb174371f13b103da3dec0cd7cac60abb02932f573ca6bda05e738", size = 23646376, upload-time = "2026-08-12T16:06:16.366Z" },
-]
-
-[[package]]
 name = "decorator"
 version = "5.3.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1012,7 +995,6 @@ name = "trainer"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "dawdreamer" },
     { name = "librosa" },
     { name = "loguru" },
     { name = "numpy" },
@@ -1033,7 +1015,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "dawdreamer", specifier = ">=0.9.0" },
     { name = "librosa", specifier = ">=1.0.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "numpy", specifier = ">=2.5.3" },

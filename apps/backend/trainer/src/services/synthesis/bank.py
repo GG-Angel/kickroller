@@ -1,3 +1,4 @@
+import random
 import glob
 from dataclasses import dataclass
 from pathlib import Path
@@ -64,6 +65,10 @@ class SampleBank:
     @property
     def one_shots(self) -> list[Sample]:
         return [sample for sample in self.samples if sample.is_one_shot]
+
+    def draw_kick(self) -> Sample:
+        """Draw a kick at random."""
+        return random.choice(self.kicks)
 
 
 class SampleConfig(BaseModel):

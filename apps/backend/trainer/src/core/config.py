@@ -1,13 +1,9 @@
-from pydantic import BaseModel
 from pydantic_settings import BaseSettings
-
-
-class BankConfig(BaseModel):
-    pass
 
 
 class Config(BaseSettings):
     sr: int = 44100
+    bpm: int = 160
 
 
 CONFIG = Config()
