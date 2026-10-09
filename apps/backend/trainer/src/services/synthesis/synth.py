@@ -7,6 +7,7 @@ import numpy as np
 from src.core.config import CONFIG
 from src.models.audio import Signal
 from src.services.synthesis.bank import SampleBank
+from src.services.synthesis.effects import cut
 
 
 @dataclass(frozen=True)
@@ -41,14 +42,22 @@ class Track:
         self.samples = floor(bars * grid.bar)
         self.signal = np.zeros(self.samples, dtype=np.float32)
 
-    def insert(self, signal: Signal, beat: float) -> None:
+    def insert(self, signal: Signal, beat: float, mix: bool = True) -> None:
+        if beat < 0:
+            raise ValueError("Beat cannot be negative.")
         start = self.grid.to_sample(beat)
-        bounded_signal = signal[: max(0, self.samples - start)]
-        self.signal[start : start + len(bounded_signal)] = bounded_signal
+        if start >= self.samples:
+            return
+        cut_signal = cut(signal, max(0, self.samples - start))
+        end = start + len(cut_signal)
+        if mix:
+            self.signal[start:end] += cut_signal
+        else:
+            self.signal[start:end] = cut_signal
 
 
 def draw_grid() -> Grid:
-    return Grid(bpm=160)
+    return Grid(bpm=100)
 
 
 def generate_kick_pattern() -> np.ndarray:
@@ -62,6 +71,6 @@ def generate_drop(bank: SampleBank) -> np.ndarray:
     kick_track = Track(grid=grid, bars=4)
 
     for beat in generate_kick_pattern():
-        kick_track.insert(kick.signal, beat)
+        kick_track.insert(kick.signal, beat, mix=False)
 
     return kick_track.signal

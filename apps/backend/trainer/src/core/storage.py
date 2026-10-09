@@ -15,12 +15,12 @@ def load_yaml(path: Path) -> dict:
         return yaml.safe_load(f)
 
 
-def load_audio(path: Path, sr: int = CONFIG.sr) -> np.ndarray:
-    signal, _ = librosa.load(path, sr=sr)
+def load_audio(path: Path) -> np.ndarray:
+    signal, _ = librosa.load(path, sr=CONFIG.sr)
     logger.info(f"Loaded audio from {path}")
     return signal
 
 
-def save_audio(path: Path, signal: Signal, sr: int = CONFIG.sr) -> None:
-    wavfile.write(path, sr, signal)
+def save_audio(path: Path, signal: Signal) -> None:
+    wavfile.write(path, CONFIG.sr, signal)
     logger.info(f"Saved audio to {path}")
