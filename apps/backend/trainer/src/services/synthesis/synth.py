@@ -56,12 +56,29 @@ class Track:
             self.signal[start:end] = cut_signal
 
 
+class Mix:
+    def __init__(self) -> None:
+        self.tracks: list[Track] = []
+
+    def add(self, *track: Track) -> None:
+        self.tracks.extend(track)
+
+    def mix(self) -> Signal:
+        if not self.tracks:
+            return np.zeros(0, dtype=np.float32)
+        max_samples = max(track.samples for track in self.tracks)
+        mixed_signal = np.zeros(max_samples, dtype=np.float32)
+        for track in self.tracks:
+            mixed_signal[: track.samples] += track.signal
+        return mixed_signal
+
+
 def draw_grid() -> Grid:
-    return Grid(bpm=100)
+    return Grid(bpm=160)
 
 
 def generate_kick_pattern() -> np.ndarray:
-    return np.array([0, 1, 2, 3, 3.5, 4, 5, 6, 6.5, 7, 8, 8.5])
+    return np.array([0, 1, 2, 3, 3.5, 4, 5, 6, 6.5, 7, 7.5, 8])
 
 
 def generate_drop(bank: SampleBank) -> np.ndarray:
@@ -73,4 +90,6 @@ def generate_drop(bank: SampleBank) -> np.ndarray:
     for beat in generate_kick_pattern():
         kick_track.insert(kick.signal, beat, mix=False)
 
-    return kick_track.signal
+    mix = Mix()
+    mix.add(kick_track)
+    return mix.mix()
