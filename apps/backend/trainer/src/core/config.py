@@ -10,4 +10,4 @@ class Config(BaseSettings):
     sr: int = 44100
 
 
-CFG = Config()
+CONFIG = Config()

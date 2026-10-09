@@ -8,16 +8,6 @@ from pydantic import BaseModel
 from src.core.storage import load_audio, load_yaml
 from src.models.audio import Signal
 
-SampleKind = Literal[
-    "kick",
-    "melody",
-    "vocal",
-    "drum",
-    "bass",
-    "impact",
-    "fx",
-]
-
 AUDIO_EXTENSIONS = {
     ".aif",
     ".aiff",
@@ -32,6 +22,16 @@ AUDIO_EXTENSIONS = {
     ".wav",
     ".wave",
 }
+
+SampleKind = Literal[
+    "kick",
+    "melody",
+    "vocal",
+    "drum",
+    "bass",
+    "impact",
+    "fx",
+]
 
 
 @dataclass(frozen=True)
@@ -52,6 +52,18 @@ class Sample:
 @dataclass(frozen=True)
 class SampleBank:
     samples: list[Sample]
+
+    @property
+    def kicks(self) -> list[Sample]:
+        return [sample for sample in self.samples if sample.kind == "kick"]
+
+    @property
+    def loops(self) -> list[Sample]:
+        return [sample for sample in self.samples if sample.is_loop]
+
+    @property
+    def one_shots(self) -> list[Sample]:
+        return [sample for sample in self.samples if sample.is_one_shot]
 
 
 class SampleConfig(BaseModel):
