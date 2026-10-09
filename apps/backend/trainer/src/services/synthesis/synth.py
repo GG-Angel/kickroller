@@ -1,11 +1,12 @@
-from math import floor
-from src.models.audio import Signal
-from src.core.config import CONFIG
-import librosa
 from dataclasses import dataclass
-from src.services.synthesis.bank import SampleBank
+from math import floor
 
+import librosa
 import numpy as np
+
+from src.core.config import CONFIG
+from src.models.audio import Signal
+from src.services.synthesis.bank import SampleBank
 
 
 @dataclass(frozen=True)
@@ -51,7 +52,7 @@ def draw_grid() -> Grid:
 
 
 def generate_kick_pattern() -> np.ndarray:
-    return np.array([0, 1, 2, 3])
+    return np.array([0, 1, 2, 3, 3.5, 4, 5, 6, 6.5, 7, 8, 8.5])
 
 
 def generate_drop(bank: SampleBank) -> np.ndarray:

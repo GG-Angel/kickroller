@@ -1,8 +1,8 @@
+import librosa
 import numpy as np
+from scipy.signal import butter, sosfilt
 
 from src.core.config import CONFIG
-from scipy.signal import butter, sosfilt
-import librosa
 from src.models.audio import Signal
 
 

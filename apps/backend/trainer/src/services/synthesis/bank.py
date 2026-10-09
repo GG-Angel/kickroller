@@ -1,9 +1,11 @@
-import random
 import glob
+import pickle
+import random
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from loguru import logger
 from pydantic import BaseModel
 
 from src.core.storage import load_audio, load_yaml
@@ -118,10 +120,54 @@ def load_sample_bank(config: SampleBankConfig) -> SampleBank:
     return SampleBank(samples=samples)
 
 
+def _load_sample_bank_cache(
+    path: Path, config_contents: bytes
+) -> SampleBank | None:
+    try:
+        with open(path, "rb") as cache_file:
+            cached_contents, sample_bank = pickle.load(cache_file)
+    except Exception as error:
+        logger.warning(f"Could not load sample bank cache from {path}: {error}")
+        return None
+
+    if cached_contents == config_contents and isinstance(
+        sample_bank, SampleBank
+    ):
+        return sample_bank
+    return None
+
+
+def _save_sample_bank_cache(
+    path: Path, config_contents: bytes, sample_bank: SampleBank
+) -> None:
+    try:
+        with open(path, "wb") as cache_file:
+            pickle.dump(
+                (config_contents, sample_bank),
+                cache_file,
+                protocol=pickle.HIGHEST_PROTOCOL,
+            )
+    except Exception as error:
+        logger.warning(f"Could not save sample bank cache to {path}: {error}")
+
+
 def load_sample_bank_config(path: Path) -> SampleBankConfig:
     return SampleBankConfig.model_validate(load_yaml(path))
 
 
-def load_sample_bank_from_file(path: Path) -> SampleBank:
+def load_sample_bank_from_file(
+    path: Path, use_cache: bool = True
+) -> SampleBank:
+    config_contents = path.read_bytes()
+    cache_path = path.with_suffix(f"{path.suffix}.cache")
+    if use_cache and cache_path.exists():
+        cached_bank = _load_sample_bank_cache(cache_path, config_contents)
+        if cached_bank is not None:
+            logger.info(f"Loaded sample bank from cache at {cache_path}")
+            return cached_bank
+
     config = load_sample_bank_config(path)
-    return load_sample_bank(config)
+    sample_bank = load_sample_bank(config)
+    if use_cache:
+        _save_sample_bank_cache(cache_path, config_contents, sample_bank)
+    return sample_bank

@@ -52,3 +52,55 @@ def test_load_sample_bank_raises_when_path_does_not_match(
 
     with pytest.raises(FileNotFoundError, match="No audio files matched"):
         bank.load_sample_bank(config)
+
+
+def test_load_sample_bank_from_file_uses_cache_until_config_changes(
+    tmp_path: Path,
+) -> None:
+    audio_path = tmp_path / "kick.wav"
+    audio_path.touch()
+    bank_path = tmp_path / "bank.yaml"
+    bank_path.write_text(
+        f"workspace: {tmp_path}\n"
+        "samples:\n"
+        "  - kind: kick\n"
+        "    paths: [kick.wav]\n"
+    )
+
+    with patch(
+        "src.services.synthesis.bank.load_audio",
+        return_value=np.zeros(4, dtype=np.float32),
+    ) as load_audio:
+        first_bank = bank.load_sample_bank_from_file(bank_path)
+        cached_bank = bank.load_sample_bank_from_file(bank_path)
+        bank_path.write_text(bank_path.read_text() + "\n")
+        refreshed_bank = bank.load_sample_bank_from_file(bank_path)
+
+    assert load_audio.call_count == 2
+    assert np.array_equal(
+        cached_bank.samples[0].signal, first_bank.samples[0].signal
+    )
+    assert np.array_equal(
+        refreshed_bank.samples[0].signal, first_bank.samples[0].signal
+    )
+
+
+def test_load_sample_bank_from_file_can_bypass_cache(tmp_path: Path) -> None:
+    audio_path = tmp_path / "kick.wav"
+    audio_path.touch()
+    bank_path = tmp_path / "bank.yaml"
+    bank_path.write_text(
+        f"workspace: {tmp_path}\n"
+        "samples:\n"
+        "  - kind: kick\n"
+        "    paths: [kick.wav]\n"
+    )
+
+    with patch(
+        "src.services.synthesis.bank.load_audio",
+        return_value=np.zeros(4, dtype=np.float32),
+    ) as load_audio:
+        bank.load_sample_bank_from_file(bank_path)
+        bank.load_sample_bank_from_file(bank_path, use_cache=False)
+
+    assert load_audio.call_count == 2

@@ -35,4 +35,4 @@ packages = ["src"]
 line-length = 80
 
 [tool.ruff.lint]
-ignore = ["B008"]
+ignore = ["B008", "BLE001"]

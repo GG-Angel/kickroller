@@ -21,3 +21,4 @@ __pycache__/
 
 # Bank
 bank.yaml
+bank.yaml.cache

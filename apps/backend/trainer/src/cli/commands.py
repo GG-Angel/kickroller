@@ -51,7 +51,12 @@ def synth(
         "-b",
         help="Path to the sample bank configuration file.",
     ),
+    no_cache: bool = typer.Option(
+        False,
+        "--no-cache",
+        help="Decode samples without reading or writing the bank cache.",
+    ),
 ) -> None:
     """Synthesize audio."""
-    bank = load_sample_bank_from_file(bank_file)
+    bank = load_sample_bank_from_file(bank_file, use_cache=not no_cache)
     typer.echo(f"Loaded bank with {len(bank.samples)} samples.")
