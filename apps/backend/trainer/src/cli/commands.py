@@ -3,7 +3,9 @@ from pathlib import Path
 import typer
 
 from src.core.logging import configure_logging
+from src.core.storage import save_audio
 from src.services.synthesis.bank import load_sample_bank_from_file
+from src.services.synthesis.synth import generate_drop
 
 app = typer.Typer(
     help="Find kick onsets in a hardstyle track.",
@@ -60,3 +62,7 @@ def synth(
     """Synthesize audio."""
     bank = load_sample_bank_from_file(bank_file, use_cache=not no_cache)
     typer.echo(f"Loaded bank with {len(bank.samples)} samples.")
+    drop = generate_drop(bank=bank)
+    typer.echo("Generated drop.")
+    save_audio(Path("drop.wav"), drop)
+    typer.echo("Saved drop to drop.wav.")

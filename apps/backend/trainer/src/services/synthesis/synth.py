@@ -39,7 +39,7 @@ class Track:
     def __init__(self, grid: Grid, bars: int) -> None:
         self.grid = grid
         self.samples = floor(bars * grid.bar)
-        self.signal = np.zeros(self.samples)
+        self.signal = np.zeros(self.samples, dtype=np.float32)
 
     def insert(self, signal: Signal, beat: float) -> None:
         start = self.grid.to_sample(beat)
