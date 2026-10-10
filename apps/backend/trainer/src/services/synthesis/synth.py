@@ -1,95 +1,38 @@
-from dataclasses import dataclass
-from math import floor
-
-import librosa
 import numpy as np
 
-from src.core.config import CONFIG
-from src.models.audio import Signal
 from src.services.synthesis.bank import SampleBank
-from src.services.synthesis.effects import cut
-
-
-@dataclass(frozen=True)
-class Grid:
-    bpm: int
-    sr: int = CONFIG.sr
-    beats_per_bar: int = 4
-
-    @property
-    def beat(self) -> float:
-        """Return the duration of a single beat in samples."""
-        return 60.0 * self.sr / self.bpm
-
-    @property
-    def bar(self) -> float:
-        """Return the duration of a single bar in samples."""
-        return self.beat * self.beats_per_bar
-
-    def to_samples(self, beats: np.ndarray) -> np.ndarray:
-        """Convert an array of beats to an array of sample indices."""
-        times = beats * 60.0 / self.bpm
-        return librosa.time_to_samples(times, sr=self.sr)
-
-    def to_sample(self, beat: float) -> int:
-        """Convert a single beat to a sample index."""
-        return self.to_samples(np.array([beat]))[0]
-
-
-class Track:
-    def __init__(self, grid: Grid, bars: int) -> None:
-        self.grid = grid
-        self.samples = floor(bars * grid.bar)
-        self.signal = np.zeros(self.samples, dtype=np.float32)
-
-    def insert(self, signal: Signal, beat: float, mix: bool = True) -> None:
-        if beat < 0:
-            raise ValueError("Beat cannot be negative.")
-        start = self.grid.to_sample(beat)
-        if start >= self.samples:
-            return
-        cut_signal = cut(signal, max(0, self.samples - start))
-        end = start + len(cut_signal)
-        if mix:
-            self.signal[start:end] += cut_signal
-        else:
-            self.signal[start:end] = cut_signal
-
-
-class Mix:
-    def __init__(self) -> None:
-        self.tracks: list[Track] = []
-
-    def add(self, *track: Track) -> None:
-        self.tracks.extend(track)
-
-    def mix(self) -> Signal:
-        if not self.tracks:
-            return np.zeros(0, dtype=np.float32)
-        max_samples = max(track.samples for track in self.tracks)
-        mixed_signal = np.zeros(max_samples, dtype=np.float32)
-        for track in self.tracks:
-            mixed_signal[: track.samples] += track.signal
-        return mixed_signal
+from src.services.synthesis.effects import stretch
+from src.services.synthesis.track import Grid, Mix, Track
 
 
 def draw_grid() -> Grid:
-    return Grid(bpm=160)
+    return Grid(bpm=160, bars=4)
 
 
 def generate_kick_pattern() -> np.ndarray:
     return np.array([0, 1, 2, 3, 3.5, 4, 5, 6, 6.5, 7, 7.5, 8])
 
 
+def generate_melodic_pattern() -> np.ndarray:
+    return np.array([0, 4])
+
+
 def generate_drop(bank: SampleBank) -> np.ndarray:
     grid = draw_grid()
 
+    kick_track = Track(grid=grid)
     kick = bank.draw_kick()
-    kick_track = Track(grid=grid, bars=4)
+    kick_pattern = generate_kick_pattern()
+    for beat in kick_pattern:
+        kick_track.insert(kick.signal, beat, blend=False)
 
-    for beat in generate_kick_pattern():
-        kick_track.insert(kick.signal, beat, mix=False)
+    melody_track = Track(grid=grid)
+    melody = stretch(bank.draw_melodic_loop(), melody_track)
+    for beat in generate_melodic_pattern():
+        melody_track.insert(melody.signal, beat, blend=False)
+
+    melody_track.sidechain(grid.to_samples(kick_pattern), ratio=1.0)
 
     mix = Mix()
-    mix.add(kick_track)
+    mix.add(kick_track, melody_track)
     return mix.mix()

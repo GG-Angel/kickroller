@@ -61,6 +61,30 @@ class SampleBank:
         return [sample for sample in self.samples if sample.kind == "kick"]
 
     @property
+    def melodies(self) -> list[Sample]:
+        return [sample for sample in self.samples if sample.kind == "melody"]
+
+    @property
+    def vocals(self) -> list[Sample]:
+        return [sample for sample in self.samples if sample.kind == "vocal"]
+
+    @property
+    def drums(self) -> list[Sample]:
+        return [sample for sample in self.samples if sample.kind == "drum"]
+
+    @property
+    def basses(self) -> list[Sample]:
+        return [sample for sample in self.samples if sample.kind == "bass"]
+
+    @property
+    def impacts(self) -> list[Sample]:
+        return [sample for sample in self.samples if sample.kind == "impact"]
+
+    @property
+    def fxs(self) -> list[Sample]:
+        return [sample for sample in self.samples if sample.kind == "fx"]
+
+    @property
     def loops(self) -> list[Sample]:
         return [sample for sample in self.samples if sample.is_loop]
 
@@ -71,6 +95,16 @@ class SampleBank:
     def draw_kick(self) -> Sample:
         """Draw a kick at random."""
         return random.choice(self.kicks)
+
+    def draw_melodic_loop(self) -> Sample:
+        """Draw a melodic loop at random."""
+        return random.choice(
+            [
+                sample
+                for sample in (self.melodies + self.vocals)
+                if sample.is_loop
+            ]
+        )
 
 
 class SampleConfig(BaseModel):
