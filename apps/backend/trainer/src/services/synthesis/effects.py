@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
@@ -27,7 +28,15 @@ def cut(signal: Signal, length: int) -> Signal:
 
 def stretch(sample: Sample, track: Track) -> Sample:
     rate = track.grid.bpm / sample.bpm
-    stretched_signal = librosa.effects.time_stretch(y=sample.signal, rate=rate)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r"The `(hop_length|n_fft)` parameter is deprecated",
+            category=FutureWarning,
+        )
+        stretched_signal = librosa.effects.time_stretch(
+            y=sample.signal, rate=rate
+        )
     return replace(sample, signal=stretched_signal, bpm=track.grid.bpm)
 
 
