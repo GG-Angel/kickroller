@@ -81,17 +81,48 @@ class KickPatternGenerator(PatternGenerator):
 
 @dataclass
 class MelodyPatternGenerator(PatternGenerator):
+    """Repeat a melody loop back to back across the whole grid."""
+
     grid: Grid
+    """Grid the pattern is generated for."""
     sample: Sample
+    """Melody loop, already stretched to the grid's tempo."""
     rng: np.random.Generator = field(default_factory=np.random.default_rng)
+    """Random number generator used to draw the pattern."""
 
     def generate(self) -> np.ndarray:
-        return np.array([0, 16])
+        """Return the beat positions at which the loop restarts.
+
+        Raises:
+            ValueError: If the loop is shorter than one bar.
+        """
+        loop_beats = self._calculate_loop_bars() * self.grid.beats_per_bar
+        return np.arange(0, self.grid.beats, loop_beats, dtype=float)
+
+    def _calculate_loop_bars(self) -> int:
+        """Return the largest power-of-two bar count the loop fully covers.
+
+        Loops often carry a release tail past their musical length, so the
+        length is snapped down to 1, 2, 4, 8, ... bars. One step of tolerance
+        absorbs samples lost when the loop was time-stretched.
+        """
+        tolerance = self.grid.beat / self.grid.steps_per_beat
+        length = len(self.sample.signal) + tolerance
+        if length < self.grid.bar:
+            raise ValueError("Melody loop must be at least one bar long.")
+
+        bars = 1
+        while length >= 2 * bars * self.grid.bar:
+            bars *= 2
+        return bars
 
 
 def draw_grid(config: SynthConfig, rng: np.random.Generator) -> Grid:
-    bpm = int(rng.choice(config.bpms))
-    return Grid(bpm=bpm, bars=4)
+    return Grid(
+        bars=4,
+        bpm=int(rng.choice(config.bpms)),
+        steps_per_beat=int(rng.choice(config.steps)),
+    )
 
 
 def generate_drop(
