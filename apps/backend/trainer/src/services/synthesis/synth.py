@@ -15,13 +15,31 @@ class PatternGenerator(Protocol):
 
 @dataclass
 class KickPatternGenerator(PatternGenerator):
+    """Randomly place kicks on a grid, favoring steps on coarser subdivisions.
+
+    Each step in a beat fires with probability ``probability * weight ** depth``,
+    where ``depth`` is how many subdivision levels the step sits below the beat
+    (e.g. ``steps_per_beat=4`` gives ``p, p·w², p·w, p·w²``).
+    """
+
     grid: Grid
+    """Grid the pattern is generated for."""
     probability: float = 1.0
+    """Kick probability on the beat itself, between 0 and 1."""
     weight: float = 0.3
+    """Multiplier applied per subdivision level, between 0 and 1."""
     steps_per_beat: int = 4
+    """Number of steps each beat is divided into."""
     rng: np.random.Generator = field(default_factory=np.random.default_rng)
+    """Random number generator used to draw the pattern."""
 
     def generate(self) -> np.ndarray:
+        """Return the beat positions of the kicks drawn across the whole grid.
+
+        Raises:
+            ValueError: If ``probability`` or ``weight`` is outside [0, 1], or
+                ``steps_per_beat`` is not positive.
+        """
         if not 0 <= self.probability <= 1:
             raise ValueError("Probability must be between 0 and 1.")
         if not 0 <= self.weight <= 1:
@@ -41,6 +59,11 @@ class KickPatternGenerator(PatternGenerator):
 
     @staticmethod
     def _calculate_depths(steps_per_beat: int) -> np.ndarray:
+        """Return the subdivision depth of each step within a beat.
+
+        The beat is split by its largest prime factors first and by smaller ones
+        at finer levels, e.g. ``4 -> [0, 2, 1, 2]`` and ``6 -> [0, 2, 1, 2, 1, 2]``.
+        """
         if steps_per_beat == 1:
             return np.zeros(1, dtype=int)
 
