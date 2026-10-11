@@ -12,6 +12,8 @@ class Grid:
     """Beats per minute of the grid."""
     bars: int
     """Number of bars in the grid."""
+    steps_per_beat: int = 4
+    """Number of steps each beat is divided into."""
     beats_per_bar: int = 4
     """Number of beats per bar."""
     sr: int = CONFIG.sr

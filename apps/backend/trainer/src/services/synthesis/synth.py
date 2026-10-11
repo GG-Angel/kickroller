@@ -3,6 +3,7 @@ from typing import Protocol
 
 import numpy as np
 
+from src.core.config import CONFIG, SynthConfig
 from src.services.synthesis.bank import Sample, SampleBank, SampleKind
 from src.services.synthesis.mix import Mix
 from src.services.synthesis.track import Grid, Track
@@ -27,8 +28,6 @@ class KickPatternGenerator(PatternGenerator):
     """Kick probability on the beat itself, between 0 and 1."""
     weight: float = 0.3
     """Multiplier applied per subdivision level, between 0 and 1."""
-    steps_per_beat: int = 4
-    """Number of steps each beat is divided into."""
     rng: np.random.Generator = field(default_factory=np.random.default_rng)
     """Random number generator used to draw the pattern."""
 
@@ -43,16 +42,14 @@ class KickPatternGenerator(PatternGenerator):
             raise ValueError("Probability must be between 0 and 1.")
         if not 0 <= self.weight <= 1:
             raise ValueError("Weight must be between 0 and 1.")
-        if not 0 < self.steps_per_beat:
-            raise ValueError("Steps per beat must be positive.")
 
         beat_weights = self.probability * self.weight ** self._calculate_depths(
-            self.steps_per_beat
+            self.grid.steps_per_beat
         )
         weights = np.tile(beat_weights, self.grid.beats)
         steps = (
-            np.arange(self.grid.beats * self.steps_per_beat)
-            / self.steps_per_beat
+            np.arange(self.grid.beats * self.grid.steps_per_beat)
+            / self.grid.steps_per_beat
         )
         return steps[self.rng.random(len(steps)) < weights]
 
@@ -89,26 +86,30 @@ class MelodyPatternGenerator(PatternGenerator):
     rng: np.random.Generator = field(default_factory=np.random.default_rng)
 
     def generate(self) -> np.ndarray:
-
         return np.array([0, 16])
 
 
-def draw_grid() -> Grid:
-    return Grid(bpm=160, bars=4)
+def draw_grid(config: SynthConfig, rng: np.random.Generator) -> Grid:
+    bpm = int(rng.choice(config.bpms))
+    return Grid(bpm=bpm, bars=4)
 
 
-def generate_drop(bank: SampleBank) -> np.ndarray:
-    grid = draw_grid()
+def generate_drop(
+    bank: SampleBank,
+    config: SynthConfig = CONFIG.synth,
+) -> np.ndarray:
+    rng = np.random.default_rng()
+    grid = draw_grid(config, rng)
 
     kick_track = Track(grid)
     kick = bank.draw(SampleKind.KICK)
-    kick_pattern = KickPatternGenerator(grid).generate()
+    kick_pattern = KickPatternGenerator(grid, rng=rng).generate()
     for beat in kick_pattern:
         kick_track.insert(kick.signal, beat, blend=False)
 
     melody_track = Track(grid)
     melody = bank.draw(SampleKind.MELODY, loops_only=True).stretch(melody_track)
-    for beat in MelodyPatternGenerator(grid, melody).generate():
+    for beat in MelodyPatternGenerator(grid, melody, rng=rng).generate():
         melody_track.insert(melody.signal, beat, blend=False)
 
     melody_track.sidechain(grid.to_samples(kick_pattern), ratio=0.5)
