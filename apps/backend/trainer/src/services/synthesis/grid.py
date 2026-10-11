@@ -9,9 +9,13 @@ from src.core.config import CONFIG
 @dataclass(frozen=True)
 class Grid:
     bpm: int
+    """Beats per minute of the grid."""
     bars: int
+    """Number of bars in the grid."""
     beats_per_bar: int = 4
+    """Number of beats per bar."""
     sr: int = CONFIG.sr
+    """Sampling rate of the grid."""
 
     @property
     def beat(self) -> float:
@@ -22,6 +26,11 @@ class Grid:
     def bar(self) -> float:
         """Return the duration of a single bar in samples."""
         return self.beat * self.beats_per_bar
+
+    @property
+    def beats(self) -> int:
+        """Return the total number of beats in the grid."""
+        return self.bars * self.beats_per_bar
 
     def to_seconds(self, beats: np.ndarray) -> np.ndarray:
         """Convert an array of beats to an array of time in seconds."""

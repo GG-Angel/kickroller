@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from dataclasses import replace
+from typing import TYPE_CHECKING
 
 import librosa
 import numpy as np
@@ -6,8 +9,10 @@ from scipy.signal import butter, sosfilt
 
 from src.core.config import CONFIG
 from src.models.audio import Signal
-from src.services.synthesis.bank import Sample
-from src.services.synthesis.track import Track
+
+if TYPE_CHECKING:
+    from src.services.synthesis.bank import Sample
+    from src.services.synthesis.track import Track
 
 
 def cut(signal: Signal, length: int) -> Signal:
