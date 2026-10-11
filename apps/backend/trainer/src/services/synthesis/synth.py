@@ -5,6 +5,7 @@ import numpy as np
 
 from src.core.config import CONFIG, SynthConfig
 from src.services.synthesis.bank import Sample, SampleBank, SampleKind
+from src.services.synthesis.effects import Filter, Sidechain
 from src.services.synthesis.mix import Mix
 from src.services.synthesis.track import Grid, Track
 
@@ -143,8 +144,11 @@ def generate_drop(
     for beat in MelodyPatternGenerator(grid, melody, rng=rng).generate():
         melody_track.insert(melody.signal, beat, blend=False)
 
-    melody_track.sidechain(grid.to_samples(kick_pattern), ratio=0.5)
+    melody_track.add_effects(
+        Filter(cutoff=200.0, btype="highpass"),
+        Sidechain(grid.to_samples(kick_pattern), ratio=0.5),
+    )
 
     mix = Mix()
-    mix.add(kick_track, melody_track)
+    mix.add_tracks(kick_track, melody_track)
     return mix.mix()
