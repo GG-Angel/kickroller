@@ -21,7 +21,7 @@ def test_load_sample_bank_resolves_workspace_paths_and_globs(
         workspace=tmp_path,
         samples=[
             bank.SampleConfig(
-                kind="kick",
+                kind=bank.SampleKind.KICK,
                 paths=[Path("direct.wav"), Path("loops/*")],
             )
         ],
@@ -40,6 +40,10 @@ def test_load_sample_bank_resolves_workspace_paths_and_globs(
         direct_path,
         globbed_path,
     ]
+    assert all(
+        sample.kind is bank.SampleKind.KICK
+        for sample in sample_bank.samples
+    )
 
 
 def test_load_sample_bank_raises_when_path_does_not_match(
@@ -47,7 +51,11 @@ def test_load_sample_bank_raises_when_path_does_not_match(
 ) -> None:
     config = bank.SampleBankConfig(
         workspace=tmp_path,
-        samples=[bank.SampleConfig(kind="kick", paths=[Path("missing.wav")])],
+        samples=[
+            bank.SampleConfig(
+                kind=bank.SampleKind.KICK, paths=[Path("missing.wav")]
+            )
+        ],
     )
 
     with pytest.raises(FileNotFoundError, match="No audio files matched"):

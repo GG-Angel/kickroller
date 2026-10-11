@@ -1,19 +1,9 @@
-from __future__ import annotations
-
-import warnings
-from dataclasses import replace
-from typing import TYPE_CHECKING
-
 import librosa
 import numpy as np
 from scipy.signal import butter, sosfilt
 
 from src.core.config import CONFIG
 from src.models.audio import Signal
-
-if TYPE_CHECKING:
-    from src.services.synthesis.bank import Sample
-    from src.services.synthesis.track import Track
 
 
 def cut(signal: Signal, length: int) -> Signal:
@@ -24,20 +14,6 @@ def cut(signal: Signal, length: int) -> Signal:
     cut_signal = signal[:length].copy()
     cut_signal[length - fade :] *= np.linspace(1.0, 0.0, fade, dtype=np.float32)
     return cut_signal
-
-
-def stretch(sample: Sample, track: Track) -> Sample:
-    rate = track.grid.bpm / sample.bpm
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message=r"The `(hop_length|n_fft)` parameter is deprecated",
-            category=FutureWarning,
-        )
-        stretched_signal = librosa.effects.time_stretch(
-            y=sample.signal, rate=rate
-        )
-    return replace(sample, signal=stretched_signal, bpm=track.grid.bpm)
 
 
 def trim(signal: Signal) -> Signal:

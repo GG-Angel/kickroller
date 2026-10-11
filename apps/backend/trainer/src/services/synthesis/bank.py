@@ -1,15 +1,18 @@
 import glob
 import pickle
 import random
-from dataclasses import dataclass
+import warnings
+from dataclasses import dataclass, replace
+from enum import StrEnum
 from pathlib import Path
-from typing import Literal
 
+import librosa
 from loguru import logger
 from pydantic import BaseModel
 
 from src.core.storage import load_audio, load_yaml
 from src.models.audio import Signal
+from src.services.synthesis.track import Track
 
 AUDIO_EXTENSIONS = {
     ".aif",
@@ -26,15 +29,14 @@ AUDIO_EXTENSIONS = {
     ".wave",
 }
 
-SampleKind = Literal[
-    "kick",
-    "melody",
-    "vocal",
-    "drum",
-    "bass",
-    "impact",
-    "fx",
-]
+
+class SampleKind(StrEnum):
+    KICK = "kick"
+    MELODY = "melody"
+    VOCAL = "vocal"
+    DRUM = "drum"
+    IMPACT = "impact"
+    FX = "fx"
 
 
 @dataclass(frozen=True)
@@ -51,60 +53,34 @@ class Sample:
     def is_one_shot(self) -> bool:
         return not self.is_loop
 
+    def stretch(self, track: Track) -> "Sample":
+        rate = track.grid.bpm / self.bpm
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"The `(hop_length|n_fft)` parameter is deprecated",
+                category=FutureWarning,
+            )
+            stretched_signal = librosa.effects.time_stretch(
+                self.signal, rate=rate
+            )
+        return replace(self, signal=stretched_signal, bpm=track.grid.bpm)
+
 
 @dataclass(frozen=True)
 class SampleBank:
     samples: list[Sample]
 
-    @property
-    def kicks(self) -> list[Sample]:
-        return [sample for sample in self.samples if sample.kind == "kick"]
-
-    @property
-    def melodies(self) -> list[Sample]:
-        return [sample for sample in self.samples if sample.kind == "melody"]
-
-    @property
-    def vocals(self) -> list[Sample]:
-        return [sample for sample in self.samples if sample.kind == "vocal"]
-
-    @property
-    def drums(self) -> list[Sample]:
-        return [sample for sample in self.samples if sample.kind == "drum"]
-
-    @property
-    def basses(self) -> list[Sample]:
-        return [sample for sample in self.samples if sample.kind == "bass"]
-
-    @property
-    def impacts(self) -> list[Sample]:
-        return [sample for sample in self.samples if sample.kind == "impact"]
-
-    @property
-    def fxs(self) -> list[Sample]:
-        return [sample for sample in self.samples if sample.kind == "fx"]
-
-    @property
-    def loops(self) -> list[Sample]:
-        return [sample for sample in self.samples if sample.is_loop]
-
-    @property
-    def one_shots(self) -> list[Sample]:
-        return [sample for sample in self.samples if sample.is_one_shot]
-
-    def draw_kick(self) -> Sample:
-        """Draw a kick at random."""
-        return random.choice(self.kicks)
-
-    def draw_melodic_loop(self) -> Sample:
-        """Draw a melodic loop at random."""
-        return random.choice(
-            [
-                sample
-                for sample in (self.melodies + self.vocals)
-                if sample.is_loop
-            ]
-        )
+    def draw(self, kind: SampleKind, loops_only: bool = False) -> Sample:
+        """Draw a sample of the specified kind at random."""
+        pool = [sample for sample in self.samples if sample.kind == kind]
+        if loops_only:
+            pool = [sample for sample in pool if sample.is_loop]
+        if not pool:
+            raise ValueError(
+                f"No samples of kind '{kind}' ({'loops only' if loops_only else 'any'}) are available in the sample pool."
+            )
+        return random.choice(pool)
 
 
 class SampleConfig(BaseModel):

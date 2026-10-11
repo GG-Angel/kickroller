@@ -3,8 +3,7 @@ from typing import Protocol
 
 import numpy as np
 
-from src.services.synthesis.bank import SampleBank
-from src.services.synthesis.effects import stretch
+from src.services.synthesis.bank import Sample, SampleBank, SampleKind
 from src.services.synthesis.mix import Mix
 from src.services.synthesis.track import Grid, Track
 
@@ -83,29 +82,36 @@ class KickPatternGenerator(PatternGenerator):
         return depths
 
 
+@dataclass
+class MelodyPatternGenerator(PatternGenerator):
+    grid: Grid
+    sample: Sample
+    rng: np.random.Generator = field(default_factory=np.random.default_rng)
+
+    def generate(self) -> np.ndarray:
+
+        return np.array([0, 16])
+
+
 def draw_grid() -> Grid:
     return Grid(bpm=160, bars=4)
-
-
-def generate_melodic_pattern() -> np.ndarray:
-    return np.array([0, 4])
 
 
 def generate_drop(bank: SampleBank) -> np.ndarray:
     grid = draw_grid()
 
-    kick_track = Track(grid=grid)
-    kick = bank.draw_kick()
-    kick_pattern = KickPatternGenerator(grid=grid).generate()
+    kick_track = Track(grid)
+    kick = bank.draw(SampleKind.KICK)
+    kick_pattern = KickPatternGenerator(grid).generate()
     for beat in kick_pattern:
         kick_track.insert(kick.signal, beat, blend=False)
 
-    melody_track = Track(grid=grid)
-    melody = stretch(bank.draw_melodic_loop(), melody_track)
-    for beat in generate_melodic_pattern():
+    melody_track = Track(grid)
+    melody = bank.draw(SampleKind.MELODY, loops_only=True).stretch(melody_track)
+    for beat in MelodyPatternGenerator(grid, melody).generate():
         melody_track.insert(melody.signal, beat, blend=False)
 
-    melody_track.sidechain(grid.to_samples(kick_pattern), ratio=1.0)
+    melody_track.sidechain(grid.to_samples(kick_pattern), ratio=0.5)
 
     mix = Mix()
     mix.add(kick_track, melody_track)
