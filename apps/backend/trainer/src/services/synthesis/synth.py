@@ -25,9 +25,9 @@ class KickPatternGenerator(PatternGenerator):
 
     grid: Grid
     """Grid the pattern is generated for."""
-    probability: float = 1.0
+    probability: float = 0.98
     """Kick probability on the beat itself, between 0 and 1."""
-    weight: float = 0.3
+    weight: float = 0.25
     """Multiplier applied per subdivision level, between 0 and 1."""
     rng: np.random.Generator = field(default_factory=np.random.default_rng)
     """Random number generator used to draw the pattern."""
@@ -81,37 +81,23 @@ class KickPatternGenerator(PatternGenerator):
 
 
 @dataclass
-class MelodyPatternGenerator(PatternGenerator):
-    """Repeat a melody loop back to back across the whole grid."""
-
+class LoopPatternGenerator(PatternGenerator):
     grid: Grid
-    """Grid the pattern is generated for."""
     sample: Sample
-    """Melody loop, already stretched to the grid's tempo."""
     rng: np.random.Generator = field(default_factory=np.random.default_rng)
-    """Random number generator used to draw the pattern."""
 
     def generate(self) -> np.ndarray:
-        """Return the beat positions at which the loop restarts.
-
-        Raises:
-            ValueError: If the loop is shorter than one bar.
-        """
+        if not self.sample.is_loop:
+            raise ValueError(f"Sample '{self.sample.name}' is not a loop.")
         loop_beats = self._calculate_loop_bars() * self.grid.beats_per_bar
         return np.arange(0, self.grid.beats, loop_beats, dtype=float)
 
     def _calculate_loop_bars(self) -> int:
-        """Return the largest power-of-two bar count the loop fully covers.
-
-        Loops often carry a release tail past their musical length, so the
-        length is snapped down to 1, 2, 4, 8, ... bars. One step of tolerance
-        absorbs samples lost when the loop was time-stretched.
-        """
-        tolerance = self.grid.beat / self.grid.steps_per_beat
-        length = len(self.sample.signal) + tolerance
+        length = len(self.sample.signal)
         if length < self.grid.bar:
-            raise ValueError("Melody loop must be at least one bar long.")
-
+            raise ValueError(
+                f"Loop '{self.sample.name}' must be at least one bar long."
+            )
         bars = 1
         while length >= 2 * bars * self.grid.bar:
             bars *= 2
@@ -141,12 +127,12 @@ def generate_drop(
 
     melody_track = Track(grid)
     melody = bank.draw(SampleKind.MELODY, loops_only=True).stretch(melody_track)
-    for beat in MelodyPatternGenerator(grid, melody, rng=rng).generate():
+    for beat in LoopPatternGenerator(grid, melody, rng=rng).generate():
         melody_track.insert(melody.signal, beat, blend=False)
 
     melody_track.add_effects(
         Filter(cutoff=200.0, btype="highpass"),
-        Sidechain(grid.to_samples(kick_pattern), ratio=0.5),
+        Sidechain(grid.to_samples(kick_pattern), ratio=0.4),
     )
 
     mix = Mix()
