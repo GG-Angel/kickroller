@@ -5,6 +5,7 @@ import numpy as np
 from typer.testing import CliRunner
 
 from src.cli.commands import app
+from src.core.config import CONFIG
 from src.models.audio import LabeledDrop
 from src.services.synthesis.bank import SampleBank
 
@@ -13,7 +14,7 @@ def test_synth_can_bypass_sample_bank_cache(tmp_path: Path) -> None:
     bank_path = tmp_path / "bank.yaml"
     bank_path.touch()
     drop = LabeledDrop(
-        signal=np.zeros(10, dtype=np.float32), onsets=np.zeros(0)
+        signal=np.zeros(13 * CONFIG.sr, dtype=np.float32), onsets=np.zeros(0)
     )
 
     with (

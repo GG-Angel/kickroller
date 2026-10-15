@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from math import ceil
 from typing import Protocol
 
 import librosa
@@ -107,9 +108,13 @@ class LoopPatternGenerator(PatternGenerator):
 
 
 def draw_grid(config: SynthConfig, rng: np.random.Generator) -> Grid:
+    bpm = int(rng.choice(config.bpms))
+    bar_seconds = 60 * Grid.beats_per_bar / bpm
+    # One extra bar leaves room for a random crop start.
+    bars = ceil(config.drop_seconds / bar_seconds) + 1
     return Grid(
-        bars=4,
-        bpm=int(rng.choice(config.bpms)),
+        bars=bars,
+        bpm=bpm,
         steps_per_beat=int(rng.choice(config.steps)),
     )
 
@@ -170,3 +175,38 @@ def generate_drop(
 
     onsets = librosa.samples_to_time(grid.to_samples(kick_pattern), sr=grid.sr)
     return LabeledDrop(signal=mix.mix(), onsets=onsets)
+
+
+def crop_drop(
+    drop: LabeledDrop, start: float, end: float, sr: int = CONFIG.sr
+) -> LabeledDrop:
+    """Cut the drop from ``start`` to ``end`` seconds and shift its onsets.
+
+    The times are rounded to samples, so the onsets stay on the same samples.
+
+    Raises:
+        ValueError: If the crop is empty or not inside the drop.
+    """
+    first, last = round(start * sr), round(end * sr)
+    if not 0 <= first < last <= len(drop.signal):
+        raise ValueError("The crop must be inside the drop.")
+    start_time, end_time = first / sr, last / sr
+    keep = (drop.onsets >= start_time) & (drop.onsets < end_time)
+    return LabeledDrop(
+        signal=drop.signal[first:last].copy(),
+        onsets=drop.onsets[keep] - start_time,
+    )
+
+
+def draw_crop(
+    rng: np.random.Generator, duration: float, seconds: float
+) -> tuple[float, float]:
+    """Return a random window of ``seconds`` inside ``duration`` seconds.
+
+    Raises:
+        ValueError: If ``duration`` is shorter than ``seconds``.
+    """
+    if duration < seconds:
+        raise ValueError("The drop is shorter than the crop.")
+    start = rng.uniform(0, duration - seconds)
+    return start, start + seconds

@@ -3,10 +3,11 @@ from pathlib import Path
 import numpy as np
 import typer
 
+from src.core.config import CONFIG
 from src.core.logging import configure_logging
 from src.core.storage import save_audio, save_onsets
 from src.services.synthesis.bank import load_sample_bank_from_file
-from src.services.synthesis.synth import generate_drop
+from src.services.synthesis.synth import crop_drop, draw_crop, generate_drop
 
 app = typer.Typer(
     help="Find kick onsets in a hardstyle track.",
@@ -66,7 +67,10 @@ def synth(
     """Synthesize audio."""
     bank = load_sample_bank_from_file(bank_file, use_cache=not no_cache)
     typer.echo(f"Loaded bank with {len(bank.samples)} samples.")
-    drop = generate_drop(bank, np.random.default_rng(seed))
+    rng = np.random.default_rng(seed)
+    drop = generate_drop(bank, rng)
+    duration = len(drop.signal) / CONFIG.sr
+    drop = crop_drop(drop, *draw_crop(rng, duration, CONFIG.synth.drop_seconds))
     typer.echo("Generated drop.")
     save_audio(Path("drop.wav"), drop.signal)
     save_onsets(Path("drop.csv"), drop.onsets)

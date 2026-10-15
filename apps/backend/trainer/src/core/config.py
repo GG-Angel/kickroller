@@ -10,6 +10,8 @@ class SynthConfig(BaseModel):
 
     kick_db_range: tuple[int, int] = (-1, 0)
 
+    drop_seconds: float = 12.0
+
 
 class Config(BaseSettings):
     sr: int = 44100
