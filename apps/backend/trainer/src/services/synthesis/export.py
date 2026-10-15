@@ -1,6 +1,7 @@
 from dataclasses import replace
 from pathlib import Path
 
+import librosa
 import numpy as np
 from loguru import logger
 
@@ -30,7 +31,7 @@ def export_drops(
         duration = len(drop.signal) / CONFIG.sr
         window = draw_crop(rng, duration, CONFIG.synth.drop_seconds)
         drop = crop_drop(drop, window)
-        peak = 10 ** (CONFIG.synth.peak_db / 20)
+        peak = float(librosa.db_to_amplitude(CONFIG.synth.peak_db))
         drop = replace(drop, signal=normalize_signal(drop.signal) * peak)
         path = folder / f"drop_{index:03d}"
         save_audio(path.with_suffix(".wav"), drop.signal)

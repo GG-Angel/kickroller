@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+import librosa
 import numpy as np
 
 from src.core.config import CONFIG
@@ -27,7 +28,7 @@ def crop_drop(
     first, last = round(window.start * sr), round(window.end * sr)
     if not 0 <= first < last <= len(drop.signal):
         raise ValueError("The crop window must be inside the drop.")
-    start_time, end_time = first / sr, last / sr
+    start_time, end_time = librosa.samples_to_time([first, last], sr=sr)
     keep = (drop.onsets >= start_time) & (drop.onsets < end_time)
     return LabeledDrop(
         signal=drop.signal[first:last].copy(),

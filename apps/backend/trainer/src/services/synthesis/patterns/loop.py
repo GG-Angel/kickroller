@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 
+import librosa
 import numpy as np
 from loguru import logger
 
@@ -49,7 +50,8 @@ def draw_loop_track(
     track = Track(grid)
     sample = bank.draw(layer.kind, rng, is_loop=True).stretch(track)
     db = rng.uniform(*layer.level_db_range)
-    signal = level_signal(sample.signal, kick_level * 10 ** (db / 20), grid.sr)
+    level = kick_level * float(librosa.db_to_amplitude(db))
+    signal = level_signal(sample.signal, level, grid.sr)
     logger.debug(f"{layer.kind} loop {sample.name} at {db:.1f} dB")
     for beat in LoopPatternGenerator(grid, sample, rng=rng).generate():
         track.insert(signal, beat, blend=False)

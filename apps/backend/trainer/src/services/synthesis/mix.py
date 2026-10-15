@@ -1,3 +1,4 @@
+import librosa
 import numpy as np
 
 from src.models.audio import Signal
@@ -16,9 +17,9 @@ class Mix:
             return np.zeros(0, dtype=np.float32)
 
         signals = [track.process() for track in self.tracks]
-        max_samples = max(len(signal) for signal in signals)
-        mixed_signal = np.zeros(max_samples, dtype=np.float32)
-        for signal in signals:
-            mixed_signal[: len(signal)] += signal
-
-        return mixed_signal
+        size = max(len(signal) for signal in signals)
+        return np.sum(
+            [librosa.util.fix_length(signal, size=size) for signal in signals],
+            axis=0,
+            dtype=np.float32,
+        )

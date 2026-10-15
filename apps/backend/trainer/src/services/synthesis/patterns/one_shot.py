@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 
+import librosa
 import numpy as np
 from loguru import logger
 
@@ -69,9 +70,8 @@ def draw_one_shot_track(
         grid, period, placement.offset, probability, rng=rng
     ).generate()
     db = rng.uniform(*layer.level_db_range)
-    signal = level_signal(
-        trim_signal(sample.signal), kick_level * 10 ** (db / 20), grid.sr
-    )
+    level = kick_level * float(librosa.db_to_amplitude(db))
+    signal = level_signal(trim_signal(sample.signal), level, grid.sr)
     logger.debug(
         f"{layer.kind} one-shot {sample.name} at {db:.1f} dB: {len(beats)} "
         f"hits, every {period:g} beats from {placement.offset:g}"
