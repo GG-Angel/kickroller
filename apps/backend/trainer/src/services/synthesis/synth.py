@@ -27,7 +27,7 @@ class KickPatternGenerator(PatternGenerator):
     """Grid the pattern is generated for."""
     probability: float = 0.98
     """Kick probability on the beat itself, between 0 and 1."""
-    weight: float = 0.25
+    weight: float = 0.24
     """Multiplier applied per subdivision level, between 0 and 1."""
     rng: np.random.Generator = field(default_factory=np.random.default_rng)
     """Random number generator used to draw the pattern."""
@@ -118,23 +118,49 @@ def generate_drop(
 ) -> np.ndarray:
     rng = np.random.default_rng()
     grid = draw_grid(config, rng)
+    mix = Mix()
 
-    kick_track = Track(grid)
+    # 1. Generate kick track
     kick = bank.draw(SampleKind.KICK)
     kick_pattern = KickPatternGenerator(grid, rng=rng).generate()
+    kick_track = Track(grid)
     for beat in kick_pattern:
         kick_track.insert(kick.signal, beat, blend=False)
+    mix.add_tracks(kick_track)
 
-    melody_track = Track(grid)
-    melody = bank.draw(SampleKind.MELODY, loops_only=True).stretch(melody_track)
-    for beat in LoopPatternGenerator(grid, melody, rng=rng).generate():
-        melody_track.insert(melody.signal, beat, blend=False)
+    # 2. Generate 0-2 melody tracks
+    # for _ in range(2):
+    #     melody_track = Track(grid)
+    #     melody = bank.draw(SampleKind.MELODY, loops_only=True).stretch(
+    #         melody_track
+    #     )
+    #     for beat in LoopPatternGenerator(grid, melody, rng=rng).generate():
+    #         melody_track.insert(melody.signal, beat, blend=False)
+    #     melody_track.add_effects(
+    #         Filter(cutoff=200.0, btype="highpass"),
+    #         Sidechain(grid.to_samples(kick_pattern), ratio=0.4),
+    #     )
+    #     mix.add_tracks(melody_track)
 
-    melody_track.add_effects(
+    # 3. Generate drum track
+    drum_track = Track(grid)
+    drum = bank.draw(SampleKind.DRUM, loops_only=True).stretch(drum_track)
+    for beat in LoopPatternGenerator(grid, drum, rng=rng).generate():
+        drum_track.insert(drum.signal, beat, blend=False)
+    drum_track.add_effects(
         Filter(cutoff=200.0, btype="highpass"),
-        Sidechain(grid.to_samples(kick_pattern), ratio=0.4),
     )
+    mix.add_tracks(drum_track)
 
-    mix = Mix()
-    mix.add_tracks(kick_track, melody_track)
+    # 4. Generate vocal track
+    vocal_track = Track(grid)
+    vocal = bank.draw(SampleKind.VOCAL, loops_only=True).stretch(vocal_track)
+    for beat in LoopPatternGenerator(grid, vocal, rng=rng).generate():
+        vocal_track.insert(vocal.signal, beat, blend=False)
+    vocal_track.add_effects(
+        Filter(cutoff=200.0, btype="highpass"),
+        Sidechain(grid.to_samples(kick_pattern), ratio=0.25),
+    )
+    mix.add_tracks(vocal_track)
+
     return mix.mix()
