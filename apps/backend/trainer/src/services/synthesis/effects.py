@@ -123,6 +123,37 @@ class Effect(Protocol):
     def process(self, signal: Signal, sr: int) -> Signal: ...
 
 
+def section_signal(
+    signal: Signal,
+    effect: Effect,
+    start: int,
+    end: int,
+    fade: float = 0.005,
+    sr: int = CONFIG.sr,
+) -> Signal:
+    """Apply the effect only from sample ``start`` to ``end``.
+
+    The effect is applied to the whole signal, so its state is continuous at
+    the section edges. The section fades in after ``start`` and out before
+    ``end``, which prevents clicks.
+    """
+    end = min(end, len(signal))
+    if not 0 <= start <= end:
+        raise ValueError("The section must start inside the signal.")
+    wet = effect.process(signal, sr)
+    if len(wet) != len(signal):
+        raise ValueError("The effect of a section must keep the length.")
+
+    mix = np.zeros(len(signal), dtype=np.float32)
+    mix[start:end] = 1.0
+    fade_samples = min(round(fade * sr), (end - start) // 2)
+    if fade_samples:
+        ramp = np.linspace(0.0, 1.0, fade_samples, dtype=np.float32)
+        mix[start : start + fade_samples] = ramp
+        mix[end - fade_samples : end] = ramp[::-1]
+    return np.asarray(signal + mix * (wet - signal), dtype=np.float32)
+
+
 @dataclass(frozen=True)
 class Cut(Effect):
     length: int
@@ -169,4 +200,19 @@ class Sidechain(Effect):
             self.duration,
             self.fade,
             sr=sr,
+        )
+
+
+@dataclass(frozen=True)
+class Section(Effect):
+    effect: Effect
+    start: int
+    """First sample of the section."""
+    end: int
+    """Sample after the section."""
+    fade: float = 0.005
+
+    def process(self, signal: Signal, sr: int) -> Signal:
+        return section_signal(
+            signal, self.effect, self.start, self.end, self.fade, sr=sr
         )

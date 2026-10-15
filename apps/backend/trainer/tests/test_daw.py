@@ -10,6 +10,7 @@ from src.services.synthesis.effects import (
     Effect,
     Filter,
     Normalize,
+    Section,
     Sidechain,
     Trim,
     cut_signal,
@@ -17,6 +18,7 @@ from src.services.synthesis.effects import (
     level_signal,
     loudest_rms,
     normalize_signal,
+    section_signal,
     sidechain_signal,
     trim_signal,
 )
@@ -109,8 +111,12 @@ def test_mix_sums_wet_track_signals() -> None:
                 s, np.array([0, 300]), ratio=0.7, sr=sr
             ),
         ),
+        (
+            Section(Gain(2.0), start=200, end=600),
+            lambda s, sr: section_signal(s, Gain(2.0), 200, 600, sr=sr),
+        ),
     ],
-    ids=["cut", "trim", "filter", "normalize", "sidechain"],
+    ids=["cut", "trim", "filter", "normalize", "sidechain", "section"],
 )
 def test_effects_delegate_to_functions(effect: Effect, function) -> None:
     sr = 8000
@@ -226,3 +232,53 @@ def test_level_signal_leaves_silence_unchanged() -> None:
     silence = np.zeros(100, dtype=np.float32)
 
     np.testing.assert_array_equal(level_signal(silence, 0.5), silence)
+
+
+def test_section_applies_the_effect_only_inside_the_section() -> None:
+    sr = 1000
+    signal = np.ones(1000, dtype=np.float32)
+
+    result = section_signal(signal, Gain(3.0), 200, 600, fade=0.01, sr=sr)
+
+    np.testing.assert_array_equal(result[:200], 1.0)
+    np.testing.assert_array_equal(result[600:], 1.0)
+    np.testing.assert_allclose(result[210:590], 3.0)
+    assert np.all(np.diff(result[200:210]) > 0)
+    assert np.all(np.diff(result[590:600]) < 0)
+
+
+def test_section_keeps_the_effect_state_continuous() -> None:
+    sr = 8000
+    signal = (
+        np.random.default_rng(0).uniform(-0.5, 0.5, 4000).astype(np.float32)
+    )
+    effect = Filter(500, "lowpass")
+
+    result = section_signal(signal, effect, 1000, 3000, sr=sr)
+
+    np.testing.assert_allclose(
+        result[1040:2960], effect.process(signal, sr)[1040:2960], atol=1e-6
+    )
+
+
+def test_section_end_is_clipped_to_the_signal() -> None:
+    signal = np.ones(100, dtype=np.float32)
+
+    result = section_signal(signal, Gain(2.0), 50, 200, fade=0, sr=1000)
+
+    np.testing.assert_array_equal(result[50:], 2.0)
+
+
+@pytest.mark.parametrize(("start", "end"), [(-1, 50), (60, 50), (150, 200)])
+def test_section_rejects_invalid_bounds(start: int, end: int) -> None:
+    signal = np.ones(100, dtype=np.float32)
+
+    with pytest.raises(ValueError):
+        section_signal(signal, Gain(2.0), start, end)
+
+
+def test_section_rejects_effects_that_change_the_length() -> None:
+    signal = np.ones(1000, dtype=np.float32)
+
+    with pytest.raises(ValueError, match="length"):
+        section_signal(signal, Cut(500), 100, 200)

@@ -6,6 +6,7 @@ import numpy as np
 from src.core.config import CONFIG, LayerConfig, SynthConfig
 from src.models.audio import LabeledDrop
 from src.services.synthesis.bank import SampleBank
+from src.services.synthesis.draws import draw_count
 from src.services.synthesis.effects import Filter, Sidechain
 from src.services.synthesis.grid import Grid
 from src.services.synthesis.mix import Mix
@@ -25,12 +26,6 @@ def draw_grid(config: SynthConfig, rng: np.random.Generator) -> Grid:
         bpm=bpm,
         steps_per_beat=int(rng.choice(config.steps)),
     )
-
-
-def _draw_track_count(layer: LayerConfig, rng: np.random.Generator) -> int:
-    counts = list(layer.track_count_weights)
-    weights = np.array(list(layer.track_count_weights.values()))
-    return int(rng.choice(counts, p=weights / weights.sum()))
 
 
 def _add_layer_effects(
@@ -56,13 +51,13 @@ def generate_drop(
     mix = Mix()
 
     # 1. Generate the kick track
-    kick = draw_kick_track(grid, bank, rng)
+    kick = draw_kick_track(grid, bank, config.kick_fx, rng)
     mix.add_tracks(kick.track)
 
     # 2. Generate the tracks of each layer
     kick_starts = grid.to_samples(kick.beats)
     for layer in config.layers:
-        for _ in range(_draw_track_count(layer, rng)):
+        for _ in range(draw_count(layer.track_count_weights, rng)):
             track = (
                 draw_loop_track(grid, bank, layer, kick.level, rng)
                 if layer.is_loop

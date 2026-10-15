@@ -4,11 +4,12 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from src.core.config import CONFIG, LayerConfig, Placement
+from src.core.config import CONFIG, KickFxConfig, LayerConfig, Placement
 from src.models.audio import SampleKind
 from src.services.synthesis.bank import Sample, SampleBank
-from src.services.synthesis.effects import loudest_rms
+from src.services.synthesis.effects import Filter, loudest_rms
 from src.services.synthesis.grid import Grid
+from src.services.synthesis.patterns.kick import draw_kick_fx
 from src.services.synthesis.patterns.loop import draw_loop_track
 from src.services.synthesis.patterns.one_shot import (
     OneShotPatternGenerator,
@@ -147,3 +148,49 @@ def test_layer_tracks_are_leveled_relative_to_the_kick(db: float) -> None:
     expected = 0.5 * 10 ** (db / 20)
     assert loudest_rms(one_shot.signal) == pytest.approx(expected, rel=1e-4)
     assert loudest_rms(loop.signal) == pytest.approx(expected, rel=1e-4)
+
+
+def test_kick_fx_sections_are_whole_beats_and_do_not_overlap() -> None:
+    grid = Grid(bpm=160, bars=2)
+    config = KickFxConfig(section_count_weights={4: 1.0})
+    rng = np.random.default_rng(0)
+
+    for _ in range(50):
+        sections = draw_kick_fx(grid, config, rng)
+        beat_starts = set(grid.to_samples(np.arange(grid.beats + 1)))
+        covered = np.zeros(grid.to_sample(grid.beats), dtype=int)
+        for section in sections:
+            assert section.start in beat_starts and section.end in beat_starts
+            beats = round((section.end - section.start) / grid.beat)
+            assert beats in config.section_beats
+            covered[section.start : section.end] += 1
+        assert covered.max() <= 1
+
+
+def test_kick_fx_cutoffs_are_inside_their_ranges() -> None:
+    grid = Grid(bpm=160, bars=8)
+    config = KickFxConfig(section_count_weights={2: 1.0})
+    rng = np.random.default_rng(0)
+
+    btypes = set()
+    for _ in range(50):
+        for section in draw_kick_fx(grid, config, rng):
+            assert isinstance(section.effect, Filter)
+            btypes.add(section.effect.btype)
+            low, high = (
+                config.high_pass_hz_range
+                if section.effect.btype == "highpass"
+                else config.low_pass_hz_range
+            )
+            cutoff = section.effect.cutoff
+            assert isinstance(cutoff, float) and low <= cutoff <= high
+    assert btypes == {"highpass", "lowpass"}
+
+
+def test_kick_fx_can_be_off() -> None:
+    config = KickFxConfig(section_count_weights={0: 1.0})
+
+    assert (
+        draw_kick_fx(Grid(bpm=160, bars=2), config, np.random.default_rng())
+        == []
+    )

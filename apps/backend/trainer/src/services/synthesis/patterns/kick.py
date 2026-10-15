@@ -1,10 +1,18 @@
 from dataclasses import dataclass, field
 
 import numpy as np
+from loguru import logger
 
+from src.core.config import KickFxConfig
 from src.models.audio import SampleKind
 from src.services.synthesis.bank import SampleBank
-from src.services.synthesis.effects import loudest_rms, trim_signal
+from src.services.synthesis.draws import draw_count
+from src.services.synthesis.effects import (
+    Filter,
+    Section,
+    loudest_rms,
+    trim_signal,
+)
 from src.services.synthesis.grid import Grid
 from src.services.synthesis.patterns.pattern import PatternGenerator
 from src.services.synthesis.track import Track
@@ -85,10 +93,60 @@ class KickTrack:
     """``loudest_rms`` of the kick, which the other layers are leveled to."""
 
 
+def draw_kick_fx(
+    grid: Grid, config: KickFxConfig, rng: np.random.Generator
+) -> list[Section]:
+    """Sections of whole beats that go through a high-pass or low-pass.
+
+    The sections start on any beat and do not overlap.
+    """
+    taken = np.zeros(grid.beats, dtype=bool)
+    sections = []
+    for _ in range(draw_count(config.section_count_weights, rng)):
+        beats = int(rng.choice(config.section_beats))
+        free = [
+            start
+            for start in range(grid.beats - beats + 1)
+            if not taken[start : start + beats].any()
+        ]
+        if not free:
+            continue
+        start = free[rng.integers(len(free))]
+        taken[start : start + beats] = True
+        btype = str(rng.choice(["highpass", "lowpass"]))
+        cutoff = _draw_log_uniform(
+            config.high_pass_hz_range
+            if btype == "highpass"
+            else config.low_pass_hz_range,
+            rng,
+        )
+        logger.debug(
+            f"kick {btype} at {cutoff:.0f} Hz on beats {start}-{start + beats}"
+        )
+        sections.append(
+            Section(
+                Filter(cutoff=cutoff, btype=btype),
+                start=grid.to_sample(start),
+                end=grid.to_sample(start + beats),
+            )
+        )
+    return sections
+
+
+def _draw_log_uniform(
+    value_range: tuple[float, float], rng: np.random.Generator
+) -> float:
+    low, high = np.log(value_range)
+    return float(np.exp(rng.uniform(low, high)))
+
+
 def draw_kick_track(
-    grid: Grid, bank: SampleBank, rng: np.random.Generator
+    grid: Grid,
+    bank: SampleBank,
+    fx_config: KickFxConfig,
+    rng: np.random.Generator,
 ) -> KickTrack:
-    """One kick at the positions of a random kick pattern.
+    """One kick at the positions of a random kick pattern, with kick FX.
 
     Each kick cuts the tail of the one before it.
     """
@@ -97,4 +155,5 @@ def draw_kick_track(
     track = Track(grid)
     for beat in beats:
         track.insert(kick, beat, blend=False)
+    track.add_effects(*draw_kick_fx(grid, fx_config, rng))
     return KickTrack(track=track, beats=beats, level=loudest_rms(kick))

@@ -109,8 +109,22 @@ DEFAULT_LAYERS = [
 ]
 
 
+class KickFxConfig(BaseModel):
+    """Sections of the kick track that go through a high-pass or low-pass."""
+
+    section_count_weights: dict[int, float] = {0: 0.5, 1: 0.3, 2: 0.2}
+    """Weight of each number of sections in a drop."""
+    section_beats: list[int] = [1, 2, 4]
+    """Lengths of a section in beats."""
+    high_pass_hz_range: tuple[float, float] = (150.0, 1500.0)
+    """Range of the high-pass cutoff, drawn log-uniform."""
+    low_pass_hz_range: tuple[float, float] = (300.0, 3000.0)
+    """Range of the low-pass cutoff, drawn log-uniform."""
+
+
 class SynthConfig(BaseModel):
     layers: list[LayerConfig] = DEFAULT_LAYERS
+    kick_fx: KickFxConfig = KickFxConfig()
 
     steps: list[int] = [3, 4, 6, 8]
     bpms: list[int] = [140, 150, 155, 160, 165, 170, 180]
