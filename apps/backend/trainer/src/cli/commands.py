@@ -7,7 +7,8 @@ from src.core.config import CONFIG
 from src.core.logging import configure_logging
 from src.core.storage import save_audio, save_onsets
 from src.services.synthesis.bank import load_sample_bank_from_file
-from src.services.synthesis.synth import crop_drop, draw_crop, generate_drop
+from src.services.synthesis.crop import crop_drop, draw_crop
+from src.services.synthesis.synth import generate_drop
 
 app = typer.Typer(
     help="Find kick onsets in a hardstyle track.",
@@ -70,7 +71,8 @@ def synth(
     rng = np.random.default_rng(seed)
     drop = generate_drop(bank, rng)
     duration = len(drop.signal) / CONFIG.sr
-    drop = crop_drop(drop, *draw_crop(rng, duration, CONFIG.synth.drop_seconds))
+    window = draw_crop(rng, duration, CONFIG.synth.drop_seconds)
+    drop = crop_drop(drop, window)
     typer.echo("Generated drop.")
     save_audio(Path("drop.wav"), drop.signal)
     save_onsets(Path("drop.csv"), drop.onsets)
