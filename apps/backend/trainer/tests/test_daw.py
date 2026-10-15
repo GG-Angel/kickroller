@@ -104,6 +104,10 @@ def test_mix_sums_wet_track_signals() -> None:
             Filter(500, "lowpass"),
             lambda s, sr: filter_signal(s, 500, "lowpass", sr=sr),
         ),
+        (
+            Filter(500, "highpass", q=4.0),
+            lambda s, sr: filter_signal(s, 500, "highpass", q=4.0, sr=sr),
+        ),
         (Normalize(), lambda s, sr: normalize_signal(s)),
         (
             Sidechain(np.array([0, 300]), ratio=0.7),
@@ -116,7 +120,15 @@ def test_mix_sums_wet_track_signals() -> None:
             lambda s, sr: section_signal(s, Gain(2.0), 200, 600, sr=sr),
         ),
     ],
-    ids=["cut", "trim", "filter", "normalize", "sidechain", "section"],
+    ids=[
+        "cut",
+        "trim",
+        "filter",
+        "resonant_filter",
+        "normalize",
+        "sidechain",
+        "section",
+    ],
 )
 def test_effects_delegate_to_functions(effect: Effect, function) -> None:
     sr = 8000
@@ -282,3 +294,47 @@ def test_section_rejects_effects_that_change_the_length() -> None:
 
     with pytest.raises(ValueError, match="length"):
         section_signal(signal, Cut(500), 100, 200)
+
+
+def test_resonant_filter_without_resonance_is_butterworth() -> None:
+    sr = 8000
+    signal = (
+        np.random.default_rng(0).uniform(-0.5, 0.5, 2000).astype(np.float32)
+    )
+
+    for btype in ("lowpass", "highpass"):
+        np.testing.assert_allclose(
+            filter_signal(signal, 500, btype, q=2**-0.5, sr=sr),
+            filter_signal(signal, 500, btype, sr=sr),
+            atol=1e-6,
+        )
+
+
+@pytest.mark.parametrize("btype", ["lowpass", "highpass"])
+@pytest.mark.parametrize("q", [0.7, 4.0, 8.0])
+def test_resonant_filter_gain_at_cutoff_is_q(btype: str, q: float) -> None:
+    sr, cutoff = 8000, 500
+    time = np.arange(4 * sr) / sr
+    sine = np.sin(2 * np.pi * cutoff * time).astype(np.float32)
+
+    filtered = filter_signal(sine, cutoff, btype, q=q, sr=sr)
+
+    assert np.abs(filtered[-sr:]).max() == pytest.approx(q, rel=0.01)
+
+
+@pytest.mark.parametrize(
+    ("cutoff", "btype", "q"),
+    [
+        ((100, 500), "bandpass", 2.0),
+        (500, "bandpass", 2.0),
+        (5000, "lowpass", 2.0),
+        (500, "lowpass", 0.0),
+    ],
+)
+def test_resonant_filter_rejects_invalid_settings(
+    cutoff: float | tuple[float, float], btype: str, q: float
+) -> None:
+    with pytest.raises(ValueError):
+        filter_signal(
+            np.ones(10, dtype=np.float32), cutoff, btype, q=q, sr=8000
+        )

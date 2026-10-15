@@ -122,6 +122,8 @@ class KickFxConfig(BaseModel):
     """Range of the high-pass cutoff, drawn log-uniform."""
     low_pass_hz_range: tuple[float, float] = (300.0, 3000.0)
     """Range of the low-pass cutoff, drawn log-uniform."""
+    resonance_q_range: tuple[float, float] = (0.7, 8.0)
+    """Range of the filter Q (0.7 is no resonance), drawn log-uniform."""
 
 
 class SynthConfig(BaseModel):

@@ -96,7 +96,7 @@ class KickTrack:
 def draw_kick_fx(
     grid: Grid, config: KickFxConfig, rng: np.random.Generator
 ) -> list[Section]:
-    """Sections of whole beats that go through a high-pass or low-pass.
+    """Sections of whole beats that go through a resonant high-pass or low-pass.
 
     The sections start on any beat and do not overlap.
     """
@@ -120,12 +120,14 @@ def draw_kick_fx(
             else config.low_pass_hz_range,
             rng,
         )
+        q = _draw_log_uniform(config.resonance_q_range, rng)
         logger.debug(
-            f"kick {btype} at {cutoff:.0f} Hz on beats {start}-{start + beats}"
+            f"kick {btype} at {cutoff:.0f} Hz, Q {q:.1f}, on beats "
+            f"{start}-{start + beats}"
         )
         sections.append(
             Section(
-                Filter(cutoff=cutoff, btype=btype),
+                Filter(cutoff=cutoff, btype=btype, q=q),
                 start=grid.to_sample(start),
                 end=grid.to_sample(start + beats),
             )

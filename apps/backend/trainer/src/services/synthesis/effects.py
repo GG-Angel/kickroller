@@ -3,7 +3,7 @@ from typing import Protocol
 
 import librosa
 import numpy as np
-from scipy.signal import butter, sosfilt
+from scipy.signal import bilinear, butter, sosfilt, tf2sos
 
 from src.core.config import CONFIG
 from src.models.audio import Signal
@@ -36,10 +36,36 @@ def filter_signal(
     cutoff: float | tuple[float, float],
     btype: str,
     order: int = 2,
+    q: float | None = None,
     sr: int = CONFIG.sr,
 ) -> Signal:
-    sos = butter(order, cutoff, btype, fs=sr, output="sos")
+    """Filter with a Butterworth filter, or with a resonant biquad if ``q`` is set.
+
+    The resonant biquad is a 2nd-order low-pass or high-pass, so it ignores
+    ``order``. Its gain at the cutoff is ``q``, and ``q = 1/√2`` gives no
+    resonance (the same as a 2nd-order Butterworth).
+    """
+    if q is None:
+        sos = butter(order, cutoff, btype, fs=sr, output="sos")
+    else:
+        sos = _resonant_sos(cutoff, btype, q, sr)
     return np.asarray(sosfilt(sos, signal), dtype=np.float32)
+
+
+def _resonant_sos(
+    cutoff: float | tuple[float, float], btype: str, q: float, sr: int
+) -> np.ndarray:
+    if not isinstance(cutoff, (int, float)) or not 0 < cutoff < sr / 2:
+        raise ValueError("A resonant filter needs one cutoff below Nyquist.")
+    if btype not in ("lowpass", "highpass"):
+        raise ValueError("A resonant filter must be a lowpass or highpass.")
+    if not q > 0:
+        raise ValueError("Q must be positive.")
+    # analog prototype with the cutoff pre-warped for the bilinear transform
+    w0 = 2 * sr * np.tan(np.pi * cutoff / sr)
+    numerator = [0.0, 0.0, w0**2] if btype == "lowpass" else [1.0, 0.0, 0.0]
+    b, a = bilinear(numerator, [1.0, w0 / q, w0**2], fs=sr)
+    return tf2sos(b, a)
 
 
 def loudest_rms(
@@ -174,9 +200,12 @@ class Filter(Effect):
     cutoff: float | tuple[float, float]
     btype: str
     order: int = 2
+    q: float | None = None
 
     def process(self, signal: Signal, sr: int) -> Signal:
-        return filter_signal(signal, self.cutoff, self.btype, self.order, sr=sr)
+        return filter_signal(
+            signal, self.cutoff, self.btype, self.order, self.q, sr=sr
+        )
 
 
 @dataclass(frozen=True)

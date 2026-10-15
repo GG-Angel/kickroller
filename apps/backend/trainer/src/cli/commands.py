@@ -2,7 +2,9 @@ from pathlib import Path
 
 import typer
 
+from src.core.config import CONFIG, SynthConfig
 from src.core.logging import configure_logging
+from src.models.audio import SampleKind
 from src.services.synthesis.bank import load_sample_bank_from_file
 from src.services.synthesis.export import export_drops
 
@@ -73,9 +75,24 @@ def synth(
         min=0,
         help="Seed for reproducible drops (default: a new seed in the log).",
     ),
+    kinds: list[SampleKind] | None = typer.Option(
+        None,
+        "--kind",
+        "-k",
+        help="Only use layers of this kind (repeatable; default: all). "
+        "The kick is always used, so `-k kick` gives kicks only.",
+    ),
 ) -> None:
     """Write synthetic drops with labeled kick onsets."""
     bank = load_sample_bank_from_file(bank_file, use_cache=not no_cache)
     typer.echo(f"Loaded bank with {len(bank.samples)} samples.")
-    export_drops(bank, output, count, seed)
+    export_drops(bank, output, count, seed, _select_kinds(kinds))
     typer.echo(f"Wrote {count} drops to {output}.")
+
+
+def _select_kinds(kinds: list[SampleKind] | None) -> SynthConfig:
+    """The synth config with only the layers of ``kinds``, or all layers."""
+    if kinds is None:
+        return CONFIG.synth
+    layers = [layer for layer in CONFIG.synth.layers if layer.kind in kinds]
+    return CONFIG.synth.model_copy(update={"layers": layers})

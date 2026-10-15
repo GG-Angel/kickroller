@@ -5,7 +5,7 @@ import librosa
 import numpy as np
 from loguru import logger
 
-from src.core.config import CONFIG
+from src.core.config import CONFIG, SynthConfig
 from src.core.storage import save_audio, save_onsets
 from src.services.synthesis.bank import SampleBank
 from src.services.synthesis.crop import crop_drop, draw_crop
@@ -14,7 +14,11 @@ from src.services.synthesis.synth import generate_drop
 
 
 def export_drops(
-    bank: SampleBank, folder: Path, count: int, seed: int | None = None
+    bank: SampleBank,
+    folder: Path,
+    count: int,
+    seed: int | None = None,
+    config: SynthConfig = CONFIG.synth,
 ) -> None:
     """Write ``count`` cropped drops and their kick onsets to ``folder``.
 
@@ -27,11 +31,11 @@ def export_drops(
     rng = np.random.default_rng(seed_sequence)
     folder.mkdir(parents=True, exist_ok=True)
     for index in range(count):
-        drop = generate_drop(bank, rng)
+        drop = generate_drop(bank, rng, config)
         duration = len(drop.signal) / CONFIG.sr
-        window = draw_crop(rng, duration, CONFIG.synth.drop_seconds)
+        window = draw_crop(rng, duration, config.drop_seconds)
         drop = crop_drop(drop, window)
-        peak = float(librosa.db_to_amplitude(CONFIG.synth.peak_db))
+        peak = float(librosa.db_to_amplitude(config.peak_db))
         drop = replace(drop, signal=normalize_signal(drop.signal) * peak)
         path = folder / f"drop_{index:03d}"
         save_audio(path.with_suffix(".wav"), drop.signal)

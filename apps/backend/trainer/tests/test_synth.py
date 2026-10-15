@@ -184,6 +184,11 @@ def test_kick_fx_cutoffs_are_inside_their_ranges() -> None:
             )
             cutoff = section.effect.cutoff
             assert isinstance(cutoff, float) and low <= cutoff <= high
+            q = section.effect.q
+            assert q is not None
+            assert (
+                config.resonance_q_range[0] <= q <= config.resonance_q_range[1]
+            )
     assert btypes == {"highpass", "lowpass"}
 
 

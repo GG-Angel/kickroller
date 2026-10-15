@@ -52,3 +52,16 @@ def test_export_drops_normalizes_the_peak(tmp_path: Path) -> None:
     _, signal = wavfile.read(tmp_path / "drop_000.wav")
     peak = 10 ** (CONFIG.synth.peak_db / 20)
     assert np.abs(signal).max() == pytest.approx(peak, rel=1e-6)
+
+
+def test_export_drops_uses_the_given_config(tmp_path: Path) -> None:
+    config = CONFIG.synth.model_copy(update={"drop_seconds": 2.0})
+
+    with patch(
+        "src.services.synthesis.export.generate_drop", return_value=_drop()
+    ) as generate:
+        export_drops(SampleBank(samples=[]), tmp_path, 1, 0, config)
+
+    assert generate.call_args.args[2] is config
+    _, signal = wavfile.read(tmp_path / "drop_000.wav")
+    assert len(signal) == 2 * CONFIG.sr
