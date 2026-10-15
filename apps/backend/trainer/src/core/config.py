@@ -114,7 +114,13 @@ DEFAULT_LAYERS = [
 class KickFxConfig(BaseModel):
     """Sections of the kick track that go through a high-pass or low-pass."""
 
-    section_count_weights: dict[int, float] = {0: 0.5, 1: 0.3, 2: 0.2}
+    section_count_weights: dict[int, float] = {
+        0: 0.15,
+        1: 0.25,
+        2: 0.25,
+        3: 0.2,
+        4: 0.15,
+    }
     """Weight of each number of sections in a drop."""
     section_beats: list[int] = [1, 2, 4]
     """Lengths of a section in beats."""
