@@ -1,14 +1,10 @@
 from pathlib import Path
 
-import numpy as np
 import typer
 
-from src.core.config import CONFIG
 from src.core.logging import configure_logging
-from src.core.storage import save_audio, save_onsets
 from src.services.synthesis.bank import load_sample_bank_from_file
-from src.services.synthesis.crop import crop_drop, draw_crop
-from src.services.synthesis.synth import generate_drop
+from src.services.synthesis.export import export_drops
 
 app = typer.Typer(
     help="Find kick onsets in a hardstyle track.",
@@ -61,19 +57,25 @@ def synth(
         "--no-cache",
         help="Decode samples without reading or writing the bank cache.",
     ),
+    output: Path = typer.Option(
+        Path("drops"),
+        "--output",
+        "-o",
+        file_okay=False,
+        help="Folder for the drops and their kick onsets.",
+    ),
+    count: int = typer.Option(
+        4, "--count", "-n", min=1, help="Number of drops to write."
+    ),
     seed: int | None = typer.Option(
-        None, "--seed", help="Seed for a reproducible drop."
+        None,
+        "--seed",
+        min=0,
+        help="Seed for reproducible drops (default: a new seed in the log).",
     ),
 ) -> None:
-    """Synthesize audio."""
+    """Write synthetic drops with labeled kick onsets."""
     bank = load_sample_bank_from_file(bank_file, use_cache=not no_cache)
     typer.echo(f"Loaded bank with {len(bank.samples)} samples.")
-    rng = np.random.default_rng(seed)
-    drop = generate_drop(bank, rng)
-    duration = len(drop.signal) / CONFIG.sr
-    window = draw_crop(rng, duration, CONFIG.synth.drop_seconds)
-    drop = crop_drop(drop, window)
-    typer.echo("Generated drop.")
-    save_audio(Path("drop.wav"), drop.signal)
-    save_onsets(Path("drop.csv"), drop.onsets)
-    typer.echo("Saved drop to drop.wav and its kick onsets to drop.csv.")
+    export_drops(bank, output, count, seed)
+    typer.echo(f"Wrote {count} drops to {output}.")
