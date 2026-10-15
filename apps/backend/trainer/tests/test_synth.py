@@ -1,7 +1,15 @@
-import numpy as np
+from pathlib import Path
 
-from src.core.config import CONFIG
-from src.services.synthesis.synth import draw_grid
+import numpy as np
+import pytest
+from pydantic import ValidationError
+
+from src.core.config import CONFIG, LayerConfig
+from src.models.audio import SampleKind
+from src.services.synthesis.bank import Sample, SampleBank
+from src.services.synthesis.grid import Grid
+from src.services.synthesis.patterns.one_shot import OneShotPatternGenerator
+from src.services.synthesis.synth import draw_grid, generate_drop
 
 
 def test_draw_grid_is_one_bar_longer_than_the_crop() -> None:
@@ -10,3 +18,100 @@ def test_draw_grid_is_one_bar_longer_than_the_crop() -> None:
         grid = draw_grid(CONFIG.synth, rng)
         seconds = grid.bars * grid.bar / grid.sr
         assert seconds >= CONFIG.synth.drop_seconds + grid.bar / grid.sr
+
+
+def test_one_shot_pattern_uses_period_and_offset() -> None:
+    grid = Grid(bpm=160, bars=2)
+
+    beats = OneShotPatternGenerator(grid, period=2, offset=1).generate()
+
+    np.testing.assert_array_equal(beats, [1, 3, 5, 7])
+
+
+def test_one_shot_pattern_drops_positions_by_probability() -> None:
+    grid = Grid(bpm=160, bars=64)
+    rng = np.random.default_rng(0)
+
+    beats = OneShotPatternGenerator(
+        grid, period=1, probability=0.25, rng=rng
+    ).generate()
+
+    assert np.all(beats == np.round(beats))
+    assert 0.2 < len(beats) / grid.beats < 0.3
+
+
+@pytest.mark.parametrize(
+    ("period", "probability"), [(0, 0.5), (-1, 0.5), (1, 1.5)]
+)
+def test_one_shot_pattern_rejects_invalid_settings(
+    period: float, probability: float
+) -> None:
+    generator = OneShotPatternGenerator(
+        Grid(bpm=160, bars=1), period=period, probability=probability
+    )
+
+    with pytest.raises(ValueError):
+        generator.generate()
+
+
+def test_one_shot_layer_needs_placements() -> None:
+    with pytest.raises(ValidationError, match="no placements"):
+        LayerConfig(
+            kind=SampleKind.FX, is_loop=False, track_count_weights={1: 1.0}
+        )
+
+
+def _sample(kind: SampleKind, is_loop: bool, seconds: float) -> Sample:
+    rng = np.random.default_rng(len(kind))
+    signal = rng.uniform(-0.5, 0.5, round(seconds * CONFIG.sr))
+    return Sample(
+        name=f"{kind}_{'loop' if is_loop else 'one_shot'}",
+        path=Path("unused.wav"),
+        signal=signal.astype(np.float32),
+        kind=kind,
+        bpm=160,
+        is_loop=is_loop,
+    )
+
+
+def _bank() -> SampleBank:
+    one_shots = [_sample(kind, False, 0.3) for kind in SampleKind]
+    loops = [
+        _sample(kind, True, 6.0)  # 4 bars at 160 BPM
+        for kind in (SampleKind.MELODY, SampleKind.VOCAL, SampleKind.DRUM)
+    ]
+    return SampleBank(samples=one_shots + loops)
+
+
+def test_sample_bank_draws_only_loops_or_one_shots() -> None:
+    bank = _bank()
+    rng = np.random.default_rng(0)
+
+    assert bank.draw(SampleKind.DRUM, rng, is_loop=True).is_loop
+    assert not bank.draw(SampleKind.DRUM, rng, is_loop=False).is_loop
+    with pytest.raises(ValueError, match="no fx loop samples"):
+        bank.draw(SampleKind.FX, rng, is_loop=True)
+
+
+def test_layers_do_not_change_kick_onsets() -> None:
+    config = CONFIG.synth.model_copy(update={"bpms": [160]})
+    every_layer = [
+        layer.model_copy(update={"track_count_weights": {1: 1.0}})
+        for layer in config.layers
+    ]
+    bank = _bank()
+
+    kicks_only = generate_drop(
+        bank,
+        np.random.default_rng(3),
+        config.model_copy(update={"layers": []}),
+    )
+    full = generate_drop(
+        bank,
+        np.random.default_rng(3),
+        config.model_copy(update={"layers": every_layer}),
+    )
+
+    np.testing.assert_array_equal(full.onsets, kicks_only.onsets)
+    assert len(full.signal) == len(kicks_only.signal)
+    assert not np.array_equal(full.signal, kicks_only.signal)

@@ -2,7 +2,6 @@ import glob
 import warnings
 from collections import Counter
 from dataclasses import dataclass, replace
-from enum import StrEnum
 from pathlib import Path
 
 import librosa
@@ -12,7 +11,7 @@ from pydantic import BaseModel
 
 from src.core.config import CONFIG
 from src.core.storage import load_audio, load_yaml
-from src.models.audio import Signal
+from src.models.audio import SampleKind, Signal
 from src.services.synthesis.track import Track
 
 AUDIO_EXTENSIONS = {
@@ -32,15 +31,6 @@ AUDIO_EXTENSIONS = {
 
 CACHE_INDEX_FILE = "index.json"
 CACHE_AUDIO_FILE = "audio.f32"
-
-
-class SampleKind(StrEnum):
-    KICK = "kick"
-    MELODY = "melody"
-    VOCAL = "vocal"
-    DRUM = "drum"
-    IMPACT = "impact"
-    FX = "fx"
 
 
 @dataclass(frozen=True)
@@ -79,16 +69,17 @@ class SampleBank:
         self,
         kind: SampleKind,
         rng: np.random.Generator,
-        loops_only: bool = False,
+        is_loop: bool | None = None,
     ) -> Sample:
-        """Draw a sample of the specified kind at random."""
-        pool = [sample for sample in self.samples if sample.kind == kind]
-        if loops_only:
-            pool = [sample for sample in pool if sample.is_loop]
+        """Draw a sample of the kind at random (only loops or one-shots if set)."""
+        pool = [
+            sample
+            for sample in self.samples
+            if sample.kind == kind and is_loop in (None, sample.is_loop)
+        ]
         if not pool:
-            raise ValueError(
-                f"No samples of kind '{kind}' ({'loops only' if loops_only else 'any'}) are available in the sample pool."
-            )
+            shape = {None: "", True: " loop", False: " one-shot"}[is_loop]
+            raise ValueError(f"The sample bank has no {kind}{shape} samples.")
         return pool[rng.integers(len(pool))]
 
 

@@ -19,7 +19,7 @@ def export_drops(
     Without a seed, a new seed is drawn and logged, so the run can be repeated.
     """
     seed_sequence = np.random.SeedSequence(seed)
-    logger.info(f"Seed {seed_sequence.entropy}")
+    logger.info(f"Seed: {seed_sequence.entropy}")
     rng = np.random.default_rng(seed_sequence)
     folder.mkdir(parents=True, exist_ok=True)
     for index in range(count):
