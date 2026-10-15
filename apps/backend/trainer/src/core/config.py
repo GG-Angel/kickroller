@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 
 class SynthConfig(BaseModel):
-    bpms: list[int] = [140, 150, 155, 160, 165, 170, 180, 200]
+    bpms: list[int] = [140, 150, 155, 160, 165, 170, 180]
     bpm: int = 160
 
     steps: list[int] = [3, 4, 6, 8]

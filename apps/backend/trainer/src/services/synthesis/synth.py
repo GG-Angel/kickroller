@@ -29,7 +29,7 @@ class KickPatternGenerator(PatternGenerator):
     """Grid the pattern is generated for."""
     probability: float = 0.98
     """Kick probability on the beat itself, between 0 and 1."""
-    weight: float = 0.24
+    weight: float = 0.12
     """Multiplier applied per subdivision level, between 0 and 1."""
     rng: np.random.Generator = field(default_factory=np.random.default_rng)
     """Random number generator used to draw the pattern."""
