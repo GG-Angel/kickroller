@@ -1,6 +1,6 @@
 import glob
-import pickle
 import warnings
+from collections import Counter
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
@@ -10,6 +10,7 @@ import numpy as np
 from loguru import logger
 from pydantic import BaseModel
 
+from src.core.config import CONFIG
 from src.core.storage import load_audio, load_yaml
 from src.models.audio import Signal
 from src.services.synthesis.track import Track
@@ -28,6 +29,9 @@ AUDIO_EXTENSIONS = {
     ".wav",
     ".wave",
 }
+
+CACHE_INDEX_FILE = "index.json"
+CACHE_AUDIO_FILE = "audio.f32"
 
 
 class SampleKind(StrEnum):
@@ -101,8 +105,28 @@ class SampleBankConfig(BaseModel):
     samples: list[SampleConfig]
 
 
-def load_sample_bank(config: SampleBankConfig) -> SampleBank:
-    samples: list[Sample] = []
+class SampleFile(BaseModel):
+    """An audio file that matches the bank config, before it is decoded."""
+
+    kind: SampleKind
+    path: Path
+    name: str
+    bpm: int
+    is_loop: bool
+    size: int
+    modified_ns: int
+
+
+class SampleBankCacheIndex(BaseModel):
+    """The cached files. File ``i`` is from ``offsets[i]`` to ``offsets[i + 1]``."""
+
+    sr: int
+    files: list[SampleFile]
+    offsets: list[int]
+
+
+def find_sample_files(config: SampleBankConfig) -> list[SampleFile]:
+    files: list[SampleFile] = []
     for sample_config in config.samples:
         for configured_path in sample_config.paths:
             path_pattern = (
@@ -121,49 +145,96 @@ def load_sample_bank(config: SampleBankConfig) -> SampleBank:
                 )
 
             for path in paths:
-                name = path.stem
-                signal = load_audio(path)
-                sample = Sample(
-                    name=name,
-                    path=path,
-                    signal=signal,
-                    kind=sample_config.kind,
-                    bpm=sample_config.bpm,
-                    is_loop=sample_config.is_loop,
+                stat = path.stat()
+                files.append(
+                    SampleFile(
+                        kind=sample_config.kind,
+                        path=path,
+                        name=_name_sample(path, config.workspace),
+                        bpm=sample_config.bpm,
+                        is_loop=sample_config.is_loop,
+                        size=stat.st_size,
+                        modified_ns=stat.st_mtime_ns,
+                    )
                 )
-                samples.append(sample)
+    return files
+
+
+def _name_sample(path: Path, workspace: Path | None) -> str:
+    """The path relative to the workspace, which is unique across packs."""
+    return str(path.relative_to(workspace) if workspace else path)
+
+
+def _create_sample(file: SampleFile, signal: Signal) -> Sample:
+    return Sample(
+        name=file.name,
+        path=file.path,
+        signal=signal,
+        kind=file.kind,
+        bpm=file.bpm,
+        is_loop=file.is_loop,
+    )
+
+
+def _log_bank(sample_bank: SampleBank) -> None:
+    counts = Counter(sample.kind for sample in sample_bank.samples)
+    summary = ", ".join(f"{counts[kind]} {kind}" for kind in SampleKind)
+    logger.info(f"Loaded sample bank: {summary}")
+
+
+def load_sample_bank(config: SampleBankConfig) -> SampleBank:
+    """Decode all of the samples into memory."""
+    files = find_sample_files(config)
+    logger.info(f"Decoding {len(files)} samples")
+    sample_bank = SampleBank(
+        samples=[_create_sample(file, load_audio(file.path)) for file in files]
+    )
+    _log_bank(sample_bank)
+    return sample_bank
+
+
+def _open_sample_bank_cache(
+    folder: Path, files: list[SampleFile]
+) -> SampleBank | None:
+    """The cached bank, or None if the cache is missing or out of date."""
+    try:
+        index = SampleBankCacheIndex.model_validate_json(
+            (folder / CACHE_INDEX_FILE).read_text()
+        )
+        audio = np.memmap(folder / CACHE_AUDIO_FILE, dtype=np.float32, mode="r")
+    except (OSError, ValueError) as error:
+        logger.debug(f"Could not open sample bank cache at {folder}: {error}")
+        return None
+
+    if index.sr != CONFIG.sr or index.files != files:
+        return None
+    samples = [
+        _create_sample(file, audio[start:end])
+        for file, start, end in zip(
+            files, index.offsets[:-1], index.offsets[1:], strict=True
+        )
+    ]
     return SampleBank(samples=samples)
 
 
-def _load_sample_bank_cache(
-    path: Path, config_contents: bytes
-) -> SampleBank | None:
-    try:
-        with open(path, "rb") as cache_file:
-            cached_contents, sample_bank = pickle.load(cache_file)
-    except Exception as error:
-        logger.warning(f"Could not load sample bank cache from {path}: {error}")
-        return None
+def _write_sample_bank_cache(folder: Path, files: list[SampleFile]) -> None:
+    """Decode each file into the cache, one file at a time.
 
-    if cached_contents == config_contents and isinstance(
-        sample_bank, SampleBank
-    ):
-        return sample_bank
-    return None
-
-
-def _save_sample_bank_cache(
-    path: Path, config_contents: bytes, sample_bank: SampleBank
-) -> None:
-    try:
-        with open(path, "wb") as cache_file:
-            pickle.dump(
-                (config_contents, sample_bank),
-                cache_file,
-                protocol=pickle.HIGHEST_PROTOCOL,
-            )
-    except Exception as error:
-        logger.warning(f"Could not save sample bank cache to {path}: {error}")
+    The index is written last, so an interrupted write is not used.
+    """
+    if folder.is_file():
+        folder.unlink()  # cache file of an older format
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / CACHE_INDEX_FILE).unlink(missing_ok=True)
+    logger.info(f"Decoding {len(files)} samples into the cache at {folder}")
+    offsets = [0]
+    with open(folder / CACHE_AUDIO_FILE, "wb") as audio_file:
+        for file in files:
+            signal = np.asarray(load_audio(file.path), dtype=np.float32)
+            audio_file.write(signal.tobytes())
+            offsets.append(offsets[-1] + len(signal))
+    index = SampleBankCacheIndex(sr=CONFIG.sr, files=files, offsets=offsets)
+    (folder / CACHE_INDEX_FILE).write_text(index.model_dump_json())
 
 
 def load_sample_bank_config(path: Path) -> SampleBankConfig:
@@ -173,16 +244,21 @@ def load_sample_bank_config(path: Path) -> SampleBankConfig:
 def load_sample_bank_from_file(
     path: Path, use_cache: bool = True
 ) -> SampleBank:
-    config_contents = path.read_bytes()
-    cache_path = path.with_suffix(f"{path.suffix}.cache")
-    if use_cache and cache_path.exists():
-        cached_bank = _load_sample_bank_cache(cache_path, config_contents)
-        if cached_bank is not None:
-            logger.info(f"Loaded sample bank from cache at {cache_path}")
-            return cached_bank
+    """Load the bank of a config file.
 
+    With ``use_cache``, the audio is read from a memory-mapped cache next to the
+    config. The cache is rebuilt when the matched files or their settings change.
+    """
     config = load_sample_bank_config(path)
-    sample_bank = load_sample_bank(config)
-    if use_cache:
-        _save_sample_bank_cache(cache_path, config_contents, sample_bank)
+    if not use_cache:
+        return load_sample_bank(config)
+
+    files = find_sample_files(config)
+    cache_folder = path.with_suffix(f"{path.suffix}.cache")
+    sample_bank = _open_sample_bank_cache(cache_folder, files)
+    if sample_bank is None:
+        _write_sample_bank_cache(cache_folder, files)
+        sample_bank = _open_sample_bank_cache(cache_folder, files)
+        assert sample_bank is not None
+    _log_bank(sample_bank)
     return sample_bank

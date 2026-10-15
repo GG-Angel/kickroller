@@ -3,7 +3,7 @@ from math import floor
 import numpy as np
 
 from src.models.audio import Signal
-from src.services.synthesis.effects import Effect, cut
+from src.services.synthesis.effects import Effect, cut_signal
 from src.services.synthesis.grid import Grid
 
 
@@ -25,12 +25,12 @@ class Track:
         start = self.grid.to_sample(beat_position)
         if start >= self.samples:
             return
-        cut_signal = cut(signal, max(0, self.samples - start), sr=self.grid.sr)
-        end = start + len(cut_signal)
+        clip = cut_signal(signal, max(0, self.samples - start), sr=self.grid.sr)
+        end = start + len(clip)
         if blend:
-            self.signal[start:end] += cut_signal
+            self.signal[start:end] += clip
         else:
-            self.signal[start:end] = cut_signal
+            self.signal[start:end] = clip
 
     def add_effects(self, *effects: Effect) -> None:
         self.effects.extend(effects)

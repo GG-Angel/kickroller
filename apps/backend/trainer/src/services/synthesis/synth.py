@@ -8,7 +8,7 @@ import numpy as np
 from src.core.config import CONFIG, SynthConfig
 from src.models.audio import LabeledDrop
 from src.services.synthesis.bank import Sample, SampleBank, SampleKind
-from src.services.synthesis.effects import Filter, Sidechain, trim
+from src.services.synthesis.effects import Filter, Sidechain, trim_signal
 from src.services.synthesis.mix import Mix
 from src.services.synthesis.track import Grid, Track
 
@@ -129,7 +129,7 @@ def generate_drop(
     mix = Mix()
 
     # 1. Generate kick track
-    kick = trim(bank.draw(SampleKind.KICK, rng).signal)
+    kick = trim_signal(bank.draw(SampleKind.KICK, rng).signal)
     kick_pattern = KickPatternGenerator(grid, rng=rng).generate()
     kick_track = Track(grid)
     for beat in kick_pattern:

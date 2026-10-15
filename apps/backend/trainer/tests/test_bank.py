@@ -61,35 +61,94 @@ def test_load_sample_bank_raises_when_path_does_not_match(
         bank.load_sample_bank(config)
 
 
-def test_load_sample_bank_from_file_uses_cache_until_config_changes(
-    tmp_path: Path,
+def _write_bank_config(
+    bank_path: Path, workspace: Path, bpm: int = 160
 ) -> None:
-    audio_path = tmp_path / "kick.wav"
-    audio_path.touch()
-    bank_path = tmp_path / "bank.yaml"
     bank_path.write_text(
-        f"workspace: {tmp_path}\n"
+        f"workspace: {workspace}\n"
         "samples:\n"
         "  - kind: kick\n"
-        "    paths: [kick.wav]\n"
+        "    paths: [kicks/*]\n"
+        f"    bpm: {bpm}\n"
     )
 
+
+def _decode(path: Path) -> np.ndarray:
+    return np.full(4, len(path.name), dtype=np.float32)
+
+
+def test_load_sample_bank_from_file_reuses_cache(tmp_path: Path) -> None:
+    (tmp_path / "kicks").mkdir()
+    (tmp_path / "kicks" / "kick.wav").touch()
+    bank_path = tmp_path / "bank.yaml"
+    _write_bank_config(bank_path, tmp_path)
+
     with patch(
-        "src.services.synthesis.bank.load_audio",
-        return_value=np.zeros(4, dtype=np.float32),
+        "src.services.synthesis.bank.load_audio", side_effect=_decode
     ) as load_audio:
         first_bank = bank.load_sample_bank_from_file(bank_path)
         cached_bank = bank.load_sample_bank_from_file(bank_path)
-        bank_path.write_text(bank_path.read_text() + "\n")
-        refreshed_bank = bank.load_sample_bank_from_file(bank_path)
 
-    assert load_audio.call_count == 2
+    assert load_audio.call_count == 1
     assert np.array_equal(
         cached_bank.samples[0].signal, first_bank.samples[0].signal
     )
-    assert np.array_equal(
-        refreshed_bank.samples[0].signal, first_bank.samples[0].signal
-    )
+    assert cached_bank.samples[0].name == "kicks/kick.wav"
+
+
+def test_load_sample_bank_from_file_refreshes_cache_for_new_files(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "kicks").mkdir()
+    (tmp_path / "kicks" / "kick.wav").touch()
+    bank_path = tmp_path / "bank.yaml"
+    _write_bank_config(bank_path, tmp_path)
+
+    with patch("src.services.synthesis.bank.load_audio", side_effect=_decode):
+        bank.load_sample_bank_from_file(bank_path)
+        (tmp_path / "kicks" / "new_kick.wav").touch()
+        refreshed_bank = bank.load_sample_bank_from_file(bank_path)
+
+    assert [sample.name for sample in refreshed_bank.samples] == [
+        "kicks/kick.wav",
+        "kicks/new_kick.wav",
+    ]
+    assert np.array_equal(refreshed_bank.samples[1].signal, np.full(4, 12))
+
+
+def test_load_sample_bank_from_file_refreshes_cache_for_new_settings(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "kicks").mkdir()
+    (tmp_path / "kicks" / "kick.wav").touch()
+    bank_path = tmp_path / "bank.yaml"
+    _write_bank_config(bank_path, tmp_path)
+
+    with patch(
+        "src.services.synthesis.bank.load_audio", side_effect=_decode
+    ) as load_audio:
+        bank.load_sample_bank_from_file(bank_path)
+        _write_bank_config(bank_path, tmp_path, bpm=150)
+        refreshed_bank = bank.load_sample_bank_from_file(bank_path)
+
+    assert load_audio.call_count == 2
+    assert refreshed_bank.samples[0].bpm == 150
+
+
+def test_load_sample_bank_from_file_replaces_old_cache_file(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "kicks").mkdir()
+    (tmp_path / "kicks" / "kick.wav").touch()
+    bank_path = tmp_path / "bank.yaml"
+    _write_bank_config(bank_path, tmp_path)
+    (tmp_path / "bank.yaml.cache").write_bytes(b"old pickle")
+
+    with patch("src.services.synthesis.bank.load_audio", side_effect=_decode):
+        sample_bank = bank.load_sample_bank_from_file(bank_path)
+
+    assert (tmp_path / "bank.yaml.cache").is_dir()
+    assert len(sample_bank.samples) == 1
 
 
 def test_load_sample_bank_from_file_can_bypass_cache(tmp_path: Path) -> None:

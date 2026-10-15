@@ -9,7 +9,7 @@ from src.core.config import CONFIG
 from src.models.audio import Signal
 
 
-def cut(
+def cut_signal(
     signal: Signal,
     length: int,
     fade: float = 0.01,
@@ -26,12 +26,12 @@ def cut(
     return cut_signal
 
 
-def trim(signal: Signal) -> Signal:
+def trim_signal(signal: Signal) -> Signal:
     trimmed, _ = librosa.effects.trim(signal)
     return trimmed
 
 
-def filter(
+def filter_signal(
     signal: Signal,
     cutoff: float | tuple[float, float],
     btype: str,
@@ -42,11 +42,11 @@ def filter(
     return np.asarray(sosfilt(sos, signal), dtype=np.float32)
 
 
-def normalize(signal: Signal) -> Signal:
+def normalize_signal(signal: Signal) -> Signal:
     return librosa.util.normalize(signal)
 
 
-def sidechain(
+def sidechain_signal(
     signal: Signal,
     triggers: np.ndarray,
     ratio: float = 0.5,
@@ -108,13 +108,13 @@ class Cut(Effect):
     fade: float = 0.01
 
     def process(self, signal: Signal, sr: int) -> Signal:
-        return cut(signal, self.length, self.fade, sr=sr)
+        return cut_signal(signal, self.length, self.fade, sr=sr)
 
 
 @dataclass(frozen=True)
 class Trim(Effect):
     def process(self, signal: Signal, sr: int) -> Signal:
-        return trim(signal)
+        return trim_signal(signal)
 
 
 @dataclass(frozen=True)
@@ -124,13 +124,13 @@ class Filter(Effect):
     order: int = 2
 
     def process(self, signal: Signal, sr: int) -> Signal:
-        return filter(signal, self.cutoff, self.btype, self.order, sr=sr)
+        return filter_signal(signal, self.cutoff, self.btype, self.order, sr=sr)
 
 
 @dataclass(frozen=True)
 class Normalize(Effect):
     def process(self, signal: Signal, sr: int) -> Signal:
-        return normalize(signal)
+        return normalize_signal(signal)
 
 
 @dataclass(frozen=True, eq=False)
@@ -140,11 +140,8 @@ class Sidechain(Effect):
     duration: float = 0.1
     fade: float = 0.005
 
-    def __post_init__(self) -> None:
-        _validate_sidechain(self.triggers, self.ratio, self.duration)
-
     def process(self, signal: Signal, sr: int) -> Signal:
-        return sidechain(
+        return sidechain_signal(
             signal,
             self.triggers,
             self.ratio,

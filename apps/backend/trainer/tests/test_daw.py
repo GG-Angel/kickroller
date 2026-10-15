@@ -12,11 +12,11 @@ from src.services.synthesis.effects import (
     Normalize,
     Sidechain,
     Trim,
-    cut,
-    filter,
-    normalize,
-    sidechain,
-    trim,
+    cut_signal,
+    filter_signal,
+    normalize_signal,
+    sidechain_signal,
+    trim_signal,
 )
 from src.services.synthesis.mix import Mix
 from src.services.synthesis.track import Grid, Track
@@ -94,16 +94,18 @@ def test_mix_sums_wet_track_signals() -> None:
 @pytest.mark.parametrize(
     ("effect", "function"),
     [
-        (Cut(100), lambda s, sr: cut(s, 100, sr=sr)),
-        (Trim(), lambda s, sr: trim(s)),
+        (Cut(100), lambda s, sr: cut_signal(s, 100, sr=sr)),
+        (Trim(), lambda s, sr: trim_signal(s)),
         (
             Filter(500, "lowpass"),
-            lambda s, sr: filter(s, 500, "lowpass", sr=sr),
+            lambda s, sr: filter_signal(s, 500, "lowpass", sr=sr),
         ),
-        (Normalize(), lambda s, sr: normalize(s)),
+        (Normalize(), lambda s, sr: normalize_signal(s)),
         (
             Sidechain(np.array([0, 300]), ratio=0.7),
-            lambda s, sr: sidechain(s, np.array([0, 300]), ratio=0.7, sr=sr),
+            lambda s, sr: sidechain_signal(
+                s, np.array([0, 300]), ratio=0.7, sr=sr
+            ),
         ),
     ],
     ids=["cut", "trim", "filter", "normalize", "sidechain"],
@@ -123,7 +125,7 @@ def test_sidechain_ducks_at_each_trigger_for_requested_duration() -> None:
     signal = np.ones(CONFIG.sr, dtype=np.float32)
     triggers = np.array([0, CONFIG.sr // 2])
 
-    wet = sidechain(signal, triggers, ratio=0.5)
+    wet = sidechain_signal(signal, triggers, ratio=0.5)
 
     assert wet.dtype == np.float32
     assert wet[0] == pytest.approx(1.0)
@@ -139,7 +141,7 @@ def test_sidechain_fades_smoothly_at_trigger_boundaries() -> None:
     start = 1000
     end = start + CONFIG.sr // 10
 
-    wet = sidechain(signal, np.array([start]), ratio=1.0)
+    wet = sidechain_signal(signal, np.array([start]), ratio=1.0)
 
     assert wet[start] == pytest.approx(1.0)
     assert wet[start + 1] < 1.0
@@ -150,7 +152,7 @@ def test_sidechain_fades_smoothly_at_trigger_boundaries() -> None:
 def test_sidechain_does_not_stack_overlapping_triggers() -> None:
     signal = np.ones(1000, dtype=np.float32)
 
-    wet = sidechain(signal, np.array([10, 15]), ratio=0.5, duration=0.01)
+    wet = sidechain_signal(signal, np.array([10, 15]), ratio=0.5, duration=0.01)
 
     assert wet[235] == pytest.approx(0.5)
 
@@ -158,17 +160,19 @@ def test_sidechain_does_not_stack_overlapping_triggers() -> None:
 def apply_sidechain(
     triggers: np.ndarray, ratio: float = 0.5, duration: float = 0.1
 ) -> None:
-    sidechain(np.ones(16, dtype=np.float32), triggers, ratio, duration)
+    sidechain_signal(np.ones(16, dtype=np.float32), triggers, ratio, duration)
 
 
-def build_sidechain(
+def process_sidechain(
     triggers: np.ndarray, ratio: float = 0.5, duration: float = 0.1
 ) -> None:
-    Sidechain(triggers, ratio, duration)
+    Sidechain(triggers, ratio, duration).process(
+        np.ones(16, dtype=np.float32), CONFIG.sr
+    )
 
 
 SIDECHAIN_ENTRY_POINTS = pytest.mark.parametrize(
-    "make", [apply_sidechain, build_sidechain], ids=["function", "effect"]
+    "make", [apply_sidechain, process_sidechain], ids=["function", "effect"]
 )
 
 

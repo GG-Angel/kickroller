@@ -17,7 +17,7 @@ def load_yaml(path: Path) -> dict:
 
 def load_audio(path: Path) -> np.ndarray:
     signal, _ = librosa.load(path, sr=CONFIG.sr)
-    logger.info(f"Loaded audio from {path}")
+    logger.debug(f"Loaded audio from {path}")
     return signal
 
 
