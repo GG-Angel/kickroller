@@ -1,11 +1,13 @@
 from dataclasses import dataclass, field
 from typing import Protocol
 
+import librosa
 import numpy as np
 
 from src.core.config import CONFIG, SynthConfig
+from src.models.audio import LabeledDrop
 from src.services.synthesis.bank import Sample, SampleBank, SampleKind
-from src.services.synthesis.effects import Filter, Sidechain
+from src.services.synthesis.effects import Filter, Sidechain, trim
 from src.services.synthesis.mix import Mix
 from src.services.synthesis.track import Grid, Track
 
@@ -114,24 +116,25 @@ def draw_grid(config: SynthConfig, rng: np.random.Generator) -> Grid:
 
 def generate_drop(
     bank: SampleBank,
+    rng: np.random.Generator,
     config: SynthConfig = CONFIG.synth,
-) -> np.ndarray:
-    rng = np.random.default_rng()
+) -> LabeledDrop:
+    """Generate a random drop and the onset of each kick in it."""
     grid = draw_grid(config, rng)
     mix = Mix()
 
     # 1. Generate kick track
-    kick = bank.draw(SampleKind.KICK)
+    kick = trim(bank.draw(SampleKind.KICK, rng).signal)
     kick_pattern = KickPatternGenerator(grid, rng=rng).generate()
     kick_track = Track(grid)
     for beat in kick_pattern:
-        kick_track.insert(kick.signal, beat, blend=False)
+        kick_track.insert(kick, beat, blend=False)
     mix.add_tracks(kick_track)
 
     # 2. Generate 0-2 melody tracks
     # for _ in range(2):
     #     melody_track = Track(grid)
-    #     melody = bank.draw(SampleKind.MELODY, loops_only=True).stretch(
+    #     melody = bank.draw(SampleKind.MELODY, rng, loops_only=True).stretch(
     #         melody_track
     #     )
     #     for beat in LoopPatternGenerator(grid, melody, rng=rng).generate():
@@ -144,7 +147,7 @@ def generate_drop(
 
     # 3. Generate drum track
     drum_track = Track(grid)
-    drum = bank.draw(SampleKind.DRUM, loops_only=True).stretch(drum_track)
+    drum = bank.draw(SampleKind.DRUM, rng, loops_only=True).stretch(drum_track)
     for beat in LoopPatternGenerator(grid, drum, rng=rng).generate():
         drum_track.insert(drum.signal, beat, blend=False)
     drum_track.add_effects(
@@ -154,7 +157,9 @@ def generate_drop(
 
     # 4. Generate vocal track
     vocal_track = Track(grid)
-    vocal = bank.draw(SampleKind.VOCAL, loops_only=True).stretch(vocal_track)
+    vocal = bank.draw(SampleKind.VOCAL, rng, loops_only=True).stretch(
+        vocal_track
+    )
     for beat in LoopPatternGenerator(grid, vocal, rng=rng).generate():
         vocal_track.insert(vocal.signal, beat, blend=False)
     vocal_track.add_effects(
@@ -163,4 +168,5 @@ def generate_drop(
     )
     mix.add_tracks(vocal_track)
 
-    return mix.mix()
+    onsets = librosa.samples_to_time(grid.to_samples(kick_pattern), sr=grid.sr)
+    return LabeledDrop(signal=mix.mix(), onsets=onsets)

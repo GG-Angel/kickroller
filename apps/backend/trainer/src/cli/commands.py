@@ -1,9 +1,10 @@
 from pathlib import Path
 
+import numpy as np
 import typer
 
 from src.core.logging import configure_logging
-from src.core.storage import save_audio
+from src.core.storage import save_audio, save_onsets
 from src.services.synthesis.bank import load_sample_bank_from_file
 from src.services.synthesis.synth import generate_drop
 
@@ -58,11 +59,15 @@ def synth(
         "--no-cache",
         help="Decode samples without reading or writing the bank cache.",
     ),
+    seed: int | None = typer.Option(
+        None, "--seed", help="Seed for a reproducible drop."
+    ),
 ) -> None:
     """Synthesize audio."""
     bank = load_sample_bank_from_file(bank_file, use_cache=not no_cache)
     typer.echo(f"Loaded bank with {len(bank.samples)} samples.")
-    drop = generate_drop(bank=bank)
+    drop = generate_drop(bank, np.random.default_rng(seed))
     typer.echo("Generated drop.")
-    save_audio(Path("drop.wav"), drop)
-    typer.echo("Saved drop to drop.wav.")
+    save_audio(Path("drop.wav"), drop.signal)
+    save_onsets(Path("drop.csv"), drop.onsets)
+    typer.echo("Saved drop to drop.wav and its kick onsets to drop.csv.")

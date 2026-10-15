@@ -1,12 +1,12 @@
 import glob
 import pickle
-import random
 import warnings
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
 
 import librosa
+import numpy as np
 from loguru import logger
 from pydantic import BaseModel
 
@@ -71,7 +71,12 @@ class Sample:
 class SampleBank:
     samples: list[Sample]
 
-    def draw(self, kind: SampleKind, loops_only: bool = False) -> Sample:
+    def draw(
+        self,
+        kind: SampleKind,
+        rng: np.random.Generator,
+        loops_only: bool = False,
+    ) -> Sample:
         """Draw a sample of the specified kind at random."""
         pool = [sample for sample in self.samples if sample.kind == kind]
         if loops_only:
@@ -80,7 +85,7 @@ class SampleBank:
             raise ValueError(
                 f"No samples of kind '{kind}' ({'loops only' if loops_only else 'any'}) are available in the sample pool."
             )
-        return random.choice(pool)
+        return pool[rng.integers(len(pool))]
 
 
 class SampleConfig(BaseModel):

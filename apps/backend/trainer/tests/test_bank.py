@@ -41,8 +41,7 @@ def test_load_sample_bank_resolves_workspace_paths_and_globs(
         globbed_path,
     ]
     assert all(
-        sample.kind is bank.SampleKind.KICK
-        for sample in sample_bank.samples
+        sample.kind is bank.SampleKind.KICK for sample in sample_bank.samples
     )
 
 

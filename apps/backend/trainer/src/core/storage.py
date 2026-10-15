@@ -24,3 +24,9 @@ def load_audio(path: Path) -> np.ndarray:
 def save_audio(path: Path, signal: Signal) -> None:
     wavfile.write(path, CONFIG.sr, signal)
     logger.info(f"Saved audio to {path}")
+
+
+def save_onsets(path: Path, onsets: np.ndarray) -> None:
+    """Save onsets as one time in seconds per line (Sonic Visualiser format)."""
+    np.savetxt(path, onsets, fmt="%.6f")
+    logger.info(f"Saved {len(onsets)} onsets to {path}")
