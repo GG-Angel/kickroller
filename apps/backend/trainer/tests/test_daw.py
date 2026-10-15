@@ -14,6 +14,8 @@ from src.services.synthesis.effects import (
     Trim,
     cut_signal,
     filter_signal,
+    level_signal,
+    loudest_rms,
     normalize_signal,
     sidechain_signal,
     trim_signal,
@@ -194,3 +196,33 @@ def test_sidechain_rejects_invalid_duration(make, duration: float) -> None:
 def test_sidechain_rejects_negative_trigger(make) -> None:
     with pytest.raises(ValueError, match="non-negative sample indices"):
         make(np.array([-1]))
+
+
+def test_loudest_rms_finds_the_loudest_window() -> None:
+    signal = np.full(CONFIG.sr, 0.1, dtype=np.float32)
+    signal[CONFIG.sr // 2 : CONFIG.sr // 2 + 4410] = 0.8
+
+    assert loudest_rms(signal) == pytest.approx(0.8)
+
+
+def test_loudest_rms_uses_the_whole_signal_when_shorter_than_window() -> None:
+    signal = np.full(100, -0.5, dtype=np.float32)
+
+    assert loudest_rms(signal) == pytest.approx(0.5)
+    assert loudest_rms(np.zeros(0, dtype=np.float32)) == 0.0
+
+
+def test_level_signal_scales_to_the_level() -> None:
+    rng = np.random.default_rng(0)
+    signal = rng.uniform(-1, 1, CONFIG.sr).astype(np.float32)
+
+    leveled = level_signal(signal, 0.25)
+
+    assert leveled.dtype == np.float32
+    assert loudest_rms(leveled) == pytest.approx(0.25, rel=1e-5)
+
+
+def test_level_signal_leaves_silence_unchanged() -> None:
+    silence = np.zeros(100, dtype=np.float32)
+
+    np.testing.assert_array_equal(level_signal(silence, 0.5), silence)

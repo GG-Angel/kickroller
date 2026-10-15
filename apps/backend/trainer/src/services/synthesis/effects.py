@@ -42,6 +42,27 @@ def filter_signal(
     return np.asarray(sosfilt(sos, signal), dtype=np.float32)
 
 
+def loudest_rms(
+    signal: Signal, window: float = 0.1, sr: int = CONFIG.sr
+) -> float:
+    """The RMS of the loudest ``window`` seconds of the signal."""
+    if len(signal) == 0:
+        return 0.0
+    length = min(round(window * sr), len(signal))
+    rms = librosa.feature.rms(
+        y=signal, frame_length=length, hop_length=sr // 100, center=False
+    )
+    return float(rms.max())
+
+
+def level_signal(signal: Signal, level: float, sr: int = CONFIG.sr) -> Signal:
+    """Scale the signal so that its ``loudest_rms`` is ``level``."""
+    current = loudest_rms(signal, sr=sr)
+    if current == 0:
+        return signal
+    return (signal * (level / current)).astype(np.float32)
+
+
 def normalize_signal(signal: Signal) -> Signal:
     return librosa.util.normalize(signal)
 

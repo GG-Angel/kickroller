@@ -22,6 +22,8 @@ class LayerConfig(BaseModel):
     is_loop: bool
     track_count_weights: dict[int, float]
     """Weight of each number of tracks in a drop."""
+    level_db_range: tuple[float, float]
+    """Range of the level relative to the kick, in dB of ``loudest_rms``."""
     high_pass_hz: float | None = 200.0
     """High-pass cutoff, or None for no high-pass."""
     sidechain_ratio_range: tuple[float, float] | None = None
@@ -50,12 +52,14 @@ DEFAULT_LAYERS = [
         kind=SampleKind.MELODY,
         is_loop=True,
         track_count_weights={0: 0.1, 1: 0.75, 2: 0.15},
+        level_db_range=(-6, 0),
         sidechain_ratio_range=(0.3, 0.6),
     ),
     LayerConfig(
         kind=SampleKind.MELODY,
         is_loop=False,
         track_count_weights={0: 0.7, 1: 0.3},
+        level_db_range=(-6, 0),
         sidechain_ratio_range=(0.2, 0.5),
         placements=[OFFBEAT, STEP],
     ),
@@ -63,12 +67,14 @@ DEFAULT_LAYERS = [
         kind=SampleKind.VOCAL,
         is_loop=True,
         track_count_weights={0: 0.7, 1: 0.3},
+        level_db_range=(-9, -3),
         sidechain_ratio_range=(0.2, 0.4),
     ),
     LayerConfig(
         kind=SampleKind.VOCAL,
         is_loop=False,
         track_count_weights={0: 0.7, 1: 0.3},
+        level_db_range=(-9, -3),
         sidechain_ratio_range=(0.2, 0.4),
         placements=[BAR, BEAT],
     ),
@@ -76,17 +82,20 @@ DEFAULT_LAYERS = [
         kind=SampleKind.DRUM,
         is_loop=True,
         track_count_weights={0: 0.3, 1: 0.5, 2: 0.2},
+        level_db_range=(-12, -6),
     ),
     LayerConfig(
         kind=SampleKind.DRUM,
         is_loop=False,
         track_count_weights={0: 0.2, 1: 0.5, 2: 0.3},
+        level_db_range=(-9, -3),
         placements=[BACKBEAT, BEAT, OFFBEAT, STEP],
     ),
     LayerConfig(
         kind=SampleKind.IMPACT,
         is_loop=False,
         track_count_weights={0: 0.5, 1: 0.5},
+        level_db_range=(-6, 0),
         high_pass_hz=None,
         placements=[PHRASE],
     ),
@@ -94,6 +103,7 @@ DEFAULT_LAYERS = [
         kind=SampleKind.FX,
         is_loop=False,
         track_count_weights={0: 0.6, 1: 0.4},
+        level_db_range=(-12, -6),
         placements=[BAR, STEP],
     ),
 ]
@@ -106,6 +116,9 @@ class SynthConfig(BaseModel):
     bpms: list[int] = [140, 150, 155, 160, 165, 170, 180]
 
     drop_seconds: float = 12.0
+
+    peak_db: float = -1.0
+    """Peak of each exported drop, in dBFS."""
 
 
 class Config(BaseSettings):

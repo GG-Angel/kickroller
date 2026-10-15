@@ -4,7 +4,7 @@ import numpy as np
 
 from src.models.audio import SampleKind
 from src.services.synthesis.bank import SampleBank
-from src.services.synthesis.effects import trim_signal
+from src.services.synthesis.effects import loudest_rms, trim_signal
 from src.services.synthesis.grid import Grid
 from src.services.synthesis.patterns.pattern import PatternGenerator
 from src.services.synthesis.track import Track
@@ -81,6 +81,8 @@ class KickTrack:
     track: Track
     beats: np.ndarray
     """Beat positions of the kicks."""
+    level: float
+    """``loudest_rms`` of the kick, which the other layers are leveled to."""
 
 
 def draw_kick_track(
@@ -95,4 +97,4 @@ def draw_kick_track(
     track = Track(grid)
     for beat in beats:
         track.insert(kick, beat, blend=False)
-    return KickTrack(track=track, beats=beats)
+    return KickTrack(track=track, beats=beats, level=loudest_rms(kick))

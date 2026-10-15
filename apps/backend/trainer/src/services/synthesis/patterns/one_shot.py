@@ -5,7 +5,7 @@ from loguru import logger
 
 from src.core.config import LayerConfig
 from src.services.synthesis.bank import SampleBank
-from src.services.synthesis.effects import trim_signal
+from src.services.synthesis.effects import level_signal, trim_signal
 from src.services.synthesis.grid import Grid
 from src.services.synthesis.patterns.pattern import PatternGenerator
 from src.services.synthesis.track import Track
@@ -45,11 +45,16 @@ class OneShotPatternGenerator(PatternGenerator):
 
 
 def draw_one_shot_track(
-    grid: Grid, bank: SampleBank, layer: LayerConfig, rng: np.random.Generator
+    grid: Grid,
+    bank: SampleBank,
+    layer: LayerConfig,
+    kick_level: float,
+    rng: np.random.Generator,
 ) -> Track:
     """One one-shot at the positions of a placement drawn from the layer.
 
-    Each one-shot cuts the tail of the one before it.
+    Each one-shot cuts the tail of the one before it. The one-shot is leveled
+    to a random dB of the layer's range below the kick.
     """
     track = Track(grid)
     sample = bank.draw(layer.kind, rng, is_loop=False)
@@ -63,11 +68,14 @@ def draw_one_shot_track(
     beats = OneShotPatternGenerator(
         grid, period, placement.offset, probability, rng=rng
     ).generate()
-    logger.debug(
-        f"{layer.kind} one-shot {sample.name}: {len(beats)} hits, every "
-        f"{period:g} beats from {placement.offset:g}"
+    db = rng.uniform(*layer.level_db_range)
+    signal = level_signal(
+        trim_signal(sample.signal), kick_level * 10 ** (db / 20), grid.sr
     )
-    signal = trim_signal(sample.signal)
+    logger.debug(
+        f"{layer.kind} one-shot {sample.name} at {db:.1f} dB: {len(beats)} "
+        f"hits, every {period:g} beats from {placement.offset:g}"
+    )
     for beat in beats:
         track.insert(signal, beat, blend=False)
     return track

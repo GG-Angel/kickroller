@@ -5,6 +5,7 @@ from loguru import logger
 
 from src.core.config import LayerConfig
 from src.services.synthesis.bank import Sample, SampleBank
+from src.services.synthesis.effects import level_signal
 from src.services.synthesis.grid import Grid
 from src.services.synthesis.patterns.pattern import PatternGenerator
 from src.services.synthesis.track import Track
@@ -35,12 +36,21 @@ class LoopPatternGenerator(PatternGenerator):
 
 
 def draw_loop_track(
-    grid: Grid, bank: SampleBank, layer: LayerConfig, rng: np.random.Generator
+    grid: Grid,
+    bank: SampleBank,
+    layer: LayerConfig,
+    kick_level: float,
+    rng: np.random.Generator,
 ) -> Track:
-    """A loop stretched to the grid tempo and repeated from the first bar."""
+    """A loop stretched to the grid tempo and repeated from the first bar.
+
+    The loop is leveled to a random dB of the layer's range below the kick.
+    """
     track = Track(grid)
     sample = bank.draw(layer.kind, rng, is_loop=True).stretch(track)
-    logger.debug(f"{layer.kind} loop {sample.name}")
+    db = rng.uniform(*layer.level_db_range)
+    signal = level_signal(sample.signal, kick_level * 10 ** (db / 20), grid.sr)
+    logger.debug(f"{layer.kind} loop {sample.name} at {db:.1f} dB")
     for beat in LoopPatternGenerator(grid, sample, rng=rng).generate():
-        track.insert(sample.signal, beat, blend=False)
+        track.insert(signal, beat, blend=False)
     return track

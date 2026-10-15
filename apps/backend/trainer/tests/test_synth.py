@@ -4,11 +4,16 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from src.core.config import CONFIG, LayerConfig
+from src.core.config import CONFIG, LayerConfig, Placement
 from src.models.audio import SampleKind
 from src.services.synthesis.bank import Sample, SampleBank
+from src.services.synthesis.effects import loudest_rms
 from src.services.synthesis.grid import Grid
-from src.services.synthesis.patterns.one_shot import OneShotPatternGenerator
+from src.services.synthesis.patterns.loop import draw_loop_track
+from src.services.synthesis.patterns.one_shot import (
+    OneShotPatternGenerator,
+    draw_one_shot_track,
+)
 from src.services.synthesis.synth import draw_grid, generate_drop
 
 
@@ -57,7 +62,10 @@ def test_one_shot_pattern_rejects_invalid_settings(
 def test_one_shot_layer_needs_placements() -> None:
     with pytest.raises(ValidationError, match="no placements"):
         LayerConfig(
-            kind=SampleKind.FX, is_loop=False, track_count_weights={1: 1.0}
+            kind=SampleKind.FX,
+            is_loop=False,
+            track_count_weights={1: 1.0},
+            level_db_range=(0, 0),
         )
 
 
@@ -115,3 +123,27 @@ def test_layers_do_not_change_kick_onsets() -> None:
     np.testing.assert_array_equal(full.onsets, kicks_only.onsets)
     assert len(full.signal) == len(kicks_only.signal)
     assert not np.array_equal(full.signal, kicks_only.signal)
+
+
+@pytest.mark.parametrize("db", [0.0, -6.0])
+def test_layer_tracks_are_leveled_relative_to_the_kick(db: float) -> None:
+    grid = Grid(bpm=160, bars=4)
+    bank = _bank()
+    rng = np.random.default_rng(0)
+    one_shot_layer = LayerConfig(
+        kind=SampleKind.DRUM,
+        is_loop=False,
+        track_count_weights={1: 1.0},
+        level_db_range=(db, db),
+        placements=[Placement(period=4)],
+    )
+    loop_layer = one_shot_layer.model_copy(
+        update={"is_loop": True, "placements": []}
+    )
+
+    one_shot = draw_one_shot_track(grid, bank, one_shot_layer, 0.5, rng)
+    loop = draw_loop_track(grid, bank, loop_layer, 0.5, rng)
+
+    expected = 0.5 * 10 ** (db / 20)
+    assert loudest_rms(one_shot.signal) == pytest.approx(expected, rel=1e-4)
+    assert loudest_rms(loop.signal) == pytest.approx(expected, rel=1e-4)

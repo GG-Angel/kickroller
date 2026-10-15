@@ -64,9 +64,9 @@ def generate_drop(
     for layer in config.layers:
         for _ in range(_draw_track_count(layer, rng)):
             track = (
-                draw_loop_track(grid, bank, layer, rng)
+                draw_loop_track(grid, bank, layer, kick.level, rng)
                 if layer.is_loop
-                else draw_one_shot_track(grid, bank, layer, rng)
+                else draw_one_shot_track(grid, bank, layer, kick.level, rng)
             )
             _add_layer_effects(track, layer, kick_starts, rng)
             mix.add_tracks(track)
