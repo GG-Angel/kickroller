@@ -121,13 +121,14 @@ def draw_kick_fx(
             rng,
         )
         q = _draw_log_uniform(config.resonance_q_range, rng)
+        order = int(rng.choice(config.filter_orders))
         logger.debug(
-            f"kick {btype} at {cutoff:.0f} Hz, Q {q:.1f}, on beats "
-            f"{start}-{start + beats}"
+            f"kick {btype} at {cutoff:.0f} Hz, {6 * order} dB/oct, Q {q:.1f}, "
+            f"on beats {start}-{start + beats}"
         )
         sections.append(
             Section(
-                Filter(cutoff=cutoff, btype=btype, q=q),
+                Filter(cutoff=cutoff, btype=btype, order=order, q=q),
                 start=grid.to_sample(start),
                 end=grid.to_sample(start + beats),
             )

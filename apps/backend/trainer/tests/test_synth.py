@@ -173,6 +173,7 @@ def test_kick_fx_cutoffs_are_inside_their_ranges() -> None:
     rng = np.random.default_rng(0)
 
     btypes = set()
+    orders = set()
     for _ in range(50):
         for section in draw_kick_fx(grid, config, rng):
             assert isinstance(section.effect, Filter)
@@ -189,7 +190,9 @@ def test_kick_fx_cutoffs_are_inside_their_ranges() -> None:
             assert (
                 config.resonance_q_range[0] <= q <= config.resonance_q_range[1]
             )
+            orders.add(section.effect.order)
     assert btypes == {"highpass", "lowpass"}
+    assert orders == set(config.filter_orders)
 
 
 def test_kick_fx_can_be_off() -> None:

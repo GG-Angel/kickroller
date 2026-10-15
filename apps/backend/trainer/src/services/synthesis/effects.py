@@ -39,28 +39,40 @@ def filter_signal(
     q: float | None = None,
     sr: int = CONFIG.sr,
 ) -> Signal:
-    """Filter with a Butterworth filter, or with a resonant biquad if ``q`` is set.
+    """Filter with a Butterworth filter, or with a resonant filter if ``q`` is set.
 
-    The resonant biquad is a 2nd-order low-pass or high-pass, so it ignores
-    ``order``. Its gain at the cutoff is ``q``, and ``q = 1/√2`` gives no
-    resonance (the same as a 2nd-order Butterworth).
+    The resonant filter is a low-pass or high-pass of order 2 (12 dB/oct) or
+    4 (24 dB/oct). Order 2 is one resonant biquad, with a gain of ``q`` at the
+    cutoff. Order 4 adds a Butterworth biquad after it, so the gain at the
+    cutoff is ``q/√2``. A ``q`` of ``1/√2`` gives no resonance.
     """
     if q is None:
         sos = butter(order, cutoff, btype, fs=sr, output="sos")
     else:
-        sos = _resonant_sos(cutoff, btype, q, sr)
+        sos = _resonant_sos(cutoff, btype, order, q, sr)
     return np.asarray(sosfilt(sos, signal), dtype=np.float32)
 
 
 def _resonant_sos(
-    cutoff: float | tuple[float, float], btype: str, q: float, sr: int
+    cutoff: float | tuple[float, float],
+    btype: str,
+    order: int,
+    q: float,
+    sr: int,
 ) -> np.ndarray:
     if not isinstance(cutoff, (int, float)) or not 0 < cutoff < sr / 2:
         raise ValueError("A resonant filter needs one cutoff below Nyquist.")
     if btype not in ("lowpass", "highpass"):
         raise ValueError("A resonant filter must be a lowpass or highpass.")
+    if order not in (2, 4):
+        raise ValueError("A resonant filter must have order 2 or 4.")
     if not q > 0:
         raise ValueError("Q must be positive.")
+    stage_qs = [q] if order == 2 else [q, 2**-0.5]
+    return np.vstack([_biquad_sos(cutoff, btype, q, sr) for q in stage_qs])
+
+
+def _biquad_sos(cutoff: float, btype: str, q: float, sr: int) -> np.ndarray:
     # analog prototype with the cutoff pre-warped for the bilinear transform
     w0 = 2 * sr * np.tan(np.pi * cutoff / sr)
     numerator = [0.0, 0.0, w0**2] if btype == "lowpass" else [1.0, 0.0, 0.0]

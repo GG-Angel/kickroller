@@ -124,12 +124,14 @@ class KickFxConfig(BaseModel):
     """Weight of each number of sections in a drop."""
     section_beats: list[int] = [1, 2, 4]
     """Lengths of a section in beats."""
-    high_pass_hz_range: tuple[float, float] = (150.0, 1500.0)
+    high_pass_hz_range: tuple[float, float] = (300.0, 1250.0)
     """Range of the high-pass cutoff, drawn log-uniform."""
-    low_pass_hz_range: tuple[float, float] = (300.0, 3000.0)
+    low_pass_hz_range: tuple[float, float] = (1250.0, 2500.0)
     """Range of the low-pass cutoff, drawn log-uniform."""
-    resonance_q_range: tuple[float, float] = (0.7, 8.0)
+    resonance_q_range: tuple[float, float] = (1.5, 10.0)
     """Range of the filter Q (0.7 is no resonance), drawn log-uniform."""
+    filter_orders: list[int] = [2, 4]
+    """Filter orders to draw from: 2 is 12 dB/oct and 4 is 24 dB/oct."""
 
 
 class SynthConfig(BaseModel):

@@ -105,8 +105,8 @@ def test_mix_sums_wet_track_signals() -> None:
             lambda s, sr: filter_signal(s, 500, "lowpass", sr=sr),
         ),
         (
-            Filter(500, "highpass", q=4.0),
-            lambda s, sr: filter_signal(s, 500, "highpass", q=4.0, sr=sr),
+            Filter(500, "highpass", order=4, q=4.0),
+            lambda s, sr: filter_signal(s, 500, "highpass", 4, q=4.0, sr=sr),
         ),
         (Normalize(), lambda s, sr: normalize_signal(s)),
         (
@@ -310,31 +310,58 @@ def test_resonant_filter_without_resonance_is_butterworth() -> None:
         )
 
 
-@pytest.mark.parametrize("btype", ["lowpass", "highpass"])
-@pytest.mark.parametrize("q", [0.7, 4.0, 8.0])
-def test_resonant_filter_gain_at_cutoff_is_q(btype: str, q: float) -> None:
-    sr, cutoff = 8000, 500
+def _sine_gain(
+    frequency: float, cutoff: float, btype: str, order: int, q: float
+) -> float:
+    """The steady-state gain of the resonant filter for a sine."""
+    sr = 8000
     time = np.arange(4 * sr) / sr
-    sine = np.sin(2 * np.pi * cutoff * time).astype(np.float32)
+    sine = np.sin(2 * np.pi * frequency * time).astype(np.float32)
+    filtered = filter_signal(sine, cutoff, btype, order, q=q, sr=sr)
+    return float(np.abs(filtered[-sr:]).max())
 
-    filtered = filter_signal(sine, cutoff, btype, q=q, sr=sr)
 
-    assert np.abs(filtered[-sr:]).max() == pytest.approx(q, rel=0.01)
+@pytest.mark.parametrize("btype", ["lowpass", "highpass"])
+@pytest.mark.parametrize("q", [0.7, 4.0, 10.0])
+@pytest.mark.parametrize("order", [2, 4])
+def test_resonant_filter_gain_at_cutoff(
+    btype: str, q: float, order: int
+) -> None:
+    expected = q if order == 2 else q * 2**-0.5
+
+    assert _sine_gain(500, 500, btype, order, q) == pytest.approx(
+        expected, rel=0.01
+    )
 
 
 @pytest.mark.parametrize(
-    ("cutoff", "btype", "q"),
+    ("btype", "frequency"), [("lowpass", 1000), ("highpass", 250)]
+)
+def test_resonant_filter_order_4_doubles_the_slope(
+    btype: str, frequency: float
+) -> None:
+    q = 2**-0.5
+    db_order_2 = 20 * np.log10(_sine_gain(frequency, 500, btype, 2, q))
+    db_order_4 = 20 * np.log10(_sine_gain(frequency, 500, btype, 4, q))
+
+    assert db_order_2 < -6
+    assert db_order_4 == pytest.approx(2 * db_order_2, rel=0.01)
+
+
+@pytest.mark.parametrize(
+    ("cutoff", "btype", "order", "q"),
     [
-        ((100, 500), "bandpass", 2.0),
-        (500, "bandpass", 2.0),
-        (5000, "lowpass", 2.0),
-        (500, "lowpass", 0.0),
+        ((100, 500), "bandpass", 2, 2.0),
+        (500, "bandpass", 2, 2.0),
+        (5000, "lowpass", 2, 2.0),
+        (500, "lowpass", 2, 0.0),
+        (500, "lowpass", 3, 2.0),
     ],
 )
 def test_resonant_filter_rejects_invalid_settings(
-    cutoff: float | tuple[float, float], btype: str, q: float
+    cutoff: float | tuple[float, float], btype: str, order: int, q: float
 ) -> None:
     with pytest.raises(ValueError):
         filter_signal(
-            np.ones(10, dtype=np.float32), cutoff, btype, q=q, sr=8000
+            np.ones(10, dtype=np.float32), cutoff, btype, order, q=q, sr=8000
         )
