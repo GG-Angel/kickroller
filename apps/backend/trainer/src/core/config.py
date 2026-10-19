@@ -98,6 +98,7 @@ DEFAULT_LAYERS = [
         track_count_weights={0: 0.7, 1: 0.3},
         level_db_range=(-6, 0),
         high_pass_hz=None,
+        is_sidechained=True,
         placements=[PHRASE],
     ),
     LayerConfig(
