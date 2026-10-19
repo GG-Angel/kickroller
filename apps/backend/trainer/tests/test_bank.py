@@ -4,6 +4,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from src.models.audio import SampleKind
 from src.services.synthesis import bank
 
 
@@ -170,3 +171,52 @@ def test_load_sample_bank_from_file_can_bypass_cache(tmp_path: Path) -> None:
         bank.load_sample_bank_from_file(bank_path, use_cache=False)
 
     assert load_audio.call_count == 2
+
+
+def test_is_held_out_is_fixed_and_holds_out_the_fraction() -> None:
+    names = [f"pack/kick_{index}.wav" for index in range(5000)]
+
+    held_out = [bank.is_held_out(name, 0.1) for name in names]
+
+    assert held_out == [bank.is_held_out(name, 0.1) for name in names]
+    assert 0.08 < np.mean(held_out) < 0.12
+    assert not any(bank.is_held_out(name, 0.0) for name in names)
+    assert all(bank.is_held_out(name, 1.0) for name in names)
+
+
+def _sample(name: str, kind: SampleKind) -> bank.Sample:
+    return bank.Sample(
+        name=name,
+        path=Path(name),
+        signal=np.zeros(10, dtype=np.float32),
+        kind=kind,
+        bpm=160,
+        is_loop=False,
+    )
+
+
+def test_select_kicks_splits_only_the_kicks() -> None:
+    kicks = [
+        _sample(f"kick_{index}.wav", SampleKind.KICK) for index in range(200)
+    ]
+    others = [
+        _sample("clap.wav", SampleKind.DRUM),
+        _sample("fx.wav", SampleKind.FX),
+    ]
+    sample_bank = bank.SampleBank(samples=kicks + others)
+
+    training = sample_bank.select_kicks(held_out=False, fraction=0.2)
+    validation = sample_bank.select_kicks(held_out=True, fraction=0.2)
+
+    def kick_names(selected: bank.SampleBank) -> set[str]:
+        return {s.name for s in selected.samples if s.kind == SampleKind.KICK}
+
+    assert kick_names(training).isdisjoint(kick_names(validation))
+    assert kick_names(training) | kick_names(validation) == kick_names(
+        sample_bank
+    )
+    assert kick_names(validation)
+    for selected in (training, validation):
+        assert [
+            s for s in selected.samples if s.kind != SampleKind.KICK
+        ] == others

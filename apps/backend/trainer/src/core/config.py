@@ -1,4 +1,4 @@
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings
 
 from src.models.audio import SampleKind
@@ -153,6 +153,9 @@ class SynthConfig(BaseModel):
 
     peak_db: float = -1.0
     """Peak of each exported drop, in dBFS."""
+
+    held_out_kick_fraction: float = Field(default=0.1, ge=0, le=1)
+    """Part of the kicks that only validation drops use."""
 
 
 class Config(BaseSettings):

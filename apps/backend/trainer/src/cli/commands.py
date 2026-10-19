@@ -82,10 +82,19 @@ def synth(
         help="Only use layers of this kind (repeatable; default: all). "
         "The kick is always used, so `-k kick` gives kicks only.",
     ),
+    held_out: bool = typer.Option(
+        False,
+        "--held-out",
+        help="Use only the held-out kicks, for validation drops. Without it, "
+        "the held-out kicks are never used.",
+    ),
 ) -> None:
     """Write synthetic drops with labeled kick onsets."""
     bank = load_sample_bank_from_file(bank_file, use_cache=not no_cache)
     typer.echo(f"Loaded bank with {len(bank.samples)} samples.")
+    bank = bank.select_kicks(held_out, CONFIG.synth.held_out_kick_fraction)
+    kicks = sum(sample.kind == SampleKind.KICK for sample in bank.samples)
+    typer.echo(f"Using {kicks} {'held-out' if held_out else 'training'} kicks.")
     export_drops(bank, output, count, seed, _select_kinds(kinds))
     typer.echo(f"Wrote {count} drops to {output}.")
 

@@ -1,5 +1,6 @@
 import glob
 import warnings
+import zlib
 from collections import Counter
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -28,6 +29,8 @@ AUDIO_EXTENSIONS = {
     ".wav",
     ".wave",
 }
+HASH_BUCKETS = 1000
+"""The held-out fraction is rounded to ``1 / HASH_BUCKETS``."""
 
 CACHE_INDEX_FILE = "index.json"
 CACHE_AUDIO_FILE = "audio.f32"
@@ -61,9 +64,29 @@ class Sample:
         return replace(self, signal=stretched_signal, bpm=track.grid.bpm)
 
 
+def is_held_out(name: str, fraction: float) -> bool:
+    """A fixed choice of about ``fraction`` of the names, from a hash of the name."""
+    return zlib.crc32(name.encode()) % HASH_BUCKETS < fraction * HASH_BUCKETS
+
+
 @dataclass(frozen=True)
 class SampleBank:
     samples: list[Sample]
+
+    def select_kicks(self, held_out: bool, fraction: float) -> "SampleBank":
+        """The bank with only the held-out kicks, or only the other kicks.
+
+        The kicks are held out by ``is_held_out`` of their name. The samples of
+        the other kinds do not change.
+        """
+        return SampleBank(
+            samples=[
+                sample
+                for sample in self.samples
+                if sample.kind != SampleKind.KICK
+                or is_held_out(sample.name, fraction) == held_out
+            ]
+        )
 
     def draw(
         self,
