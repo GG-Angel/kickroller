@@ -51,51 +51,51 @@ DEFAULT_LAYERS = [
     LayerConfig(
         kind=SampleKind.MELODY,
         is_loop=True,
-        track_count_weights={0: 0.1, 1: 0.75, 2: 0.15},
+        track_count_weights={0: 0.2, 1: 0.8},
         level_db_range=(-8, 0),
-        sidechain_ratio_range=(0.6, 0.9),
+        sidechain_ratio_range=(0.8, 0.95),
     ),
     LayerConfig(
         kind=SampleKind.MELODY,
         is_loop=False,
-        track_count_weights={0: 0.7, 1: 0.3},
+        track_count_weights={0: 0.85, 1: 0.15},
         level_db_range=(-10, -2),
-        sidechain_ratio_range=(0.5, 0.85),
+        sidechain_ratio_range=(0.75, 0.95),
         placements=[OFFBEAT, STEP],
     ),
     LayerConfig(
         kind=SampleKind.VOCAL,
         is_loop=True,
-        track_count_weights={0: 0.7, 1: 0.3},
+        track_count_weights={0: 0.85, 1: 0.15},
         level_db_range=(-12, -4),
-        sidechain_ratio_range=(0.5, 0.8),
+        sidechain_ratio_range=(0.7, 0.9),
     ),
     LayerConfig(
         kind=SampleKind.VOCAL,
         is_loop=False,
-        track_count_weights={0: 0.7, 1: 0.3},
+        track_count_weights={0: 0.85, 1: 0.15},
         level_db_range=(-12, -4),
-        sidechain_ratio_range=(0.5, 0.8),
+        sidechain_ratio_range=(0.7, 0.9),
         placements=[BAR, BEAT],
     ),
     LayerConfig(
         kind=SampleKind.DRUM,
         is_loop=True,
-        track_count_weights={0: 0.3, 1: 0.5, 2: 0.2},
+        track_count_weights={0: 0.5, 1: 0.5},
         level_db_range=(-16, -8),
-        sidechain_ratio_range=(0.3, 0.6),
+        sidechain_ratio_range=(0.5, 0.8),
     ),
     LayerConfig(
         kind=SampleKind.DRUM,
         is_loop=False,
-        track_count_weights={0: 0.2, 1: 0.5, 2: 0.3},
+        track_count_weights={0: 0.4, 1: 0.5, 2: 0.1},
         level_db_range=(-12, -3),
         placements=[BACKBEAT, BEAT, OFFBEAT, STEP],
     ),
     LayerConfig(
         kind=SampleKind.IMPACT,
         is_loop=False,
-        track_count_weights={0: 0.5, 1: 0.5},
+        track_count_weights={0: 0.7, 1: 0.3},
         level_db_range=(-6, 0),
         high_pass_hz=None,
         placements=[PHRASE],
@@ -103,16 +103,16 @@ DEFAULT_LAYERS = [
     LayerConfig(
         kind=SampleKind.FX,
         is_loop=False,
-        track_count_weights={0: 0.6, 1: 0.4},
+        track_count_weights={0: 0.8, 1: 0.2},
         level_db_range=(-18, -8),
-        sidechain_ratio_range=(0.3, 0.6),
+        sidechain_ratio_range=(0.5, 0.8),
         placements=[BAR, STEP],
     ),
 ]
 
 
 class KickFxConfig(BaseModel):
-    """Sections of the kick track that go through a high-pass or low-pass."""
+    """Sections of the kick track that go through a resonant high-pass."""
 
     section_count_weights: dict[int, float] = {
         0: 0.15,
@@ -126,12 +126,10 @@ class KickFxConfig(BaseModel):
     """Lengths of a section in beats."""
     high_pass_hz_range: tuple[float, float] = (300.0, 1250.0)
     """Range of the high-pass cutoff, drawn log-uniform."""
-    low_pass_hz_range: tuple[float, float] = (1250.0, 2500.0)
-    """Range of the low-pass cutoff, drawn log-uniform."""
     resonance_q_range: tuple[float, float] = (1.5, 10.0)
     """Range of the filter Q (0.7 is no resonance), drawn log-uniform."""
-    filter_orders: list[int] = [2, 4]
-    """Filter orders to draw from: 2 is 12 dB/oct and 4 is 24 dB/oct."""
+    filter_orders: list[int] = [2, 4, 6]
+    """Filter orders to draw from: each order adds 6 dB/oct of slope."""
 
 
 class SynthConfig(BaseModel):

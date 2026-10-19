@@ -41,10 +41,11 @@ def filter_signal(
 ) -> Signal:
     """Filter with a Butterworth filter, or with a resonant filter if ``q`` is set.
 
-    The resonant filter is a low-pass or high-pass of order 2 (12 dB/oct) or
-    4 (24 dB/oct). Order 2 is one resonant biquad, with a gain of ``q`` at the
-    cutoff. Order 4 adds a Butterworth biquad after it, so the gain at the
-    cutoff is ``q/√2``. A ``q`` of ``1/√2`` gives no resonance.
+    The resonant filter is a low-pass or high-pass of an even order, with
+    6 dB/oct of slope for each order. It is one resonant biquad, with a gain of
+    ``q`` at the cutoff, followed by a Butterworth filter of ``order - 2``. Thus
+    the gain at the cutoff is ``q`` for order 2 and ``q/√2`` for higher orders.
+    A ``q`` of ``1/√2`` gives no resonance.
     """
     if q is None:
         sos = butter(order, cutoff, btype, fs=sr, output="sos")
@@ -64,12 +65,15 @@ def _resonant_sos(
         raise ValueError("A resonant filter needs one cutoff below Nyquist.")
     if btype not in ("lowpass", "highpass"):
         raise ValueError("A resonant filter must be a lowpass or highpass.")
-    if order not in (2, 4):
-        raise ValueError("A resonant filter must have order 2 or 4.")
+    if order < 2 or order % 2:
+        raise ValueError("A resonant filter must have an even order of 2+.")
     if not q > 0:
         raise ValueError("Q must be positive.")
-    stage_qs = [q] if order == 2 else [q, 2**-0.5]
-    return np.vstack([_biquad_sos(cutoff, btype, q, sr) for q in stage_qs])
+    resonant = _biquad_sos(cutoff, btype, q, sr)
+    if order == 2:
+        return resonant
+    rest = np.asarray(butter(order - 2, cutoff, btype, fs=sr, output="sos"))
+    return np.vstack([resonant, rest])
 
 
 def _biquad_sos(cutoff: float, btype: str, q: float, sr: int) -> np.ndarray:

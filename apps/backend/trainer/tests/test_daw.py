@@ -323,7 +323,7 @@ def _sine_gain(
 
 @pytest.mark.parametrize("btype", ["lowpass", "highpass"])
 @pytest.mark.parametrize("q", [0.7, 4.0, 10.0])
-@pytest.mark.parametrize("order", [2, 4])
+@pytest.mark.parametrize("order", [2, 4, 6])
 def test_resonant_filter_gain_at_cutoff(
     btype: str, q: float, order: int
 ) -> None:
@@ -337,15 +337,17 @@ def test_resonant_filter_gain_at_cutoff(
 @pytest.mark.parametrize(
     ("btype", "frequency"), [("lowpass", 1000), ("highpass", 250)]
 )
-def test_resonant_filter_order_4_doubles_the_slope(
+def test_resonant_filter_slope_grows_with_order(
     btype: str, frequency: float
 ) -> None:
     q = 2**-0.5
     db_order_2 = 20 * np.log10(_sine_gain(frequency, 500, btype, 2, q))
     db_order_4 = 20 * np.log10(_sine_gain(frequency, 500, btype, 4, q))
+    db_order_6 = 20 * np.log10(_sine_gain(frequency, 500, btype, 6, q))
 
     assert db_order_2 < -6
     assert db_order_4 == pytest.approx(2 * db_order_2, rel=0.01)
+    assert db_order_6 == pytest.approx(3 * db_order_2, rel=0.02)
 
 
 @pytest.mark.parametrize(
@@ -356,6 +358,7 @@ def test_resonant_filter_order_4_doubles_the_slope(
         (5000, "lowpass", 2, 2.0),
         (500, "lowpass", 2, 0.0),
         (500, "lowpass", 3, 2.0),
+        (500, "lowpass", 0, 2.0),
     ],
 )
 def test_resonant_filter_rejects_invalid_settings(

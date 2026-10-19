@@ -167,22 +167,17 @@ def test_kick_fx_sections_are_whole_beats_and_do_not_overlap() -> None:
         assert covered.max() <= 1
 
 
-def test_kick_fx_cutoffs_are_inside_their_ranges() -> None:
+def test_kick_fx_are_high_passes_inside_their_ranges() -> None:
     grid = Grid(bpm=160, bars=8)
     config = KickFxConfig(section_count_weights={2: 1.0})
     rng = np.random.default_rng(0)
 
-    btypes = set()
     orders = set()
     for _ in range(50):
         for section in draw_kick_fx(grid, config, rng):
             assert isinstance(section.effect, Filter)
-            btypes.add(section.effect.btype)
-            low, high = (
-                config.high_pass_hz_range
-                if section.effect.btype == "highpass"
-                else config.low_pass_hz_range
-            )
+            assert section.effect.btype == "highpass"
+            low, high = config.high_pass_hz_range
             cutoff = section.effect.cutoff
             assert isinstance(cutoff, float) and low <= cutoff <= high
             q = section.effect.q
@@ -191,7 +186,6 @@ def test_kick_fx_cutoffs_are_inside_their_ranges() -> None:
                 config.resonance_q_range[0] <= q <= config.resonance_q_range[1]
             )
             orders.add(section.effect.order)
-    assert btypes == {"highpass", "lowpass"}
     assert orders == set(config.filter_orders)
 
 
