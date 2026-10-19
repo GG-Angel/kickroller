@@ -111,3 +111,23 @@ def test_synth_uses_only_the_kicks_of_the_split(held_out: bool) -> None:
     fraction = CONFIG.synth.held_out_kick_fraction
     assert used
     assert all(is_held_out(kick.name, fraction) == held_out for kick in used)
+
+
+@pytest.mark.parametrize("options", [[], ["--no-master"]])
+def test_synth_can_turn_off_the_master_effects(options: list[str]) -> None:
+    with (
+        patch(
+            "src.cli.commands.load_sample_bank_from_file",
+            return_value=SampleBank(samples=[]),
+        ),
+        patch("src.cli.commands.export_drops") as export,
+    ):
+        result = CliRunner().invoke(app, ["synth", "-k", "kick", *options])
+
+    assert result.exit_code == 0, result.output
+    config = export.call_args.args[4]
+    assert config.layers == []
+    if options:
+        assert config.master is None
+    else:
+        assert config.master == CONFIG.synth.master

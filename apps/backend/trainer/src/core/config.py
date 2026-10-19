@@ -138,6 +138,36 @@ class KickFxConfig(SectionConfig):
     """Filter orders to draw from: each order adds 6 dB/oct of slope."""
 
 
+class MasterConfig(BaseModel):
+    """Random master effects on each drop, which make the drops more varied.
+
+    Each effect is used with its probability, in this order: tilt, clip,
+    limit, MP3. The gain is always used, as the last effect.
+    """
+
+    tilt_probability: float = Field(default=0.5, ge=0, le=1)
+    tilt_db_range: tuple[float, float] = (-6.0, 6.0)
+    """Range of the gain of the highs relative to the lows."""
+    tilt_pivot_hz: float = 1000.0
+
+    clip_probability: float = Field(default=0.5, ge=0, le=1)
+    clip_drive_db_range: tuple[float, float] = (0.0, 12.0)
+    """Range of the gain into the soft clipper."""
+
+    limit_probability: float = Field(default=0.5, ge=0, le=1)
+    limit_drive_db_range: tuple[float, float] = (0.0, 9.0)
+    """Range of the gain into the limiter."""
+    limit_ceiling_db: float = -0.3
+
+    mp3_probability: float = Field(default=0.4, ge=0, le=1)
+    mp3_compression_range: tuple[float, float] = (0.0, 0.75)
+    """Range of the MP3 compression level: 0 is about 320 kbps, 0.75 is about
+    96 kbps."""
+
+    gain_db_range: tuple[float, float] = (-6.0, 6.0)
+    """Range of the output gain."""
+
+
 class SynthConfig(BaseModel):
     layers: list[LayerConfig] = DEFAULT_LAYERS
     kick_fx: KickFxConfig = KickFxConfig()
@@ -152,7 +182,10 @@ class SynthConfig(BaseModel):
     drop_seconds: float = 12.0
 
     peak_db: float = -1.0
-    """Peak of each exported drop, in dBFS."""
+    """Peak of each drop before the master effects, in dBFS."""
+
+    master: MasterConfig | None = MasterConfig()
+    """Master effects for augmentation, or None for no augmentation."""
 
     held_out_kick_fraction: float = Field(default=0.1, ge=0, le=1)
     """Part of the kicks that only validation drops use."""

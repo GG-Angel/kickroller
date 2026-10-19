@@ -5,21 +5,31 @@ import pytest
 
 from src.core.config import CONFIG
 from src.models.audio import Signal
+from src.services.synthesis import effects
 from src.services.synthesis.effects import (
+    Clip,
     Cut,
     Effect,
     Filter,
+    Limit,
+    Mp3,
     Normalize,
     Section,
     Sidechain,
+    Tilt,
     Trim,
+    clip_signal,
     cut_signal,
+    encode_mp3_signal,
     filter_signal,
+    gain_signal,
     level_signal,
+    limit_signal,
     loudest_rms,
     normalize_signal,
     section_signal,
     sidechain_signal,
+    tilt_signal,
     trim_signal,
 )
 from src.services.synthesis.mix import Mix
@@ -368,3 +378,100 @@ def test_resonant_filter_rejects_invalid_settings(
         filter_signal(
             np.ones(10, dtype=np.float32), cutoff, btype, order, q=q, sr=8000
         )
+
+
+def _click_train(seconds: float = 2.0) -> Signal:
+    rng = np.random.default_rng(0)
+    signal = 0.05 * rng.standard_normal(round(seconds * CONFIG.sr))
+    signal[CONFIG.sr // 4 :: CONFIG.sr // 3] = 0.9
+    return signal.astype(np.float32)
+
+
+def _lag(wet: Signal, dry: Signal, max_lag: int = 2000) -> int:
+    lags = np.arange(-max_lag, max_lag + 1)
+    scores = [np.dot(np.roll(dry, lag), wet) for lag in lags]
+    return int(lags[np.argmax(scores)])
+
+
+def test_normalize_signal_sets_the_peak() -> None:
+    signal = _click_train()
+
+    normalized = normalize_signal(signal, peak_db=-6.0)
+
+    assert np.abs(normalized).max() == pytest.approx(10 ** (-6 / 20))
+    assert normalized.dtype == np.float32
+
+
+def test_gain_and_tilt_of_zero_db_keep_the_signal() -> None:
+    signal = _click_train()
+
+    np.testing.assert_allclose(gain_signal(signal, 0.0), signal)
+    np.testing.assert_allclose(tilt_signal(signal, 0.0), signal, atol=1e-6)
+
+
+def test_tilt_signal_moves_the_balance_of_lows_and_highs() -> None:
+    t = np.arange(CONFIG.sr) / CONFIG.sr
+    low = np.sin(2 * np.pi * 50 * t).astype(np.float32)
+    high = np.sin(2 * np.pi * 10000 * t).astype(np.float32)
+
+    def gain_db(signal: Signal) -> float:
+        tilted = tilt_signal(signal, 6.0)[CONFIG.sr // 2 :]
+        return 20 * np.log10(np.abs(tilted).max() / np.abs(signal).max())
+
+    assert gain_db(low) == pytest.approx(-3.0, abs=0.1)
+    assert gain_db(high) == pytest.approx(3.0, abs=0.1)
+
+
+def test_clip_signal_stays_at_or_below_one() -> None:
+    clipped = clip_signal(_click_train() * 4, drive_db=12.0)
+
+    assert np.abs(clipped).max() <= 1.0
+
+
+def test_limit_signal_keeps_the_ceiling_and_the_timing() -> None:
+    signal = _click_train()
+
+    limited = limit_signal(signal, drive_db=9.0, ceiling_db=-1.0)
+
+    assert np.abs(limited).max() <= 10 ** (-1 / 20) + 1e-6
+    assert _lag(limited, signal) == 0
+    quiet = limit_signal(signal * 0.1, drive_db=0.0)
+    np.testing.assert_allclose(quiet, signal * 0.1, atol=1e-7)
+
+
+def test_encode_mp3_signal_keeps_the_length_and_the_timing() -> None:
+    signal = _click_train()
+
+    encoded = encode_mp3_signal(signal, compression_level=0.75)
+
+    assert len(encoded) == len(signal)
+    assert encoded.dtype == np.float32
+    assert _lag(encoded, signal) == 0
+    assert not np.array_equal(encoded, signal)
+
+
+@pytest.mark.parametrize(
+    "effect",
+    [effects.Gain(-6.0), Tilt(6.0), Clip(6.0), Limit(6.0), Mp3(0.5)],
+)
+def test_master_effects_keep_the_length_and_dtype(effect: Effect) -> None:
+    signal = _click_train(0.5)
+
+    wet = effect.process(signal, CONFIG.sr)
+
+    assert len(wet) == len(signal)
+    assert wet.dtype == np.float32
+    assert np.isfinite(wet).all()
+
+
+def test_mix_applies_master_effects_after_the_sum() -> None:
+    mix = Mix()
+    mix.add_tracks(
+        make_track(np.full(4, 0.5, dtype=np.float32)),
+        make_track(np.full(4, 0.5, dtype=np.float32)),
+    )
+    mix.add_effects(Offset(1.0), Gain(2.0))
+
+    mixed = mix.mix()
+
+    assert mixed[0] == pytest.approx((0.5 + 0.5 + 1.0) * 2.0)

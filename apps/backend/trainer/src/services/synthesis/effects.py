@@ -1,8 +1,11 @@
+import io
 from dataclasses import dataclass, field
 from typing import Protocol
 
 import librosa
 import numpy as np
+import soundfile
+from scipy.ndimage import maximum_filter1d, uniform_filter1d
 from scipy.signal import bilinear, butter, sosfilt, tf2sos
 
 from src.core.config import CONFIG
@@ -105,8 +108,78 @@ def level_signal(signal: Signal, level: float, sr: int = CONFIG.sr) -> Signal:
     return (signal * (level / current)).astype(np.float32)
 
 
-def normalize_signal(signal: Signal) -> Signal:
-    return librosa.util.normalize(signal)
+def normalize_signal(signal: Signal, peak_db: float = 0.0) -> Signal:
+    """Scale the signal so that its peak is ``peak_db`` dBFS."""
+    peak = float(librosa.db_to_amplitude(peak_db))
+    return (librosa.util.normalize(signal) * peak).astype(np.float32)
+
+
+def gain_signal(signal: Signal, db: float) -> Signal:
+    return (signal * float(librosa.db_to_amplitude(db))).astype(np.float32)
+
+
+def tilt_signal(
+    signal: Signal, db: float, pivot: float = 1000.0, sr: int = CONFIG.sr
+) -> Signal:
+    """Tilt the spectrum: the highs get ``db/2`` and the lows ``-db/2`` of gain.
+
+    The lows are a 1st-order low-pass at the pivot, and the highs are the rest.
+    Thus a tilt of 0 dB gives the same signal.
+    """
+    lows = filter_signal(signal, pivot, "lowpass", order=1, sr=sr)
+    highs = signal - lows
+    return gain_signal(lows, -db / 2) + gain_signal(highs, db / 2)
+
+
+def clip_signal(signal: Signal, drive_db: float) -> Signal:
+    """Soft clip with ``tanh`` after a gain of ``drive_db``."""
+    return np.tanh(gain_signal(signal, drive_db)).astype(np.float32)
+
+
+def limit_signal(
+    signal: Signal,
+    drive_db: float,
+    ceiling_db: float = -0.3,
+    window: float = 0.01,
+    sr: int = CONFIG.sr,
+) -> Signal:
+    """A look-ahead limiter after a gain of ``drive_db``.
+
+    The gain at each sample is the lowest gain that the peaks in the centered
+    ``window`` need, smoothed with a mean over the same window. Thus the peaks
+    do not go above ``ceiling_db`` and the signal is not delayed.
+    """
+    driven = gain_signal(signal, drive_db)
+    if len(driven) == 0:
+        return driven
+    ceiling = float(librosa.db_to_amplitude(ceiling_db))
+    size = 2 * round(window * sr / 2) + 1
+    peaks = maximum_filter1d(np.abs(driven), size=size)
+    gain = ceiling / np.maximum(peaks, ceiling)
+    gain = uniform_filter1d(gain, size=size, mode="nearest")
+    return (driven * gain).astype(np.float32)
+
+
+def encode_mp3_signal(
+    signal: Signal, compression_level: float, sr: int = CONFIG.sr
+) -> Signal:
+    """Encode the signal to a constant-bitrate MP3 and decode it again.
+
+    A ``compression_level`` of 0 is about 320 kbps and 0.75 is about 96 kbps.
+    """
+    buffer = io.BytesIO()
+    soundfile.write(
+        buffer,
+        signal,
+        sr,
+        format="MP3",
+        subtype="MPEG_LAYER_III",
+        compression_level=compression_level,
+        bitrate_mode="CONSTANT",
+    )
+    buffer.seek(0)
+    decoded, _ = librosa.load(buffer, sr=sr)
+    return librosa.util.fix_length(decoded, size=len(signal))
 
 
 def sidechain_signal(
@@ -226,8 +299,52 @@ class Filter(Effect):
 
 @dataclass(frozen=True)
 class Normalize(Effect):
+    peak_db: float = 0.0
+
     def process(self, signal: Signal, sr: int) -> Signal:
-        return normalize_signal(signal)
+        return normalize_signal(signal, self.peak_db)
+
+
+@dataclass(frozen=True)
+class Gain(Effect):
+    db: float
+
+    def process(self, signal: Signal, sr: int) -> Signal:
+        return gain_signal(signal, self.db)
+
+
+@dataclass(frozen=True)
+class Tilt(Effect):
+    db: float
+    pivot: float = 1000.0
+
+    def process(self, signal: Signal, sr: int) -> Signal:
+        return tilt_signal(signal, self.db, self.pivot, sr=sr)
+
+
+@dataclass(frozen=True)
+class Clip(Effect):
+    drive_db: float
+
+    def process(self, signal: Signal, sr: int) -> Signal:
+        return clip_signal(signal, self.drive_db)
+
+
+@dataclass(frozen=True)
+class Limit(Effect):
+    drive_db: float
+    ceiling_db: float = -0.3
+
+    def process(self, signal: Signal, sr: int) -> Signal:
+        return limit_signal(signal, self.drive_db, self.ceiling_db, sr=sr)
+
+
+@dataclass(frozen=True)
+class Mp3(Effect):
+    compression_level: float
+
+    def process(self, signal: Signal, sr: int) -> Signal:
+        return encode_mp3_signal(signal, self.compression_level, sr=sr)
 
 
 @dataclass(frozen=True, eq=False)

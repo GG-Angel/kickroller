@@ -1004,6 +1004,7 @@ dependencies = [
     { name = "pytest" },
     { name = "pyyaml" },
     { name = "scipy" },
+    { name = "soundfile" },
     { name = "typer" },
 ]
 
@@ -1024,6 +1025,7 @@ requires-dist = [
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "scipy", specifier = ">=1.18.1" },
+    { name = "soundfile", specifier = ">=0.14.0" },
     { name = "typer", specifier = ">=0.27.2" },
 ]
 

@@ -9,6 +9,7 @@ from src.services.synthesis.bank import SampleBank
 from src.services.synthesis.draws import draw_count
 from src.services.synthesis.effects import Filter, Sidechain
 from src.services.synthesis.grid import Grid
+from src.services.synthesis.master import draw_master_effects
 from src.services.synthesis.mix import Mix
 from src.services.synthesis.patterns.kick import draw_kick_track
 from src.services.synthesis.patterns.loop import draw_loop_track
@@ -46,9 +47,12 @@ def generate_drop(
     rng: np.random.Generator,
     config: SynthConfig = CONFIG.synth,
 ) -> LabeledDrop:
-    """Generate a random drop and the onset of each kick in it."""
+    """Generate a random drop and the onset of each kick in it.
+
+    The drop peaks at ``config.peak_db`` before the master effects.
+    """
     grid = draw_grid(config, rng)
-    mix = Mix()
+    mix = Mix(sr=grid.sr)
 
     # 1. Generate the kick track
     kick = draw_kick_track(grid, bank, config.kick_gaps, config.kick_fx, rng)
@@ -65,6 +69,9 @@ def generate_drop(
             )
             _add_layer_effects(track, layer, kick_starts, rng)
             mix.add_tracks(track)
+
+    # 3. Normalize and augment the mix
+    mix.add_effects(*draw_master_effects(config.master, config.peak_db, rng))
 
     onsets = librosa.samples_to_time(kick_starts, sr=grid.sr)
     return LabeledDrop(signal=mix.mix(), onsets=onsets)

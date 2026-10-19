@@ -88,6 +88,11 @@ def synth(
         help="Use only the held-out kicks, for validation drops. Without it, "
         "the held-out kicks are never used.",
     ),
+    no_master: bool = typer.Option(
+        False,
+        "--no-master",
+        help="Do not augment the drops with random master effects.",
+    ),
 ) -> None:
     """Write synthetic drops with labeled kick onsets."""
     bank = load_sample_bank_from_file(bank_file, use_cache=not no_cache)
@@ -95,7 +100,10 @@ def synth(
     bank = bank.select_kicks(held_out, CONFIG.synth.held_out_kick_fraction)
     kicks = sum(sample.kind == SampleKind.KICK for sample in bank.samples)
     typer.echo(f"Using {kicks} {'held-out' if held_out else 'training'} kicks.")
-    export_drops(bank, output, count, seed, _select_kinds(kinds))
+    config = _select_kinds(kinds)
+    if no_master:
+        config = config.model_copy(update={"master": None})
+    export_drops(bank, output, count, seed, config)
     typer.echo(f"Wrote {count} drops to {output}.")
 
 

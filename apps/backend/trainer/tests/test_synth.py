@@ -8,13 +8,25 @@ from src.core.config import (
     CONFIG,
     KickFxConfig,
     LayerConfig,
+    MasterConfig,
     Placement,
     SectionConfig,
 )
 from src.models.audio import SampleKind
 from src.services.synthesis.bank import Sample, SampleBank
-from src.services.synthesis.effects import Filter, Section, loudest_rms
+from src.services.synthesis.effects import (
+    Clip,
+    Filter,
+    Gain,
+    Limit,
+    Mp3,
+    Normalize,
+    Section,
+    Tilt,
+    loudest_rms,
+)
 from src.services.synthesis.grid import Grid
+from src.services.synthesis.master import draw_master_effects
 from src.services.synthesis.patterns.kick import draw_kick_fx, draw_kick_track
 from src.services.synthesis.patterns.loop import draw_loop_track
 from src.services.synthesis.patterns.one_shot import (
@@ -245,3 +257,65 @@ def test_kick_gaps_keep_the_kicks_outside_the_gaps() -> None:
     for gap in gapped.gaps:
         outside &= (full.beats < gap.start) | (full.beats >= gap.end)
     np.testing.assert_array_equal(gapped.beats, full.beats[outside])
+
+
+def test_master_effects_without_config_only_set_the_peak() -> None:
+    effects = draw_master_effects(None, -1.0, np.random.default_rng(0))
+
+    assert effects == [Normalize(-1.0)]
+
+
+def test_master_effects_are_drawn_in_order_inside_their_ranges() -> None:
+    config = MasterConfig(
+        tilt_probability=1,
+        clip_probability=1,
+        limit_probability=1,
+        mp3_probability=1,
+    )
+
+    effects = draw_master_effects(config, -1.0, np.random.default_rng(0))
+
+    assert [type(effect) for effect in effects] == [
+        Normalize,
+        Tilt,
+        Clip,
+        Limit,
+        Mp3,
+        Gain,
+    ]
+    _, tilt, clip, limit, mp3, gain = effects
+    assert isinstance(tilt, Tilt) and -6 <= tilt.db <= 6
+    assert isinstance(clip, Clip) and 0 <= clip.drive_db <= 12
+    assert isinstance(limit, Limit) and limit.ceiling_db == -0.3
+    assert isinstance(mp3, Mp3) and 0 <= mp3.compression_level <= 0.75
+    assert isinstance(gain, Gain) and -6 <= gain.db <= 6
+
+
+def test_master_effects_can_skip_the_optional_effects() -> None:
+    config = MasterConfig(
+        tilt_probability=0,
+        clip_probability=0,
+        limit_probability=0,
+        mp3_probability=0,
+    )
+
+    effects = draw_master_effects(config, -1.0, np.random.default_rng(0))
+
+    assert [type(effect) for effect in effects] == [Normalize, Gain]
+
+
+def test_generate_drop_without_master_peaks_at_peak_db() -> None:
+    config = CONFIG.synth.model_copy(update={"master": None})
+
+    drop = generate_drop(_bank(), np.random.default_rng(0), config)
+
+    peak = 10 ** (config.peak_db / 20)
+    assert np.abs(drop.signal).max() == pytest.approx(peak, rel=1e-5)
+
+
+def test_generate_drop_with_master_is_the_same_for_a_seed() -> None:
+    first = generate_drop(_bank(), np.random.default_rng(4))
+    second = generate_drop(_bank(), np.random.default_rng(4))
+
+    np.testing.assert_array_equal(first.signal, second.signal)
+    np.testing.assert_array_equal(first.onsets, second.onsets)
