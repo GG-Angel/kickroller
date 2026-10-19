@@ -1,0 +1,7 @@
+workspace: ./audio
+samples:
+  - kind: kick
+    paths:
+      - kicks/*.wav
+    bpm: 160
+    is_loop: false
