@@ -32,14 +32,12 @@ def draw_grid(config: SynthConfig, rng: np.random.Generator) -> Grid:
 def _add_layer_effects(
     track: Track,
     layer: LayerConfig,
-    kick_starts: np.ndarray,
-    rng: np.random.Generator,
+    sidechain: Sidechain,
 ) -> None:
     if layer.high_pass_hz is not None:
         track.add_effects(Filter(cutoff=layer.high_pass_hz, btype="highpass"))
-    if layer.sidechain_ratio_range is not None:
-        ratio = rng.uniform(*layer.sidechain_ratio_range)
-        track.add_effects(Sidechain(kick_starts, ratio=ratio))
+    if layer.is_sidechained:
+        track.add_effects(sidechain)
 
 
 def generate_drop(
@@ -60,6 +58,11 @@ def generate_drop(
 
     # 2. Generate the tracks of each layer
     kick_starts = grid.to_samples(kick.beats)
+    sidechain = Sidechain(
+        kick_starts,
+        ratio=rng.uniform(*config.sidechain_ratio_range),
+        duration=rng.uniform(*config.sidechain_seconds_range),
+    )
     for layer in config.layers:
         for _ in range(draw_count(layer.track_count_weights, rng)):
             track = (
@@ -67,7 +70,7 @@ def generate_drop(
                 if layer.is_loop
                 else draw_one_shot_track(grid, bank, layer, kick.level, rng)
             )
-            _add_layer_effects(track, layer, kick_starts, rng)
+            _add_layer_effects(track, layer, sidechain)
             mix.add_tracks(track)
 
     # 3. Normalize and augment the mix

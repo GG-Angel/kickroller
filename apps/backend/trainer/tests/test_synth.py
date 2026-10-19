@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -22,6 +23,7 @@ from src.services.synthesis.effects import (
     Mp3,
     Normalize,
     Section,
+    Sidechain,
     Tilt,
     loudest_rms,
 )
@@ -319,3 +321,29 @@ def test_generate_drop_with_master_is_the_same_for_a_seed() -> None:
 
     np.testing.assert_array_equal(first.signal, second.signal)
     np.testing.assert_array_equal(first.onsets, second.onsets)
+
+
+def test_sidechained_layers_of_a_drop_share_one_sidechain() -> None:
+    every_layer = [
+        layer.model_copy(update={"track_count_weights": {2: 1.0}})
+        for layer in CONFIG.synth.layers
+    ]
+    config = CONFIG.synth.model_copy(
+        update={"layers": every_layer, "master": None}
+    )
+    sidechains = []
+    for seed in range(3):
+        with patch(
+            "src.services.synthesis.synth.Sidechain", wraps=Sidechain
+        ) as sidechain:
+            generate_drop(_bank(), np.random.default_rng(seed), config)
+        sidechain.assert_called_once()
+        sidechains.append(sidechain.call_args.kwargs)
+
+    for drawn in sidechains:
+        low, high = config.sidechain_ratio_range
+        assert low <= drawn["ratio"] <= high
+        low, high = config.sidechain_seconds_range
+        assert low <= drawn["duration"] <= high
+    assert len({drawn["ratio"] for drawn in sidechains}) == 3
+    assert len({drawn["duration"] for drawn in sidechains}) == 3

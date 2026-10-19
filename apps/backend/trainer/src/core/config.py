@@ -26,8 +26,8 @@ class LayerConfig(BaseModel):
     """Range of the level relative to the kick, in dB of ``loudest_rms``."""
     high_pass_hz: float | None = 200.0
     """High-pass cutoff, or None for no high-pass."""
-    sidechain_ratio_range: tuple[float, float] | None = None
-    """Range of the duck depth at each kick, or None for no sidechain."""
+    is_sidechained: bool = False
+    """Whether the tracks duck at each kick, with the sidechain of the drop."""
     placements: list[Placement] = []
     """Placements of a one-shot track, of which each track draws one."""
 
@@ -53,14 +53,14 @@ DEFAULT_LAYERS = [
         is_loop=True,
         track_count_weights={0: 0.2, 1: 0.8},
         level_db_range=(-8, 0),
-        sidechain_ratio_range=(0.8, 0.95),
+        is_sidechained=True,
     ),
     LayerConfig(
         kind=SampleKind.MELODY,
         is_loop=False,
         track_count_weights={0: 0.85, 1: 0.15},
         level_db_range=(-10, -2),
-        sidechain_ratio_range=(0.75, 0.95),
+        is_sidechained=True,
         placements=[OFFBEAT, STEP],
     ),
     LayerConfig(
@@ -68,14 +68,14 @@ DEFAULT_LAYERS = [
         is_loop=True,
         track_count_weights={0: 0.85, 1: 0.15},
         level_db_range=(-12, -4),
-        sidechain_ratio_range=(0.7, 0.9),
+        is_sidechained=True,
     ),
     LayerConfig(
         kind=SampleKind.VOCAL,
         is_loop=False,
         track_count_weights={0: 0.85, 1: 0.15},
         level_db_range=(-12, -4),
-        sidechain_ratio_range=(0.7, 0.9),
+        is_sidechained=True,
         placements=[BAR, BEAT],
     ),
     LayerConfig(
@@ -83,7 +83,7 @@ DEFAULT_LAYERS = [
         is_loop=True,
         track_count_weights={0: 0.5, 1: 0.5},
         level_db_range=(-16, -8),
-        sidechain_ratio_range=(0.5, 0.8),
+        is_sidechained=True,
     ),
     LayerConfig(
         kind=SampleKind.DRUM,
@@ -105,7 +105,7 @@ DEFAULT_LAYERS = [
         is_loop=False,
         track_count_weights={0: 0.8, 1: 0.2},
         level_db_range=(-18, -8),
-        sidechain_ratio_range=(0.5, 0.8),
+        is_sidechained=True,
         placements=[BAR, STEP],
     ),
 ]
@@ -175,6 +175,10 @@ class SynthConfig(BaseModel):
         section_count_weights={0: 0.4, 1: 0.35, 2: 0.25}
     )
     """Sections where the kick stops and the other layers continue."""
+    sidechain_ratio_range: tuple[float, float] = (0.7, 0.95)
+    """Range of the duck depth at each kick."""
+    sidechain_seconds_range: tuple[float, float] = (0.06, 0.25)
+    """Range of the duck length after each kick."""
 
     steps: list[int] = [3, 4, 6, 8]
     bpms: list[int] = [140, 150, 155, 160, 165, 170, 180]
