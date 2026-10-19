@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from loguru import logger
 
-from src.core.config import KickFxConfig
+from src.core.config import KickFxConfig, SectionConfig
 from src.models.audio import SampleKind
 from src.services.synthesis.bank import SampleBank
 from src.services.synthesis.draws import draw_count
@@ -85,24 +85,35 @@ class KickPatternGenerator(PatternGenerator):
 
 
 @dataclass(frozen=True)
+class BeatSpan:
+    start: int
+    """First beat of the span."""
+    end: int
+    """Beat after the span."""
+
+
+@dataclass(frozen=True)
 class KickTrack:
     track: Track
     beats: np.ndarray
     """Beat positions of the kicks."""
     level: float
     """``loudest_rms`` of the kick, which the other layers are leveled to."""
+    gaps: list[BeatSpan]
+    """Spans where the kick stops."""
 
 
-def draw_kick_fx(
-    grid: Grid, config: KickFxConfig, rng: np.random.Generator
-) -> list[Section]:
-    """Sections of whole beats that go through a resonant high-pass.
+def _draw_spans(
+    grid: Grid,
+    config: SectionConfig,
+    taken: np.ndarray,
+    rng: np.random.Generator,
+) -> list[BeatSpan]:
+    """Spans of whole beats that start on any beat not in ``taken``.
 
-    Hardstyle tracks filter the kick with a high-pass, almost never a low-pass.
-    The sections start on any beat and do not overlap.
+    The beats of each span are marked in ``taken``, so spans do not overlap.
     """
-    taken = np.zeros(grid.beats, dtype=bool)
-    sections = []
+    spans = []
     for _ in range(draw_count(config.section_count_weights, rng)):
         beats = int(rng.choice(config.section_beats))
         free = [
@@ -114,18 +125,37 @@ def draw_kick_fx(
             continue
         start = free[rng.integers(len(free))]
         taken[start : start + beats] = True
+        spans.append(BeatSpan(start=start, end=start + beats))
+    return spans
+
+
+def draw_kick_fx(
+    grid: Grid,
+    config: KickFxConfig,
+    rng: np.random.Generator,
+    taken: np.ndarray | None = None,
+) -> list[Section]:
+    """Sections of whole beats that go through a resonant high-pass.
+
+    Hardstyle tracks filter the kick with a high-pass, almost never a low-pass.
+    The sections start on any beat not in ``taken`` and do not overlap.
+    """
+    if taken is None:
+        taken = np.zeros(grid.beats, dtype=bool)
+    sections = []
+    for span in _draw_spans(grid, config, taken, rng):
         cutoff = _draw_log_uniform(config.high_pass_hz_range, rng)
         q = _draw_log_uniform(config.resonance_q_range, rng)
         order = int(rng.choice(config.filter_orders))
         logger.debug(
             f"kick highpass at {cutoff:.0f} Hz, {6 * order} dB/oct, Q {q:.1f}, "
-            f"on beats {start}-{start + beats}"
+            f"on beats {span.start}-{span.end}"
         )
         sections.append(
             Section(
                 Filter(cutoff=cutoff, btype="highpass", order=order, q=q),
-                start=grid.to_sample(start),
-                end=grid.to_sample(start + beats),
+                start=grid.to_sample(span.start),
+                end=grid.to_sample(span.end),
             )
         )
     return sections
@@ -141,17 +171,26 @@ def _draw_log_uniform(
 def draw_kick_track(
     grid: Grid,
     bank: SampleBank,
+    gap_config: SectionConfig,
     fx_config: KickFxConfig,
     rng: np.random.Generator,
 ) -> KickTrack:
-    """One kick at the positions of a random kick pattern, with kick FX.
+    """One kick at the positions of a random kick pattern, with gaps and FX.
 
-    Each kick cuts the tail of the one before it.
+    Each kick cuts the tail of the one before it. There are no kicks in a gap,
+    but the tail of the kick before a gap continues. Kick FX are not in gaps.
     """
     kick = trim_signal(bank.draw(SampleKind.KICK, rng).signal)
     beats = KickPatternGenerator(grid, rng=rng).generate()
+    taken = np.zeros(grid.beats, dtype=bool)
+    gaps = _draw_spans(grid, gap_config, taken, rng)
+    for gap in gaps:
+        logger.debug(f"kick gap on beats {gap.start}-{gap.end}")
+        beats = beats[(beats < gap.start) | (beats >= gap.end)]
     track = Track(grid)
     for beat in beats:
         track.insert(kick, beat, blend=False)
-    track.add_effects(*draw_kick_fx(grid, fx_config, rng))
-    return KickTrack(track=track, beats=beats, level=loudest_rms(kick))
+    track.add_effects(*draw_kick_fx(grid, fx_config, rng, taken))
+    return KickTrack(
+        track=track, beats=beats, level=loudest_rms(kick), gaps=gaps
+    )

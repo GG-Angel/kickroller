@@ -4,12 +4,18 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from src.core.config import CONFIG, KickFxConfig, LayerConfig, Placement
+from src.core.config import (
+    CONFIG,
+    KickFxConfig,
+    LayerConfig,
+    Placement,
+    SectionConfig,
+)
 from src.models.audio import SampleKind
 from src.services.synthesis.bank import Sample, SampleBank
-from src.services.synthesis.effects import Filter, loudest_rms
+from src.services.synthesis.effects import Filter, Section, loudest_rms
 from src.services.synthesis.grid import Grid
-from src.services.synthesis.patterns.kick import draw_kick_fx
+from src.services.synthesis.patterns.kick import draw_kick_fx, draw_kick_track
 from src.services.synthesis.patterns.loop import draw_loop_track
 from src.services.synthesis.patterns.one_shot import (
     OneShotPatternGenerator,
@@ -196,3 +202,46 @@ def test_kick_fx_can_be_off() -> None:
         draw_kick_fx(Grid(bpm=160, bars=2), config, np.random.default_rng())
         == []
     )
+
+
+def test_kick_gaps_have_no_kicks_and_no_kick_fx() -> None:
+    grid = Grid(bpm=160, bars=4)
+    gap_config = SectionConfig(section_count_weights={2: 1.0})
+    fx_config = KickFxConfig(section_count_weights={4: 1.0})
+    rng = np.random.default_rng(0)
+
+    for _ in range(50):
+        kick = draw_kick_track(grid, _bank(), gap_config, fx_config, rng)
+
+        assert len(kick.gaps) == 2
+        for gap in kick.gaps:
+            assert gap.end - gap.start in gap_config.section_beats
+            assert not np.any(
+                (kick.beats >= gap.start) & (kick.beats < gap.end)
+            )
+            gap_start, gap_end = (
+                grid.to_sample(gap.start),
+                grid.to_sample(gap.end),
+            )
+            for section in kick.track.effects:
+                assert isinstance(section, Section)
+                assert section.end <= gap_start or section.start >= gap_end
+
+
+def test_kick_gaps_keep_the_kicks_outside_the_gaps() -> None:
+    grid = Grid(bpm=160, bars=4)
+    fx_config = KickFxConfig(section_count_weights={0: 1.0})
+    no_gaps = SectionConfig(section_count_weights={0: 1.0})
+    gaps = SectionConfig(section_count_weights={2: 1.0})
+
+    full = draw_kick_track(
+        grid, _bank(), no_gaps, fx_config, np.random.default_rng(1)
+    )
+    gapped = draw_kick_track(
+        grid, _bank(), gaps, fx_config, np.random.default_rng(1)
+    )
+
+    outside = np.ones(len(full.beats), dtype=bool)
+    for gap in gapped.gaps:
+        outside &= (full.beats < gap.start) | (full.beats >= gap.end)
+    np.testing.assert_array_equal(gapped.beats, full.beats[outside])

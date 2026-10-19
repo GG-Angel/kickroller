@@ -111,7 +111,16 @@ DEFAULT_LAYERS = [
 ]
 
 
-class KickFxConfig(BaseModel):
+class SectionConfig(BaseModel):
+    """Sections of whole beats, which start on any beat and do not overlap."""
+
+    section_count_weights: dict[int, float]
+    """Weight of each number of sections in a drop."""
+    section_beats: list[int] = [1, 2, 4]
+    """Lengths of a section in beats."""
+
+
+class KickFxConfig(SectionConfig):
     """Sections of the kick track that go through a resonant high-pass."""
 
     section_count_weights: dict[int, float] = {
@@ -121,9 +130,6 @@ class KickFxConfig(BaseModel):
         3: 0.2,
         4: 0.15,
     }
-    """Weight of each number of sections in a drop."""
-    section_beats: list[int] = [1, 2, 4]
-    """Lengths of a section in beats."""
     high_pass_hz_range: tuple[float, float] = (300.0, 1250.0)
     """Range of the high-pass cutoff, drawn log-uniform."""
     resonance_q_range: tuple[float, float] = (1.5, 10.0)
@@ -135,6 +141,10 @@ class KickFxConfig(BaseModel):
 class SynthConfig(BaseModel):
     layers: list[LayerConfig] = DEFAULT_LAYERS
     kick_fx: KickFxConfig = KickFxConfig()
+    kick_gaps: SectionConfig = SectionConfig(
+        section_count_weights={0: 0.4, 1: 0.35, 2: 0.25}
+    )
+    """Sections where the kick stops and the other layers continue."""
 
     steps: list[int] = [3, 4, 6, 8]
     bpms: list[int] = [140, 150, 155, 160, 165, 170, 180]

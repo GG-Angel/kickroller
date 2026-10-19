@@ -51,7 +51,7 @@ def generate_drop(
     mix = Mix()
 
     # 1. Generate the kick track
-    kick = draw_kick_track(grid, bank, config.kick_fx, rng)
+    kick = draw_kick_track(grid, bank, config.kick_gaps, config.kick_fx, rng)
     mix.add_tracks(kick.track)
 
     # 2. Generate the tracks of each layer
