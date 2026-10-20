@@ -1,9 +1,10 @@
 from dataclasses import dataclass, field
 
+import librosa
 import numpy as np
 from loguru import logger
 
-from src.core.config import KickFxConfig, SectionConfig
+from src.core.config import KickFxConfig, KickRollConfig, SectionConfig
 from src.models.audio import SampleKind
 from src.services.synthesis.bank import SampleBank
 from src.services.synthesis.draws import draw_count
@@ -101,6 +102,8 @@ class KickTrack:
     """``loudest_rms`` of the kick, which the other layers are leveled to."""
     gaps: list[BeatSpan]
     """Spans where the kick stops."""
+    rolls: list[BeatSpan]
+    """Spans where a kick plays on every step of a roll."""
 
 
 def _draw_spans(
@@ -161,6 +164,47 @@ def draw_kick_fx(
     return sections
 
 
+@dataclass(frozen=True)
+class KickPattern:
+    beats: np.ndarray
+    """Beat positions of the kicks, in order."""
+    gains: np.ndarray
+    """Gain of each kick."""
+
+
+def _add_rolls(
+    beats: np.ndarray,
+    rolls: list[BeatSpan],
+    config: KickRollConfig,
+    rng: np.random.Generator,
+) -> KickPattern:
+    """The kicks with each roll span replaced by a kick on every roll step.
+
+    Each roll draws one rate and one level for all of its kicks.
+    """
+    gains = np.ones(len(beats))
+    for roll in rolls:
+        steps = int(rng.choice(config.steps_per_beat))
+        db = rng.uniform(*config.level_db_range)
+        logger.debug(
+            f"kick roll of 1/{4 * steps} notes at {db:.1f} dB "
+            f"on beats {roll.start}-{roll.end}"
+        )
+        outside = (beats < roll.start) | (beats >= roll.end)
+        roll_beats = (
+            roll.start + np.arange((roll.end - roll.start) * steps) / steps
+        )
+        beats = np.concatenate([beats[outside], roll_beats])
+        gains = np.concatenate(
+            [
+                gains[outside],
+                np.full(len(roll_beats), librosa.db_to_amplitude(db)),
+            ]
+        )
+    order = np.argsort(beats)
+    return KickPattern(beats=beats[order], gains=gains[order])
+
+
 def _draw_log_uniform(
     value_range: tuple[float, float], rng: np.random.Generator
 ) -> float:
@@ -172,13 +216,16 @@ def draw_kick_track(
     grid: Grid,
     bank: SampleBank,
     gap_config: SectionConfig,
+    roll_config: KickRollConfig,
     fx_config: KickFxConfig,
     rng: np.random.Generator,
 ) -> KickTrack:
-    """One kick at the positions of a random kick pattern, with gaps and FX.
+    """One kick at the positions of a random kick pattern, with gaps, rolls
+    and FX.
 
     Each kick cuts the tail of the one before it. There are no kicks in a gap,
-    but the tail of the kick before a gap continues. Kick FX are not in gaps.
+    but the tail of the kick before a gap continues. Gaps, rolls and kick FX
+    do not overlap.
     """
     kick = trim_signal(bank.draw(SampleKind.KICK, rng).signal)
     beats = KickPatternGenerator(grid, rng=rng).generate()
@@ -187,10 +234,16 @@ def draw_kick_track(
     for gap in gaps:
         logger.debug(f"kick gap on beats {gap.start}-{gap.end}")
         beats = beats[(beats < gap.start) | (beats >= gap.end)]
+    rolls = _draw_spans(grid, roll_config, taken, rng)
+    pattern = _add_rolls(beats, rolls, roll_config, rng)
     track = Track(grid)
-    for beat in beats:
-        track.insert(kick, beat, blend=False)
+    for beat, gain in zip(pattern.beats, pattern.gains, strict=True):
+        track.insert(kick * gain, beat, blend=False)
     track.add_effects(*draw_kick_fx(grid, fx_config, rng, taken))
     return KickTrack(
-        track=track, beats=beats, level=loudest_rms(kick), gaps=gaps
+        track=track,
+        beats=pattern.beats,
+        level=loudest_rms(kick),
+        gaps=gaps,
+        rolls=rolls,
     )

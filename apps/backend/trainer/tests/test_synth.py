@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from src.core.config import (
     CONFIG,
     KickFxConfig,
+    KickRollConfig,
     LayerConfig,
     MasterConfig,
     Placement,
@@ -218,6 +219,10 @@ def test_kick_fx_can_be_off() -> None:
     )
 
 
+_NO_ROLLS = KickRollConfig(section_count_weights={0: 1.0})
+_ROLLS = KickRollConfig(section_count_weights={2: 1.0})
+
+
 def test_kick_gaps_have_no_kicks_and_no_kick_fx() -> None:
     grid = Grid(bpm=160, bars=4)
     gap_config = SectionConfig(section_count_weights={2: 1.0})
@@ -225,7 +230,9 @@ def test_kick_gaps_have_no_kicks_and_no_kick_fx() -> None:
     rng = np.random.default_rng(0)
 
     for _ in range(50):
-        kick = draw_kick_track(grid, _bank(), gap_config, fx_config, rng)
+        kick = draw_kick_track(
+            grid, _bank(), gap_config, _ROLLS, fx_config, rng
+        )
 
         assert len(kick.gaps) == 2
         for gap in kick.gaps:
@@ -249,16 +256,43 @@ def test_kick_gaps_keep_the_kicks_outside_the_gaps() -> None:
     gaps = SectionConfig(section_count_weights={2: 1.0})
 
     full = draw_kick_track(
-        grid, _bank(), no_gaps, fx_config, np.random.default_rng(1)
+        grid, _bank(), no_gaps, _NO_ROLLS, fx_config, np.random.default_rng(1)
     )
     gapped = draw_kick_track(
-        grid, _bank(), gaps, fx_config, np.random.default_rng(1)
+        grid, _bank(), gaps, _NO_ROLLS, fx_config, np.random.default_rng(1)
     )
 
     outside = np.ones(len(full.beats), dtype=bool)
     for gap in gapped.gaps:
         outside &= (full.beats < gap.start) | (full.beats >= gap.end)
     np.testing.assert_array_equal(gapped.beats, full.beats[outside])
+
+
+def test_kick_rolls_play_every_roll_step_at_the_roll_level() -> None:
+    grid = Grid(bpm=160, bars=4)
+    no_gaps = SectionConfig(section_count_weights={0: 1.0})
+    rolls = KickRollConfig(
+        section_count_weights={1: 1.0},
+        section_beats=[2],
+        steps_per_beat=[3],
+        level_db_range=(-6, -6),
+    )
+    no_fx = KickFxConfig(section_count_weights={0: 1.0})
+
+    kick = draw_kick_track(
+        grid, _bank(), no_gaps, rolls, no_fx, np.random.default_rng(0)
+    )
+
+    (roll,) = kick.rolls
+    inside = (kick.beats >= roll.start) & (kick.beats < roll.end)
+    np.testing.assert_allclose(
+        kick.beats[inside], roll.start + np.arange(6) / 3
+    )
+    assert np.all(np.diff(kick.beats) > 0)
+    start, end = grid.to_sample(roll.start), grid.to_sample(roll.end)
+    roll_peak = np.abs(kick.track.signal[start:end]).max()
+    other_peak = np.abs(np.delete(kick.track.signal, np.s_[start:end])).max()
+    assert roll_peak / other_peak == pytest.approx(10 ** (-6 / 20), rel=0.01)
 
 
 def test_master_effects_without_config_only_set_the_peak() -> None:

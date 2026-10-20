@@ -139,6 +139,17 @@ class KickFxConfig(SectionConfig):
     """Filter orders to draw from: each order adds 6 dB/oct of slope."""
 
 
+class KickRollConfig(SectionConfig):
+    """Sections where a kick plays on every step of a fast roll."""
+
+    section_count_weights: dict[int, float] = {0: 0.5, 1: 0.35, 2: 0.15}
+    section_beats: list[int] = [1, 2]
+    steps_per_beat: list[int] = [2, 3, 4]
+    """Roll rates to draw from: 1/8, 1/12 (triplet) and 1/16 notes."""
+    level_db_range: tuple[float, float] = (-3.0, 0.0)
+    """Range of the roll kick level relative to the other kicks."""
+
+
 class MasterConfig(BaseModel):
     """Random master effects on each drop, which make the drops more varied.
 
@@ -176,6 +187,7 @@ class SynthConfig(BaseModel):
         section_count_weights={0: 0.4, 1: 0.35, 2: 0.25}
     )
     """Sections where the kick stops and the other layers continue."""
+    kick_rolls: KickRollConfig = KickRollConfig()
     sidechain_ratio_range: tuple[float, float] = (0.7, 0.95)
     """Range of the duck depth at each kick."""
     sidechain_seconds_range: tuple[float, float] = (0.06, 0.25)

@@ -57,7 +57,8 @@ All code lives in `src/services/`.
 
 - **Training drops are synthesized on the fly** (`synthesis/`): kicks from the
   bank on a random grid, plus melody/vocal/drum/impact/fx layers, sidechain,
-  kick FX, kick gaps, and a random master chain (tilt, clip, limiter, MP3, gain).
+  kick FX, kick gaps, kick rolls (1/8, 1/12, 1/16), and a random master chain
+  (tilt, clip, limiter, MP3, gain).
   Every batch is brand new, so there's nothing to memorize.
 - **Validation:** 64 fixed drops built only from **held-out kicks** (~10%, picked
   by a hash of the file name). We score on kicks it has never heard.
