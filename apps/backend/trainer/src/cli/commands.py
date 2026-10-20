@@ -7,6 +7,7 @@ from src.core.logging import configure_logging
 from src.models.audio import SampleKind
 from src.services.synthesis.bank import load_sample_bank_from_file
 from src.services.synthesis.export import export_drops
+from src.services.training.train import train as train_model
 
 app = typer.Typer(
     help="Find kick onsets in a hardstyle track.",
@@ -41,9 +42,42 @@ def analyze() -> None:
 
 
 @app.command()
-def train() -> None:
-    """Train a kick onset model."""
-    typer.echo("Train is not implemented yet.")
+def train(
+    bank_file: Path = typer.Option(
+        Path("bank.yaml"),
+        "--bank-file",
+        "-b",
+        help="Path to the sample bank configuration file.",
+    ),
+    no_cache: bool = typer.Option(
+        False,
+        "--no-cache",
+        help="Decode samples without reading or writing the bank cache.",
+    ),
+    output: Path = typer.Option(
+        Path("model.pt"),
+        "--output",
+        "-o",
+        dir_okay=False,
+        help="File for the model with the best validation F-measure.",
+    ),
+    steps: int = typer.Option(
+        CONFIG.train.steps, "--steps", min=1, help="Number of training steps."
+    ),
+    seed: int | None = typer.Option(
+        None,
+        "--seed",
+        min=0,
+        help="Seed for reproducible training (default: a new seed in the log).",
+    ),
+) -> None:
+    """Train a kick onset model on synthetic drops."""
+    config = CONFIG.train.model_copy(update={"steps": steps})
+    best = train_model(bank_file, output, not no_cache, seed, config)
+    typer.echo(
+        f"Best validation F-measure {best.f_measure:.3f} at threshold "
+        f"{best.threshold}, saved to {output}."
+    )
 
 
 @app.command()

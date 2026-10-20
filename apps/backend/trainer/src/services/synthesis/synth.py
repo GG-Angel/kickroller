@@ -6,6 +6,7 @@ import numpy as np
 from src.core.config import CONFIG, LayerConfig, SynthConfig
 from src.models.audio import LabeledDrop
 from src.services.synthesis.bank import SampleBank
+from src.services.synthesis.crop import crop_drop, draw_crop
 from src.services.synthesis.draws import draw_count
 from src.services.synthesis.effects import Filter, Sidechain
 from src.services.synthesis.grid import Grid
@@ -78,3 +79,14 @@ def generate_drop(
 
     onsets = librosa.samples_to_time(kick_starts, sr=grid.sr)
     return LabeledDrop(signal=mix.mix(), onsets=onsets)
+
+
+def generate_cropped_drop(
+    bank: SampleBank,
+    rng: np.random.Generator,
+    config: SynthConfig = CONFIG.synth,
+) -> LabeledDrop:
+    """Generate a drop and crop a random window of ``drop_seconds`` from it."""
+    drop = generate_drop(bank, rng, config)
+    duration = len(drop.signal) / CONFIG.sr
+    return crop_drop(drop, draw_crop(rng, duration, config.drop_seconds))

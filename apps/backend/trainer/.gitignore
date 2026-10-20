@@ -25,3 +25,6 @@ bank.yaml.cache
 
 # Synth output
 drops/
+
+# Models
+*.pt

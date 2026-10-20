@@ -131,3 +131,24 @@ def test_synth_can_turn_off_the_master_effects(options: list[str]) -> None:
         assert config.master is None
     else:
         assert config.master == CONFIG.synth.master
+
+
+def test_train_passes_the_options(tmp_path: Path) -> None:
+    output = tmp_path / "model.pt"
+    with patch("src.cli.commands.train_model") as train:
+        train.return_value.f_measure = 0.9
+        train.return_value.threshold = 0.5
+        result = CliRunner().invoke(
+            app,
+            ["train", "-o", str(output), "--steps", "7", "--seed", "3"],
+        )
+
+    assert result.exit_code == 0, result.output
+    bank_file, saved, use_cache, seed, config = train.call_args.args
+    assert (bank_file, saved, use_cache, seed) == (
+        Path("bank.yaml"),
+        output,
+        True,
+        3,
+    )
+    assert config.steps == 7

@@ -21,7 +21,7 @@ def test_export_drops_writes_numbered_audio_and_onsets(tmp_path: Path) -> None:
     folder = tmp_path / "drops"
 
     with patch(
-        "src.services.synthesis.export.generate_drop", return_value=_drop()
+        "src.services.synthesis.synth.generate_drop", return_value=_drop()
     ):
         export_drops(SampleBank(samples=[]), folder, count=2, seed=0)
 
@@ -44,7 +44,7 @@ def test_export_drops_keeps_the_level_of_the_drop(tmp_path: Path) -> None:
     )
 
     with patch(
-        "src.services.synthesis.export.generate_drop", return_value=drop
+        "src.services.synthesis.synth.generate_drop", return_value=drop
     ):
         export_drops(SampleBank(samples=[]), tmp_path, count=1, seed=0)
 
@@ -57,7 +57,7 @@ def test_export_drops_uses_the_given_config(tmp_path: Path) -> None:
     config = CONFIG.synth.model_copy(update={"drop_seconds": 2.0})
 
     with patch(
-        "src.services.synthesis.export.generate_drop", return_value=_drop()
+        "src.services.synthesis.synth.generate_drop", return_value=_drop()
     ) as generate:
         export_drops(SampleBank(samples=[]), tmp_path, 1, 0, config)
 

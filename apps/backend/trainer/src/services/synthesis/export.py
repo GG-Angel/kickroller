@@ -6,8 +6,7 @@ from loguru import logger
 from src.core.config import CONFIG, SynthConfig
 from src.core.storage import save_audio, save_onsets
 from src.services.synthesis.bank import SampleBank
-from src.services.synthesis.crop import crop_drop, draw_crop
-from src.services.synthesis.synth import generate_drop
+from src.services.synthesis.synth import generate_cropped_drop
 
 
 def export_drops(
@@ -28,10 +27,7 @@ def export_drops(
     rng = np.random.default_rng(seed_sequence)
     folder.mkdir(parents=True, exist_ok=True)
     for index in range(count):
-        drop = generate_drop(bank, rng, config)
-        duration = len(drop.signal) / CONFIG.sr
-        window = draw_crop(rng, duration, config.drop_seconds)
-        drop = crop_drop(drop, window)
+        drop = generate_cropped_drop(bank, rng, config)
         path = folder / f"drop_{index:03d}"
         save_audio(path.with_suffix(".wav"), drop.signal)
         save_onsets(path.with_suffix(".csv"), drop.onsets)
