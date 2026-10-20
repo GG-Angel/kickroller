@@ -347,3 +347,29 @@ def test_sidechained_layers_of_a_drop_share_one_sidechain() -> None:
         assert low <= drawn["duration"] <= high
     assert len({drawn["ratio"] for drawn in sidechains}) == 3
     assert len({drawn["duration"] for drawn in sidechains}) == 3
+
+
+@pytest.mark.parametrize("probability", [0.0, 1.0])
+def test_full_band_tracks_skip_the_high_pass(probability: float) -> None:
+    layer = LayerConfig(
+        kind=SampleKind.MELODY,
+        is_loop=True,
+        track_count_weights={2: 1.0},
+        level_db_range=(0, 3),
+        full_band_probability=probability,
+    )
+    config = CONFIG.synth.model_copy(update={"layers": [layer], "master": None})
+
+    with patch(
+        "src.services.synthesis.synth.draw_loop_track", wraps=draw_loop_track
+    ) as draw:
+        generate_drop(_bank(), np.random.default_rng(0), config)
+
+    is_full_band = probability == 1.0
+    for call in draw.call_args_list:
+        drawn = call.args[2]
+        assert (drawn.high_pass_hz is None) == is_full_band
+        assert drawn.level_db_range == (
+            layer.full_band_level_db_range if is_full_band else (0, 3)
+        )
+    assert draw.call_count == 2
