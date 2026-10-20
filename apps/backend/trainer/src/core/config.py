@@ -26,12 +26,6 @@ class LayerConfig(BaseModel):
     """Range of the level relative to the kick, in dB of ``loudest_rms``."""
     high_pass_hz: float | None = 200.0
     """High-pass cutoff, or None for no high-pass."""
-    full_band_probability: float = Field(default=0.0, ge=0, le=1)
-    """Chance that a track has no high-pass, so that it competes with the
-    kick in the sub band."""
-    full_band_level_db_range: tuple[float, float] = (-18, -6)
-    """Range of the level of a full-band track, instead of
-    ``level_db_range``."""
     is_sidechained: bool = False
     """Whether the tracks duck at each kick, with the sidechain of the drop."""
     placements: list[Placement] = []
@@ -58,8 +52,7 @@ DEFAULT_LAYERS = [
         kind=SampleKind.MELODY,
         is_loop=True,
         track_count_weights={0: 0.2, 1: 0.8},
-        level_db_range=(-8, 3),
-        full_band_probability=0.15,
+        level_db_range=(-8, 0),
         is_sidechained=True,
     ),
     LayerConfig(
@@ -75,7 +68,6 @@ DEFAULT_LAYERS = [
         is_loop=True,
         track_count_weights={0: 0.85, 1: 0.15},
         level_db_range=(-12, -4),
-        full_band_probability=0.15,
         is_sidechained=True,
     ),
     LayerConfig(

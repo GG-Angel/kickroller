@@ -30,19 +30,6 @@ def draw_grid(config: SynthConfig, rng: np.random.Generator) -> Grid:
     )
 
 
-def _draw_track_layer(
-    layer: LayerConfig, rng: np.random.Generator
-) -> LayerConfig:
-    if rng.random() >= layer.full_band_probability:
-        return layer
-    return layer.model_copy(
-        update={
-            "high_pass_hz": None,
-            "level_db_range": layer.full_band_level_db_range,
-        }
-    )
-
-
 def _add_layer_effects(
     track: Track,
     layer: LayerConfig,
@@ -79,15 +66,12 @@ def generate_drop(
     )
     for layer in config.layers:
         for _ in range(draw_count(layer.track_count_weights, rng)):
-            track_layer = _draw_track_layer(layer, rng)
             track = (
-                draw_loop_track(grid, bank, track_layer, kick.level, rng)
+                draw_loop_track(grid, bank, layer, kick.level, rng)
                 if layer.is_loop
-                else draw_one_shot_track(
-                    grid, bank, track_layer, kick.level, rng
-                )
+                else draw_one_shot_track(grid, bank, layer, kick.level, rng)
             )
-            _add_layer_effects(track, track_layer, sidechain)
+            _add_layer_effects(track, layer, sidechain)
             mix.add_tracks(track)
 
     # 3. Normalize and augment the mix

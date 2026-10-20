@@ -27,18 +27,20 @@ All code lives in `src/services/`.
 
 ## 2. Network (`training/network.py`)
 
-`KickNet`, ~130k weights.
+`KickNet`, ~114k weights.
 
-| Block                        | What                                | Why                                                |
-| ---------------------------- | ----------------------------------- | -------------------------------------------------- |
-| 3× Conv2d + BatchNorm + ReLU | 3×7, 3×7, 3×9 kernels (freq × time) | learn "energy just started in the sub/click band"  |
-| MaxPool (3, 1) after each    | pools **frequency only**            | pooling time would eat our 10 ms precision. never. |
-| Conv1d head                  | 11 frames, then 1×1                 | squashes everything into one logit per frame       |
+| Block                        | What                                  | Why                                                              |
+| ---------------------------- | ------------------------------------- | ---------------------------------------------------------------- |
+| 3× Conv2d + BatchNorm + ReLU | 3×7, 3×7, 3×9 kernels (freq × time)   | learn "energy just started in the sub/click band"                |
+| MaxPool (3, 1) after each    | pools **frequency only**              | pooling time would eat our 10 ms precision. never.               |
+| Dilated Conv1d head          | 5× kernel 3, dilations 1–16, then 1×1 | sees the attack, the tail and the next kick; one logit per frame |
 
-- **Context = exactly ±15 frames (±150 ms)**, and a test enforces it. Enough to
-  see the attack, the pitch drop and some tail, so a screech or clap can't fool it.
-  Shorter than an 1/8 note, so it _can't_ learn a beat grid. On purpose:
-  rawstyle is full of off-beat kicks and rolls, and we refuse to assume 4/4.
+- **Context = exactly ±41 frames (±410 ms)**, and a test enforces it. A bit
+  more than one beat at 160 BPM, as in the old model. ±150 ms was too short:
+  tonal punches (kloenk, metallic) looked like screech attacks, and the start
+  of a kick's tail looked like a new kick. The random kick patterns keep it
+  from leaning on a 4/4 grid.
+- **Dropout 0.1** after each head layer.
 - **Fully convolutional:** one forward pass per drop, one logit per frame.
 
 ## 3. Labels + loss
@@ -48,7 +50,7 @@ All code lives in `src/services/`.
 - **Loss:** BCE with logits, `pos_weight = 5`. Kicks are ~1 in 37 frames, so
   without the weight the model just says "no kick" forever and gets 97% accuracy.
   lazy behavior.
-- **Edge mask:** the first and last 15 frames don't see their full context, so
+- **Edge mask:** the first and last 41 frames don't see their full context, so
   they don't count in the loss.
 
 ## 4. Data

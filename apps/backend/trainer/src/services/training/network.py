@@ -7,9 +7,13 @@ from torch import nn
 from src.core.config import CONFIG, FeatureConfig
 from src.services.training.features import band_count
 
-CONTEXT_FRAMES = 15
-"""Frames on each side of a frame that its output can see (±150 ms)."""
+CONTEXT_FRAMES = 41
+"""Frames on each side of a frame that its output can see (±410 ms): 10
+from the conv blocks and 31 from the dilated head."""
 _FREQUENCY_POOL = 3
+_HEAD_DILATIONS = (1, 2, 4, 8, 16)
+_HEAD_CHANNELS = 64
+_DROPOUT = 0.1
 
 
 def _conv_block(inputs: int, outputs: int, time_kernel: int) -> nn.Sequential:
@@ -44,12 +48,23 @@ class KickNet(nn.Module):
             _conv_block(16, 32, 7),
             _conv_block(32, 32, 9),
         )
-        pooled_bands = bands // _FREQUENCY_POOL**3
-        self.head = nn.Sequential(
-            nn.Conv1d(32 * pooled_bands, 64, 11, padding=5),
-            nn.ReLU(),
-            nn.Conv1d(64, 1, 1),
-        )
+        channels = 32 * (bands // _FREQUENCY_POOL**3)
+        layers: list[nn.Module] = []
+        # dilated time convolutions see the kick tail and its neighbors
+        for dilation in _HEAD_DILATIONS:
+            layers += [
+                nn.Conv1d(
+                    channels,
+                    _HEAD_CHANNELS,
+                    3,
+                    padding=dilation,
+                    dilation=dilation,
+                ),
+                nn.ReLU(),
+                nn.Dropout(_DROPOUT),
+            ]
+            channels = _HEAD_CHANNELS
+        self.head = nn.Sequential(*layers, nn.Conv1d(channels, 1, 1))
 
     @torch.no_grad()
     def set_standardization(self, features: torch.Tensor) -> None:
