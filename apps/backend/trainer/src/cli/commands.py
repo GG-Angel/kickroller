@@ -4,9 +4,16 @@ import typer
 
 from src.core.config import CONFIG, SynthConfig
 from src.core.logging import configure_logging
+from src.core.storage import load_audio, load_onsets, save_audio, save_onsets
 from src.models.audio import SampleKind
+from src.services.analysis.analyze import (
+    add_clicks,
+    analyze_signal,
+    score_onsets,
+)
 from src.services.synthesis.bank import load_sample_bank_from_file
 from src.services.synthesis.export import export_drops
+from src.services.training.network import load_checkpoint
 from src.services.training.train import train as train_model
 
 app = typer.Typer(
@@ -36,9 +43,67 @@ def configure_cli(
 
 
 @app.command()
-def analyze() -> None:
-    """Analyze audio tracks."""
-    typer.echo("Analyze is not implemented yet.")
+def analyze(
+    track: Path = typer.Argument(
+        ..., exists=True, dir_okay=False, help="Audio file of the track."
+    ),
+    model: Path = typer.Option(
+        Path("model.pt"),
+        "--model",
+        "-m",
+        exists=True,
+        dir_okay=False,
+        help="Trained model file.",
+    ),
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        dir_okay=False,
+        help="CSV of `time,confidence` lines (default: the track path, .csv).",
+    ),
+    threshold: float | None = typer.Option(
+        None,
+        "--threshold",
+        min=0,
+        max=1,
+        help="Peak threshold (default: the threshold of the model).",
+    ),
+    clicks: bool = typer.Option(
+        False,
+        "--clicks",
+        help="Also write the track with a click at each onset, as "
+        "`<output>.clicks.wav`.",
+    ),
+    labels: Path | None = typer.Option(
+        None,
+        "--labels",
+        exists=True,
+        dir_okay=False,
+        help="CSV of labeled onset times to score the onsets against.",
+    ),
+) -> None:
+    """Find the kick onsets of a track."""
+    output = output or track.with_suffix(".csv")
+    checkpoint = load_checkpoint(model)
+    signal = load_audio(track)
+    analysis = analyze_signal(signal, checkpoint, threshold)
+    save_onsets(output, analysis.onsets, analysis.confidences)
+    typer.echo(f"Found {len(analysis.onsets)} kicks, saved to {output}.")
+    if clicks:
+        clicks_path = output.with_suffix(".clicks.wav")
+        save_audio(clicks_path, add_clicks(signal, analysis.onsets))
+        typer.echo(f"Saved clicks to {clicks_path}.")
+    if labels:
+        score = score_onsets(
+            analysis.onsets,
+            load_onsets(labels),
+            threshold or checkpoint.threshold,
+        )
+        typer.echo(
+            f"F-measure {score.f_measure:.3f} (precision "
+            f"{score.precision:.3f}, recall {score.recall:.3f})."
+        )
 
 
 @app.command()

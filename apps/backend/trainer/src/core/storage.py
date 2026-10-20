@@ -26,7 +26,17 @@ def save_audio(path: Path, signal: Signal) -> None:
     logger.info(f"Saved audio to {path}")
 
 
-def save_onsets(path: Path, onsets: np.ndarray) -> None:
-    """Save onsets as one time in seconds per line (Sonic Visualiser format)."""
-    np.savetxt(path, onsets, fmt="%.6f")
+def save_onsets(
+    path: Path, onsets: np.ndarray, confidences: np.ndarray | None = None
+) -> None:
+    rows = (
+        onsets
+        if confidences is None
+        else np.column_stack([onsets, confidences])
+    )
+    np.savetxt(path, rows, fmt="%.6f", delimiter=",")
     logger.info(f"Saved {len(onsets)} onsets to {path}")
+
+
+def load_onsets(path: Path) -> np.ndarray:
+    return np.loadtxt(path, delimiter=",", usecols=0, ndmin=1)

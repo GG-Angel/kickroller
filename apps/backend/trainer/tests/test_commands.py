@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from src.cli.commands import app
 from src.core.config import CONFIG
 from src.models.audio import SampleKind
+from src.services.analysis.analyze import Analysis
 from src.services.synthesis.bank import Sample, SampleBank, is_held_out
 
 
@@ -152,3 +153,43 @@ def test_train_passes_the_options(tmp_path: Path) -> None:
         3,
     )
     assert config.steps == 7
+
+
+def test_analyze_writes_onsets_clicks_and_scores(tmp_path: Path) -> None:
+    track = tmp_path / "track.wav"
+    model = tmp_path / "model.pt"
+    labels = tmp_path / "labels.csv"
+    for path in (track, model):
+        path.touch()
+    labels.write_text("0.5\n1.0\n")
+    analysis = Analysis(onsets=np.array([0.5, 1.0]), confidences=np.ones(2))
+
+    with (
+        patch("src.cli.commands.load_checkpoint") as load_model,
+        patch(
+            "src.cli.commands.load_audio",
+            return_value=np.zeros(CONFIG.sr, dtype=np.float32),
+        ),
+        patch("src.cli.commands.analyze_signal", return_value=analysis) as run,
+    ):
+        load_model.return_value.threshold = 0.85
+        result = CliRunner().invoke(
+            app,
+            [
+                "analyze",
+                str(track),
+                "-m",
+                str(model),
+                "--threshold",
+                "0.3",
+                "--clicks",
+                "--labels",
+                str(labels),
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert run.call_args.args[2] == 0.3
+    assert (tmp_path / "track.csv").exists()
+    assert (tmp_path / "track.clicks.wav").exists()
+    assert "F-measure 1.000" in result.output
