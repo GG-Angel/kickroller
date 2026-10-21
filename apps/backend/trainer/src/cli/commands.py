@@ -62,6 +62,11 @@ def analyze(
         dir_okay=False,
         help="CSV of `time,confidence` lines (default: the track path, .csv).",
     ),
+    confidences: bool = typer.Option(
+        True,
+        "--confidences/--no-confidences",
+        help="Write the confidence of each onset, or only the onset times.",
+    ),
     threshold: float | None = typer.Option(
         None,
         "--threshold",
@@ -88,7 +93,11 @@ def analyze(
     checkpoint = load_checkpoint(model)
     signal = load_audio(track)
     analysis = analyze_signal(signal, checkpoint, threshold)
-    save_onsets(output, analysis.onsets, analysis.confidences)
+    save_onsets(
+        output,
+        analysis.onsets,
+        analysis.confidences if confidences else None,
+    )
     typer.echo(f"Found {len(analysis.onsets)} kicks, saved to {output}.")
     if clicks:
         clicks_path = output.with_suffix(".clicks.wav")
