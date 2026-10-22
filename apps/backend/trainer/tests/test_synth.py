@@ -36,7 +36,12 @@ from src.services.synthesis.patterns.one_shot import (
     OneShotPatternGenerator,
     draw_one_shot_track,
 )
-from src.services.synthesis.synth import draw_grid, generate_drop
+from src.services.synthesis.synth import (
+    _add_layer_effects,
+    draw_grid,
+    generate_drop,
+)
+from src.services.synthesis.track import Track
 
 
 def test_draw_grid_is_one_bar_longer_than_the_crop() -> None:
@@ -171,6 +176,33 @@ def test_layer_tracks_are_leveled_relative_to_the_kick(db: float) -> None:
     assert loudest_rms(loop.signal) == pytest.approx(expected, rel=1e-4)
 
 
+def test_layer_high_pass_cutoff_is_drawn_from_its_range_or_off() -> None:
+    layer = LayerConfig(
+        kind=SampleKind.MELODY,
+        is_loop=True,
+        track_count_weights={1: 1.0},
+        level_db_range=(0, 0),
+        high_pass_hz_range=(60.0, 200.0),
+    )
+    sidechain = Sidechain(np.array([0]))
+    rng = np.random.default_rng(0)
+
+    cutoffs = []
+    for _ in range(50):
+        track = Track(Grid(bpm=160, bars=1))
+        _add_layer_effects(track, layer, sidechain, rng)
+        (high_pass,) = track.effects
+        assert isinstance(high_pass, Filter)
+        assert isinstance(high_pass.cutoff, float)
+        cutoffs.append(high_pass.cutoff)
+    assert 60.0 <= min(cutoffs) < max(cutoffs) <= 200.0
+
+    track = Track(Grid(bpm=160, bars=1))
+    unfiltered = layer.model_copy(update={"high_pass_hz_range": None})
+    _add_layer_effects(track, unfiltered, sidechain, rng)
+    assert track.effects == []
+
+
 def test_kick_fx_sections_are_whole_beats_and_do_not_overlap() -> None:
     grid = Grid(bpm=160, bars=2)
     config = KickFxConfig(section_count_weights={4: 1.0})
@@ -221,6 +253,27 @@ def test_kick_fx_can_be_off() -> None:
 
 _NO_ROLLS = KickRollConfig(section_count_weights={0: 1.0})
 _ROLLS = KickRollConfig(section_count_weights={2: 1.0})
+_NO_OFF_BEATS = (0.0, 0.0)
+
+
+def test_kick_off_beat_chance_adds_off_beat_kicks_on_any_grid() -> None:
+    grid = Grid(bpm=160, bars=64, steps_per_beat=3)
+    no_sections = SectionConfig(section_count_weights={0: 1.0})
+    no_fx = KickFxConfig(section_count_weights={0: 1.0})
+
+    kick = draw_kick_track(
+        grid,
+        _bank(),
+        no_sections,
+        _NO_ROLLS,
+        no_fx,
+        (0.5, 0.5),
+        np.random.default_rng(0),
+    )
+
+    off_beats = np.isclose(kick.beats % 1, 0.5)
+    assert 0.4 < off_beats.sum() / grid.beats < 0.6
+    assert np.all(np.diff(kick.beats) > 0)
 
 
 def test_kick_gaps_have_no_kicks_and_no_kick_fx() -> None:
@@ -231,7 +284,7 @@ def test_kick_gaps_have_no_kicks_and_no_kick_fx() -> None:
 
     for _ in range(50):
         kick = draw_kick_track(
-            grid, _bank(), gap_config, _ROLLS, fx_config, rng
+            grid, _bank(), gap_config, _ROLLS, fx_config, _NO_OFF_BEATS, rng
         )
 
         assert len(kick.gaps) == 2
@@ -256,10 +309,22 @@ def test_kick_gaps_keep_the_kicks_outside_the_gaps() -> None:
     gaps = SectionConfig(section_count_weights={2: 1.0})
 
     full = draw_kick_track(
-        grid, _bank(), no_gaps, _NO_ROLLS, fx_config, np.random.default_rng(1)
+        grid,
+        _bank(),
+        no_gaps,
+        _NO_ROLLS,
+        fx_config,
+        _NO_OFF_BEATS,
+        np.random.default_rng(1),
     )
     gapped = draw_kick_track(
-        grid, _bank(), gaps, _NO_ROLLS, fx_config, np.random.default_rng(1)
+        grid,
+        _bank(),
+        gaps,
+        _NO_ROLLS,
+        fx_config,
+        _NO_OFF_BEATS,
+        np.random.default_rng(1),
     )
 
     outside = np.ones(len(full.beats), dtype=bool)
@@ -280,7 +345,13 @@ def test_kick_rolls_play_every_roll_step_at_the_roll_level() -> None:
     no_fx = KickFxConfig(section_count_weights={0: 1.0})
 
     kick = draw_kick_track(
-        grid, _bank(), no_gaps, rolls, no_fx, np.random.default_rng(0)
+        grid,
+        _bank(),
+        no_gaps,
+        rolls,
+        no_fx,
+        _NO_OFF_BEATS,
+        np.random.default_rng(0),
     )
 
     (roll,) = kick.rolls

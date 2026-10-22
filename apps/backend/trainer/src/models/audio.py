@@ -14,6 +14,7 @@ class SampleKind(StrEnum):
     DRUM = "drum"
     IMPACT = "impact"
     FX = "fx"
+    BASS = "bass"
 
 
 @dataclass(frozen=True)

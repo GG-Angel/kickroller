@@ -56,9 +56,14 @@ All code lives in `src/services/`.
 ## 4. Data
 
 - **Training drops are synthesized on the fly** (`synthesis/`): kicks from the
-  bank on a random grid, plus melody/vocal/drum/impact/fx layers, sidechain,
-  kick FX, kick gaps, kick rolls (1/8, 1/12, 1/16), and a random master chain
-  (tilt, clip, limiter, MP3, gain).
+  bank on a random grid, plus melody/vocal/drum/impact/fx/bass layers,
+  sidechain, kick FX, kick gaps, kick rolls (1/8, 1/12, 1/16), and a random
+  master chain (tilt, clip, limiter, MP3, gain).
+- **Off-beat kicks:** each drop draws an extra 0–30% chance of a 1/8 off-beat
+  kick per beat, so some drops gallop and some don't.
+- **Sub negatives:** layers are high-passed (melody at a random 60–200 Hz,
+  the others at 200 Hz), except impacts and the **bass** layer. Bass hits on
+  off-beats and 1/16s teach the model that a sub onset alone is not a kick.
   Every batch is brand new, so there's nothing to memorize.
 - **Validation:** 64 fixed drops built only from **held-out kicks** (~10%, picked
   by a hash of the file name). We score on kicks it has never heard.

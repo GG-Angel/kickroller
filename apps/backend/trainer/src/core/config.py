@@ -24,8 +24,9 @@ class LayerConfig(BaseModel):
     """Weight of each number of tracks in a drop."""
     level_db_range: tuple[float, float]
     """Range of the level relative to the kick, in dB of ``loudest_rms``."""
-    high_pass_hz: float | None = 200.0
-    """High-pass cutoff, or None for no high-pass."""
+    high_pass_hz_range: tuple[float, float] | None = (200.0, 200.0)
+    """Range of the high-pass cutoff, drawn log-uniform for each track, or
+    None for no high-pass."""
     is_sidechained: bool = False
     """Whether the tracks duck at each kick, with the sidechain of the drop."""
     placements: list[Placement] = []
@@ -45,6 +46,7 @@ BAR = Placement(period=4, probability_range=(0.2, 0.5))
 BACKBEAT = Placement(period=2, offset=1, probability_range=(0.6, 1.0))
 BEAT = Placement(period=1, probability_range=(0.2, 0.5))
 OFFBEAT = Placement(period=1, offset=0.5, probability_range=(0.3, 0.8))
+SIXTEENTHS = Placement(period=0.5, offset=0.25, probability_range=(0.1, 0.4))
 STEP = Placement(probability_range=(0.02, 0.1))
 
 DEFAULT_LAYERS = [
@@ -53,6 +55,7 @@ DEFAULT_LAYERS = [
         is_loop=True,
         track_count_weights={0: 0.2, 1: 0.8},
         level_db_range=(-8, 0),
+        high_pass_hz_range=(60.0, 200.0),
         is_sidechained=True,
     ),
     LayerConfig(
@@ -60,6 +63,7 @@ DEFAULT_LAYERS = [
         is_loop=False,
         track_count_weights={0: 0.85, 1: 0.15},
         level_db_range=(-10, -2),
+        high_pass_hz_range=(60.0, 200.0),
         is_sidechained=True,
         placements=[OFFBEAT, STEP],
     ),
@@ -97,7 +101,7 @@ DEFAULT_LAYERS = [
         is_loop=False,
         track_count_weights={0: 0.7, 1: 0.3},
         level_db_range=(-6, 0),
-        high_pass_hz=None,
+        high_pass_hz_range=None,
         is_sidechained=True,
         placements=[PHRASE],
     ),
@@ -108,6 +112,15 @@ DEFAULT_LAYERS = [
         level_db_range=(-18, -8),
         is_sidechained=True,
         placements=[BAR, STEP],
+    ),
+    LayerConfig(
+        kind=SampleKind.BASS,
+        is_loop=False,
+        track_count_weights={0: 0.5, 1: 0.5},
+        level_db_range=(-12, -3),
+        high_pass_hz_range=None,
+        is_sidechained=True,
+        placements=[OFFBEAT, SIXTEENTHS],
     ),
 ]
 
@@ -188,6 +201,9 @@ class SynthConfig(BaseModel):
     )
     """Sections where the kick stops and the other layers continue."""
     kick_rolls: KickRollConfig = KickRollConfig()
+    kick_off_beat_range: tuple[float, float] = (0.0, 0.3)
+    """Range of the extra chance of a 1/8 off-beat kick on each beat, drawn
+    once per drop."""
     sidechain_ratio_range: tuple[float, float] = (0.7, 0.95)
     """Range of the duck depth at each kick."""
     sidechain_seconds_range: tuple[float, float] = (0.06, 0.25)

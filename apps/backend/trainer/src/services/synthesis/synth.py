@@ -7,7 +7,7 @@ from src.core.config import CONFIG, LayerConfig, SynthConfig
 from src.models.audio import LabeledDrop
 from src.services.synthesis.bank import SampleBank
 from src.services.synthesis.crop import crop_drop, draw_crop
-from src.services.synthesis.draws import draw_count
+from src.services.synthesis.draws import draw_count, draw_log_uniform
 from src.services.synthesis.effects import Filter, Sidechain
 from src.services.synthesis.grid import Grid
 from src.services.synthesis.master import draw_master_effects
@@ -34,9 +34,11 @@ def _add_layer_effects(
     track: Track,
     layer: LayerConfig,
     sidechain: Sidechain,
+    rng: np.random.Generator,
 ) -> None:
-    if layer.high_pass_hz is not None:
-        track.add_effects(Filter(cutoff=layer.high_pass_hz, btype="highpass"))
+    if layer.high_pass_hz_range is not None:
+        cutoff = draw_log_uniform(layer.high_pass_hz_range, rng)
+        track.add_effects(Filter(cutoff=cutoff, btype="highpass"))
     if layer.is_sidechained:
         track.add_effects(sidechain)
 
@@ -55,7 +57,13 @@ def generate_drop(
 
     # 1. Generate the kick track
     kick = draw_kick_track(
-        grid, bank, config.kick_gaps, config.kick_rolls, config.kick_fx, rng
+        grid,
+        bank,
+        config.kick_gaps,
+        config.kick_rolls,
+        config.kick_fx,
+        config.kick_off_beat_range,
+        rng,
     )
     mix.add_tracks(kick.track)
 
@@ -73,7 +81,7 @@ def generate_drop(
                 if layer.is_loop
                 else draw_one_shot_track(grid, bank, layer, kick.level, rng)
             )
-            _add_layer_effects(track, layer, sidechain)
+            _add_layer_effects(track, layer, sidechain, rng)
             mix.add_tracks(track)
 
     # 3. Normalize and augment the mix

@@ -78,7 +78,7 @@ def test_synth_can_use_kicks_only() -> None:
 
 
 def test_synth_rejects_unknown_kinds() -> None:
-    result = CliRunner().invoke(app, ["synth", "-k", "bass"])
+    result = CliRunner().invoke(app, ["synth", "-k", "snare"])
 
     assert result.exit_code != 0
 
