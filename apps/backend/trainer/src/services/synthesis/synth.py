@@ -2,7 +2,6 @@ from math import ceil
 
 import librosa
 import numpy as np
-from loguru import logger
 
 from src.core.config import CONFIG, LayerConfig, SynthConfig
 from src.models.audio import LabeledDrop
@@ -51,15 +50,12 @@ def generate_drop(
 ) -> LabeledDrop:
     """Generate a random drop and the onset of each kick in it.
 
-    With ``config.kickless_probability``, the drop has no kick and no onsets,
-    and its layers have no high-pass and no sidechain. The drop peaks at
-    ``config.peak_db`` before the master effects.
+    The drop peaks at ``config.peak_db`` before the master effects.
     """
-    is_kickless = rng.random() < config.kickless_probability
     grid = draw_grid(config, rng)
     mix = Mix(sr=grid.sr)
 
-    # 1. Generate the kick track; a kickless drop only uses its level
+    # 1. Generate the kick track
     kick = draw_kick_track(
         grid,
         bank,
@@ -69,12 +65,7 @@ def generate_drop(
         config.kick_off_beat_range,
         rng,
     )
-    if is_kickless:
-        logger.debug("kickless drop: no kick, high-pass or sidechain")
-        # A silent track keeps the drop length when no layer plays.
-        mix.add_tracks(Track(grid))
-    else:
-        mix.add_tracks(kick.track)
+    mix.add_tracks(kick.track)
 
     # 2. Generate the tracks of each layer
     kick_starts = grid.to_samples(kick.beats)
@@ -91,18 +82,13 @@ def generate_drop(
                 if layer.is_loop
                 else draw_one_shot_track(grid, bank, layer, kick.level, rng)
             )
-            if not is_kickless:
-                _add_layer_effects(track, layer, sidechain, rng)
+            _add_layer_effects(track, layer, sidechain, rng)
             mix.add_tracks(track)
 
     # 3. Normalize and augment the mix
     mix.add_effects(*draw_master_effects(config.master, config.peak_db, rng))
 
-    onsets = (
-        np.empty(0)
-        if is_kickless
-        else librosa.samples_to_time(kick_starts, sr=grid.sr)
-    )
+    onsets = librosa.samples_to_time(kick_starts, sr=grid.sr)
     return LabeledDrop(signal=mix.mix(), onsets=onsets)
 
 

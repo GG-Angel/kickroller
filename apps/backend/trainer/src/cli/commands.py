@@ -188,14 +188,7 @@ def synth(
         "--kind",
         "-k",
         help="Only use layers of this kind (repeatable; default: all). "
-        "The kick is always used, unless --kickless, so `-k kick` gives kicks "
-        "only.",
-    ),
-    kickless: bool = typer.Option(
-        False,
-        "--kickless",
-        help="Make every drop kickless: no kick and no onsets, and no "
-        "high-pass or sidechain on the layers.",
+        "The kick is always used, so `-k kick` gives kicks only.",
     ),
     held_out: bool = typer.Option(
         False,
@@ -215,9 +208,7 @@ def synth(
     bank = bank.select_kicks(held_out, CONFIG.synth.held_out_kick_fraction)
     kicks = sum(sample.kind == SampleKind.KICK for sample in bank.samples)
     typer.echo(f"Using {kicks} {'held-out' if held_out else 'training'} kicks.")
-    config = _select_kinds(kinds).model_copy(
-        update={"kickless_probability": float(kickless)}
-    )
+    config = _select_kinds(kinds)
     if no_master:
         config = config.model_copy(update={"master": None})
     export_drops(bank, output, count, seed, config)

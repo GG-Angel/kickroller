@@ -194,13 +194,9 @@ class SynthConfig(BaseModel):
     kick_off_beat_range: tuple[float, float] = (0.0, 0.3)
     """Range of the extra chance of a 1/8 off-beat kick on each beat, drawn
     once per drop."""
-    kickless_probability: float = Field(default=0.2, ge=0, le=1)
-    """Chance that a drop has no kick and no labels, and no high-pass or
-    sidechain on its layers, so that the model hears the full low end of the
-    other sounds without a kick."""
     sidechain_probability: float = Field(default=0.75, ge=0, le=1)
-    """Chance that the layers of a drop duck at each kick, drawn apart from
-    kickless drops, so that the pumping does not tell if a drop has kicks."""
+    """Chance that the layers of a drop duck at each kick, so that the model
+    does not rely on the pumping to find kicks."""
     sidechain_ratio_range: tuple[float, float] = (0.3, 0.95)
     """Range of the duck depth at each kick."""
     sidechain_seconds_range: tuple[float, float] = (0.06, 0.25)

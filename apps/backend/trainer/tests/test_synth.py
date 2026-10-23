@@ -129,9 +129,7 @@ def test_sample_bank_draws_only_loops_or_one_shots() -> None:
 
 
 def test_layers_do_not_change_kick_onsets() -> None:
-    config = CONFIG.synth.model_copy(
-        update={"bpms": [160], "kickless_probability": 0.0}
-    )
+    config = CONFIG.synth.model_copy(update={"bpms": [160]})
     every_layer = [
         layer.model_copy(update={"track_count_weights": {1: 1.0}})
         for layer in config.layers
@@ -152,35 +150,6 @@ def test_layers_do_not_change_kick_onsets() -> None:
     np.testing.assert_array_equal(full.onsets, kicks_only.onsets)
     assert len(full.signal) == len(kicks_only.signal)
     assert not np.array_equal(full.signal, kicks_only.signal)
-
-
-def test_kickless_drop_has_no_kick_and_no_layer_effects() -> None:
-    config = CONFIG.synth.model_copy(
-        update={"kickless_probability": 1.0, "master": None}
-    )
-    every_layer = [
-        layer.model_copy(update={"track_count_weights": {1: 1.0}})
-        for layer in config.layers
-    ]
-    bank = _bank()
-
-    no_layers = generate_drop(
-        bank,
-        np.random.default_rng(0),
-        config.model_copy(update={"layers": []}),
-    )
-    with patch("src.services.synthesis.synth._add_layer_effects") as effects:
-        layers_only = generate_drop(
-            bank,
-            np.random.default_rng(0),
-            config.model_copy(update={"layers": every_layer}),
-        )
-
-    assert len(no_layers.onsets) == len(layers_only.onsets) == 0
-    assert len(no_layers.signal) == len(layers_only.signal)
-    assert not no_layers.signal.any()
-    assert layers_only.signal.any()
-    effects.assert_not_called()
 
 
 @pytest.mark.parametrize("db", [0.0, -6.0])
