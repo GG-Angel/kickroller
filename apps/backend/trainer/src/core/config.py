@@ -45,7 +45,6 @@ BAR = Placement(period=4, probability_range=(0.2, 0.5))
 BACKBEAT = Placement(period=2, offset=1, probability_range=(0.6, 1.0))
 BEAT = Placement(period=1, probability_range=(0.2, 0.5))
 OFFBEAT = Placement(period=1, offset=0.5, probability_range=(0.3, 0.8))
-SIXTEENTHS = Placement(period=0.5, offset=0.25, probability_range=(0.1, 0.4))
 STEP = Placement(probability_range=(0.02, 0.1))
 
 DEFAULT_LAYERS = [
@@ -102,15 +101,6 @@ DEFAULT_LAYERS = [
         level_db_range=(-18, -8),
         is_sidechained=True,
         placements=[BAR, STEP],
-    ),
-    LayerConfig(
-        kind=SampleKind.BASS,
-        is_loop=False,
-        track_count_weights={0: 0.5, 1: 0.5},
-        level_db_range=(-12, -3),
-        high_pass_hz_range=None,
-        is_sidechained=True,
-        placements=[OFFBEAT, SIXTEENTHS],
     ),
 ]
 

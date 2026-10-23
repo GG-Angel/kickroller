@@ -13,7 +13,6 @@ class SampleKind(StrEnum):
     VOCAL = "vocal"
     DRUM = "drum"
     FX = "fx"
-    BASS = "bass"
 
 
 @dataclass(frozen=True)
