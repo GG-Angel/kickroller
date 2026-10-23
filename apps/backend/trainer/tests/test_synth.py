@@ -27,6 +27,7 @@ from src.services.synthesis.effects import (
     Sidechain,
     Tilt,
     loudest_rms,
+    trim_to_attack,
 )
 from src.services.synthesis.grid import Grid
 from src.services.synthesis.master import draw_master_effects
@@ -364,6 +365,52 @@ def test_kick_rolls_play_every_roll_step_at_the_roll_level() -> None:
     roll_peak = np.abs(kick.track.signal[start:end]).max()
     other_peak = np.abs(np.delete(kick.track.signal, np.s_[start:end])).max()
     assert roll_peak / other_peak == pytest.approx(10 ** (-6 / 20), rel=0.01)
+
+
+def test_kick_tail_notes_play_the_kick_without_its_punch_and_have_no_label() -> (
+    None
+):
+    grid = Grid(bpm=160, bars=8)
+    no_gaps = SectionConfig(section_count_weights={0: 1.0})
+    no_fx = KickFxConfig(section_count_weights={0: 1.0})
+    bank = _bank()
+
+    kick = draw_kick_track(
+        grid,
+        bank,
+        no_gaps,
+        _NO_ROLLS,
+        no_fx,
+        _NO_OFF_BEATS,
+        np.random.default_rng(0),
+        tail_note_range=(1.0, 1.0),
+        tail_skip_seconds_range=(0.05, 0.05),
+    )
+
+    notes = kick.tail_notes
+    assert len(notes) > grid.beats / 2
+    assert not np.isin(notes, kick.beats).any()
+    for note in notes:
+        assert note % 1 == 0.5 and note - 0.5 in kick.beats
+        assert not np.any((kick.beats > note - 0.5) & (kick.beats < note))
+    tail = trim_to_attack(
+        bank.draw(SampleKind.KICK, np.random.default_rng()).signal
+    )
+    skip, start = round(0.05 * grid.sr), grid.to_sample(notes[0])
+    assert kick.track.signal[start] == 0.0
+    np.testing.assert_allclose(
+        kick.track.signal[start + 300 : start + 400],
+        tail[skip + 300 : skip + 400],
+    )
+
+
+def test_trim_to_attack_removes_quiet_pre_echo_before_the_attack() -> None:
+    pre_echo = np.full(1100, 0.01, dtype=np.float32)
+    attack = np.linspace(1.0, 0.5, 4000, dtype=np.float32)
+
+    trimmed = trim_to_attack(np.concatenate([pre_echo, attack]))
+
+    np.testing.assert_array_equal(trimmed, attack)
 
 
 def test_master_effects_without_config_only_set_the_peak() -> None:

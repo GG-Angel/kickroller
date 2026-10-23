@@ -34,6 +34,19 @@ def trim_signal(signal: Signal) -> Signal:
     return trimmed
 
 
+def trim_to_attack(signal: Signal, top_db: float = 20.0) -> Signal:
+    """Trim the signal, and start it at the first sample within ``top_db`` of its peak.
+
+    The -60 dB trim keeps MP3 encoder delay and pre-echo (about 25 ms), which
+    would put the onset label before the attack.
+    """
+    trimmed = trim_signal(signal)
+    magnitude = np.abs(trimmed)
+    return trimmed[
+        np.argmax(magnitude >= magnitude.max() * 10 ** (-top_db / 20)) :
+    ]
+
+
 def filter_signal(
     signal: Signal,
     cutoff: float | tuple[float, float],

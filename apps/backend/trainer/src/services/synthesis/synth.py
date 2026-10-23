@@ -64,6 +64,8 @@ def generate_drop(
         config.kick_fx,
         config.kick_off_beat_range,
         rng,
+        config.kick_tail_note_range,
+        config.kick_tail_skip_seconds_range,
     )
     mix.add_tracks(kick.track)
 

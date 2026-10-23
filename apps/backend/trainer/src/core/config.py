@@ -184,6 +184,14 @@ class SynthConfig(BaseModel):
     kick_off_beat_range: tuple[float, float] = (0.0, 0.3)
     """Range of the extra chance of a 1/8 off-beat kick on each beat, drawn
     once per drop."""
+    kick_tail_note_range: tuple[float, float] = (0.0, 0.0)
+    """Range of the chance of a tail note on the 1/8 off-beat after each
+    on-beat kick, drawn once per drop. A tail note is the kick without its
+    punch and has no label, like the kick tails that rawstyle tracks restart
+    on the off-beat. Off: (0.0, 0.5) lowered the real-drop F from 0.868 to
+    0.835."""
+    kick_tail_skip_seconds_range: tuple[float, float] = (0.03, 0.08)
+    """Range of the punch length that a tail note skips, drawn once per drop."""
     sidechain_probability: float = Field(default=0.75, ge=0, le=1)
     """Chance that the layers of a drop duck at each kick, so that the model
     does not rely on the pumping to find kicks."""

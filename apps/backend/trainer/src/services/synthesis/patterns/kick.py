@@ -5,14 +5,14 @@ import numpy as np
 from loguru import logger
 
 from src.core.config import KickFxConfig, KickRollConfig, SectionConfig
-from src.models.audio import SampleKind
+from src.models.audio import SampleKind, Signal
 from src.services.synthesis.bank import SampleBank
 from src.services.synthesis.draws import draw_count, draw_log_uniform
 from src.services.synthesis.effects import (
     Filter,
     Section,
     loudest_rms,
-    trim_signal,
+    trim_to_attack,
 )
 from src.services.synthesis.grid import Grid
 from src.services.synthesis.patterns.pattern import PatternGenerator
@@ -116,6 +116,8 @@ class KickTrack:
     """Spans where the kick stops."""
     rolls: list[BeatSpan]
     """Spans where a kick plays on every step of a roll."""
+    tail_notes: np.ndarray
+    """Beat positions of the tail notes, which are not kicks."""
 
 
 def _draw_spans(
@@ -225,16 +227,19 @@ def draw_kick_track(
     fx_config: KickFxConfig,
     off_beat_range: tuple[float, float],
     rng: np.random.Generator,
+    tail_note_range: tuple[float, float] = (0.0, 0.0),
+    tail_skip_seconds_range: tuple[float, float] = (0.03, 0.08),
 ) -> KickTrack:
     """One kick at the positions of a random kick pattern, with gaps, rolls
     and FX. The chance of an extra 1/8 off-beat kick is drawn once per drop
-    from ``off_beat_range``.
+    from ``off_beat_range``, and so is the chance of a tail note from
+    ``tail_note_range``.
 
-    Each kick cuts the tail of the one before it. There are no kicks in a gap,
-    but the tail of the kick before a gap continues. Gaps, rolls and kick FX
-    do not overlap.
+    Each kick or tail note cuts the tail of the one before it. There are no
+    kicks in a gap, but the tail of the kick before a gap continues. Gaps,
+    rolls and kick FX do not overlap.
     """
-    kick = trim_signal(bank.draw(SampleKind.KICK, rng).signal)
+    kick = trim_to_attack(bank.draw(SampleKind.KICK, rng).signal)
     off_beat = rng.uniform(*off_beat_range)
     logger.debug(f"kick off-beat chance {off_beat:.2f}")
     beats = KickPatternGenerator(
@@ -247,9 +252,20 @@ def draw_kick_track(
         beats = beats[(beats < gap.start) | (beats >= gap.end)]
     rolls = _draw_spans(grid, roll_config, taken, rng)
     pattern = _add_rolls(beats, rolls, roll_config, rng)
+    tail_notes = _draw_tail_notes(
+        pattern.beats, taken, rng.uniform(*tail_note_range), rng
+    )
+    tail = _fade_in(
+        kick[round(rng.uniform(*tail_skip_seconds_range) * grid.sr) :],
+        round(0.005 * grid.sr),
+    )
+    events = [
+        (beat, kick * gain)
+        for beat, gain in zip(pattern.beats, pattern.gains, strict=True)
+    ] + [(beat, tail) for beat in tail_notes]
     track = Track(grid)
-    for beat, gain in zip(pattern.beats, pattern.gains, strict=True):
-        track.insert(kick * gain, beat, blend=False)
+    for beat, signal in sorted(events, key=lambda event: event[0]):
+        track.insert(signal, beat, blend=False)
     track.add_effects(*draw_kick_fx(grid, fx_config, rng, taken))
     return KickTrack(
         track=track,
@@ -257,4 +273,31 @@ def draw_kick_track(
         level=loudest_rms(kick),
         gaps=gaps,
         rolls=rolls,
+        tail_notes=tail_notes,
     )
+
+
+def _draw_tail_notes(
+    beats: np.ndarray,
+    taken: np.ndarray,
+    chance: float,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """1/8 off-beats after on-beat kicks, each with ``chance``, where no kick
+    plays up to the off-beat and the beat is not in a gap or roll."""
+    on_beats = beats[(beats % 1 == 0) & ~taken[beats.astype(int)]]
+    off_beats = on_beats + 0.5
+    free = np.searchsorted(beats, on_beats, side="right") == np.searchsorted(
+        beats, off_beats, side="right"
+    )
+    notes = off_beats[free & (rng.random(len(off_beats)) < chance)]
+    logger.debug(f"kick tail notes chance {chance:.2f}: {len(notes)}")
+    return notes
+
+
+def _fade_in(signal: Signal, samples: int) -> Signal:
+    """The signal with a linear fade-in, so that it starts without a click."""
+    faded = signal.copy()
+    samples = min(samples, len(faded))
+    faded[:samples] *= np.linspace(0.0, 1.0, samples, dtype=np.float32)
+    return faded
