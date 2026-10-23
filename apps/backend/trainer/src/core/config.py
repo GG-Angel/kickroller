@@ -41,7 +41,6 @@ class LayerConfig(BaseModel):
         return self
 
 
-PHRASE = Placement(period=16, probability_range=(0.5, 1.0))
 BAR = Placement(period=4, probability_range=(0.2, 0.5))
 BACKBEAT = Placement(period=2, offset=1, probability_range=(0.6, 1.0))
 BEAT = Placement(period=1, probability_range=(0.2, 0.5))
@@ -95,15 +94,6 @@ DEFAULT_LAYERS = [
         track_count_weights={0: 0.4, 1: 0.5, 2: 0.1},
         level_db_range=(-12, -3),
         placements=[BACKBEAT, BEAT, OFFBEAT, STEP],
-    ),
-    LayerConfig(
-        kind=SampleKind.IMPACT,
-        is_loop=False,
-        track_count_weights={0: 0.7, 1: 0.3},
-        level_db_range=(-6, 0),
-        high_pass_hz_range=None,
-        is_sidechained=True,
-        placements=[PHRASE],
     ),
     LayerConfig(
         kind=SampleKind.FX,

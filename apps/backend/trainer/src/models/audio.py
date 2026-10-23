@@ -12,7 +12,6 @@ class SampleKind(StrEnum):
     MELODY = "melody"
     VOCAL = "vocal"
     DRUM = "drum"
-    IMPACT = "impact"
     FX = "fx"
     BASS = "bass"
 
