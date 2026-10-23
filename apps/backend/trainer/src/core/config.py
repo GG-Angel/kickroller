@@ -204,6 +204,10 @@ class SynthConfig(BaseModel):
     kick_off_beat_range: tuple[float, float] = (0.0, 0.3)
     """Range of the extra chance of a 1/8 off-beat kick on each beat, drawn
     once per drop."""
+    kickless_probability: float = Field(default=0.2, ge=0, le=1)
+    """Chance that a drop has no kick and no labels, and no high-pass or
+    sidechain on its layers, so that the model hears the full low end of the
+    other sounds without a kick."""
     sidechain_ratio_range: tuple[float, float] = (0.7, 0.95)
     """Range of the duck depth at each kick."""
     sidechain_seconds_range: tuple[float, float] = (0.06, 0.25)
@@ -220,7 +224,7 @@ class SynthConfig(BaseModel):
     master: MasterConfig | None = MasterConfig()
     """Master effects for augmentation, or None for no augmentation."""
 
-    held_out_kick_fraction: float = Field(default=0.1, ge=0, le=1)
+    held_out_kick_fraction: float = Field(default=0.2, ge=0, le=1)
     """Part of the kicks that only validation drops use."""
 
 

@@ -6,7 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from src.cli.commands import app
-from src.core.config import CONFIG
+from src.core.config import CONFIG, SynthConfig
 from src.models.audio import SampleKind
 from src.services.analysis.analyze import Analysis
 from src.services.synthesis.bank import Sample, SampleBank, is_held_out
@@ -45,10 +45,11 @@ def test_synth_writes_drops_to_output_folder(tmp_path: Path) -> None:
         )
 
     assert result.exit_code == 0
-    export.assert_called_once_with(bank, output, 3, 5, CONFIG.synth)
+    config = CONFIG.synth.model_copy(update={"kickless_probability": 0.0})
+    export.assert_called_once_with(bank, output, 3, 5, config)
 
 
-def _invoke_synth(*options: str) -> list:
+def _invoke_synth(*options: str) -> SynthConfig:
     with (
         patch(
             "src.cli.commands.load_sample_bank_from_file",
@@ -59,22 +60,32 @@ def _invoke_synth(*options: str) -> list:
         result = CliRunner().invoke(app, ["synth", *options])
 
     assert result.exit_code == 0, result.output
-    return export.call_args.args[4].layers
+    return export.call_args.args[4]
 
 
 def test_synth_uses_all_layers_by_default() -> None:
-    assert _invoke_synth() == CONFIG.synth.layers
+    assert _invoke_synth().layers == CONFIG.synth.layers
 
 
 def test_synth_can_use_only_some_kinds() -> None:
-    layers = _invoke_synth("-k", "kick", "--kind", "drum")
+    layers = _invoke_synth("-k", "kick", "--kind", "drum").layers
 
     assert layers
     assert {layer.kind for layer in layers} == {SampleKind.DRUM}
 
 
 def test_synth_can_use_kicks_only() -> None:
-    assert _invoke_synth("-k", "kick") == []
+    assert _invoke_synth("-k", "kick").layers == []
+
+
+@pytest.mark.parametrize(
+    ("options", "probability"),
+    [([], 0.0), (["-k", "kick"], 0.0), (["--kickless"], 1.0)],
+)
+def test_synth_drops_have_kicks_unless_kickless(
+    options: list[str], probability: float
+) -> None:
+    assert _invoke_synth(*options).kickless_probability == probability
 
 
 def test_synth_rejects_unknown_kinds() -> None:

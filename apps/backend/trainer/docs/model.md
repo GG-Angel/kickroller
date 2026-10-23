@@ -58,15 +58,20 @@ All code lives in `src/services/`.
 - **Training drops are synthesized on the fly** (`synthesis/`): kicks from the
   bank on a random grid, plus melody/vocal/drum/impact/fx/bass layers,
   sidechain, kick FX, kick gaps, kick rolls (1/8, 1/12, 1/16), and a random
-  master chain (tilt, clip, limiter, MP3, gain).
+  master chain (tilt, clip, limiter, MP3, gain). Every batch is brand new, so
+  there's nothing to memorize.
 - **Off-beat kicks:** each drop draws an extra 0–30% chance of a 1/8 off-beat
   kick per beat, so some drops gallop and some don't.
 - **Sub negatives:** layers are high-passed (melody at a random 60–200 Hz,
   the others at 200 Hz), except impacts and the **bass** layer. Bass hits on
   off-beats and 1/16s teach the model that a sub onset alone is not a kick.
-  Every batch is brand new, so there's nothing to memorize.
+- **Kickless drops:** 20% of drops have no kick and no labels, and no high-pass
+  or sidechain on any layer. The model hears the full low end of melodies,
+  vocals, drums and bass, and learns that it is not a kick.
+  `trainer synth --kickless` writes only kickless drops, to listen to them.
 - **Validation:** 64 fixed drops built only from **held-out kicks** (~10%, picked
-  by a hash of the file name). We score on kicks it has never heard.
+  by a hash of the file name). We score on kicks it has never heard. About 20%
+  of them are kickless, so their false kicks lower the precision.
 - **The real exam:** hand-labeled real drops. Synthetic F is a vibe check, not proof.
 
 ## 5. Peak picking + scoring (`training/evaluate.py`)
