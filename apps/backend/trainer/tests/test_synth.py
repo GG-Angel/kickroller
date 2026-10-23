@@ -465,7 +465,11 @@ def test_sidechained_layers_of_a_drop_share_one_sidechain() -> None:
         for layer in CONFIG.synth.layers
     ]
     config = CONFIG.synth.model_copy(
-        update={"layers": every_layer, "master": None}
+        update={
+            "layers": every_layer,
+            "master": None,
+            "sidechain_probability": 1.0,
+        }
     )
     sidechains = []
     for seed in range(3):
@@ -483,3 +487,15 @@ def test_sidechained_layers_of_a_drop_share_one_sidechain() -> None:
         assert low <= drawn["duration"] <= high
     assert len({drawn["ratio"] for drawn in sidechains}) == 3
     assert len({drawn["duration"] for drawn in sidechains}) == 3
+
+
+def test_drop_without_pumping_has_no_sidechain() -> None:
+    config = CONFIG.synth.model_copy(
+        update={"master": None, "sidechain_probability": 0.0}
+    )
+    with patch(
+        "src.services.synthesis.synth.Sidechain", wraps=Sidechain
+    ) as sidechain:
+        generate_drop(_bank(), np.random.default_rng(0), config)
+
+    assert sidechain.call_args.kwargs["ratio"] == 0.0

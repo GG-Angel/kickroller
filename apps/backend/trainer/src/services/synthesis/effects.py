@@ -190,6 +190,11 @@ def sidechain_signal(
     fade: float = 0.005,
     sr: int = CONFIG.sr,
 ) -> Signal:
+    """Duck the signal at each trigger, like a sidechain compressor.
+
+    The gain falls by ``ratio`` over the ``fade`` attack, then rises back on
+    a smooth (cosine) release, so the whole duck lasts ``duration``.
+    """
     _validate_sidechain(triggers, ratio, duration)
 
     # only sidechain if both ratio and duration are non-zero
@@ -199,23 +204,22 @@ def sidechain_signal(
     samples = len(signal)
     duration_samples = max(1, round(duration * sr))
     fade_samples = min(max(1, round(fade * sr)), duration_samples // 2)
-    envelope = np.zeros(samples, dtype=np.float32)
-    ramp = 0.5 - 0.5 * np.cos(
-        np.pi * np.linspace(0.0, 1.0, fade_samples + 1, dtype=np.float32)
+    attack = 0.5 - 0.5 * np.cos(
+        np.pi * np.linspace(0.0, 1.0, fade_samples, endpoint=False)
     )
+    release = 0.5 + 0.5 * np.cos(
+        np.pi * np.linspace(0.0, 1.0, duration_samples - fade_samples)
+    )
+    shape = np.concatenate([attack, release]).astype(np.float32)
+    envelope = np.zeros(samples, dtype=np.float32)
     for trigger in triggers:
         start = int(trigger)
         end = min(start + duration_samples, samples)
-        length = end - start
-        if length <= 0:
+        if end <= start:
             continue
-        event_envelope = np.ones(length, dtype=np.float32)
-        if fade_samples:
-            event_fade = min(fade_samples, length // 2)
-            if event_fade:
-                event_envelope[:event_fade] = ramp[:event_fade]
-                event_envelope[-event_fade:] = ramp[:event_fade][::-1]
-        envelope[start:end] = np.maximum(envelope[start:end], event_envelope)
+        envelope[start:end] = np.maximum(
+            envelope[start:end], shape[: end - start]
+        )
     return np.asarray(signal * (1.0 - ratio * envelope), dtype=np.float32)
 
 

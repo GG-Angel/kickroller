@@ -78,9 +78,10 @@ def generate_drop(
 
     # 2. Generate the tracks of each layer
     kick_starts = grid.to_samples(kick.beats)
+    is_pumping = rng.random() < config.sidechain_probability
     sidechain = Sidechain(
         kick_starts,
-        ratio=rng.uniform(*config.sidechain_ratio_range),
+        ratio=rng.uniform(*config.sidechain_ratio_range) if is_pumping else 0.0,
         duration=rng.uniform(*config.sidechain_seconds_range),
     )
     for layer in config.layers:

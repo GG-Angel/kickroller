@@ -198,10 +198,13 @@ class SynthConfig(BaseModel):
     """Chance that a drop has no kick and no labels, and no high-pass or
     sidechain on its layers, so that the model hears the full low end of the
     other sounds without a kick."""
-    sidechain_ratio_range: tuple[float, float] = (0.7, 0.95)
+    sidechain_probability: float = Field(default=0.75, ge=0, le=1)
+    """Chance that the layers of a drop duck at each kick, drawn apart from
+    kickless drops, so that the pumping does not tell if a drop has kicks."""
+    sidechain_ratio_range: tuple[float, float] = (0.3, 0.95)
     """Range of the duck depth at each kick."""
     sidechain_seconds_range: tuple[float, float] = (0.06, 0.25)
-    """Range of the duck length after each kick."""
+    """Range of the duck length after each kick, attack and release."""
 
     steps: list[int] = [3, 4, 6, 8]
     bpms: list[int] = [140, 150, 155, 160, 165, 170, 180]
