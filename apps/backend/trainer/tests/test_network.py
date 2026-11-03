@@ -22,16 +22,16 @@ def test_kick_net_gives_one_logit_per_frame() -> None:
 
 def test_kick_net_sees_exactly_its_context() -> None:
     model = KickNet().eval()
-    features = _features(400)
+    features = _features()
     changed = features.clone()
-    changed[:, :, :, 200] += 5.0
+    changed[:, :, :, 50] += 5.0
 
     with torch.no_grad():
         difference = (model(changed) - model(features)).abs().sum(dim=0)
 
-    seen = torch.nonzero(difference > 1e-9).flatten()
-    assert seen.min() == 200 - CONTEXT_FRAMES
-    assert seen.max() == 200 + CONTEXT_FRAMES
+    seen = torch.nonzero(difference > 1e-6).flatten()
+    assert seen.min() == 50 - CONTEXT_FRAMES
+    assert seen.max() == 50 + CONTEXT_FRAMES
 
 
 def test_kick_net_standardizes_its_input() -> None:
