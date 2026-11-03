@@ -260,8 +260,9 @@ class TrainConfig(BaseModel):
     main process."""
     thresholds: list[float] = [round(0.05 * i, 2) for i in range(2, 19)]
     """Peak thresholds that validation tries; the best one is saved."""
-    tolerance: float = 0.02
-    """Largest onset error, in seconds, that counts as a hit."""
+    tolerance: float = 0.02 + 1e-6
+    """Largest onset error, in seconds, that counts as a hit. The 1 µs margin
+    makes an error of exactly 20 ms a hit despite float rounding."""
     min_onset_distance: float = 0.04
     """Shortest time between two detected onsets, in seconds."""
 

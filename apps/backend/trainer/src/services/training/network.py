@@ -7,11 +7,11 @@ from torch import nn
 from src.core.config import CONFIG, FeatureConfig
 from src.services.training.features import band_count
 
-CONTEXT_FRAMES = 41
-"""Frames on each side of a frame that its output can see (±410 ms): 10
-from the conv blocks and 31 from the dilated head."""
+CONTEXT_FRAMES = 137
+"""Frames on each side of a frame that its output can see (±1.37 s): 10
+from the conv blocks and 127 from the dilated head."""
 _FREQUENCY_POOL = 3
-_HEAD_DILATIONS = (1, 2, 4, 8, 16)
+_HEAD_DILATIONS = (1, 2, 4, 8, 16, 32, 64)
 _HEAD_CHANNELS = 64
 _DROPOUT = 0.1
 

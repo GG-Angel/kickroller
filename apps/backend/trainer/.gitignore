@@ -27,6 +27,8 @@ banks/
 # Trainer
 drops/
 samples/
+songs/
+results/
 
 # Models
 *.pt
