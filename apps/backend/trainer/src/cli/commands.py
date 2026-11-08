@@ -85,7 +85,8 @@ def analyze(
         "--labels",
         exists=True,
         dir_okay=False,
-        help="CSV of labeled onset times to score the onsets against.",
+        help="CSV of labeled onset times. Score only label groups separated "
+        "by gaps longer than 5 seconds, with 20 ms at each end.",
     ),
 ) -> None:
     """Find the kick onsets of a track."""
@@ -107,7 +108,7 @@ def analyze(
         score = score_onsets(
             analysis.onsets,
             load_onsets(labels),
-            threshold or checkpoint.threshold,
+            checkpoint.threshold if threshold is None else threshold,
         )
         typer.echo(
             f"F-measure {score.f_measure:.3f} (precision "

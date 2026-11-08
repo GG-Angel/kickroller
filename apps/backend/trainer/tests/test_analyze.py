@@ -10,6 +10,7 @@ from src.services.analysis.analyze import (
     add_clicks,
     analyze_signal,
     score_onsets,
+    select_labeled_onsets,
 )
 from src.services.training.network import Checkpoint, KickNet
 
@@ -67,6 +68,42 @@ def test_score_onsets_counts_misses_and_false_onsets() -> None:
     score = score_onsets(estimated, reference, threshold=0.5)
 
     assert score.precision == score.recall == 0.5
+
+
+def test_score_onsets_ignores_unlabeled_gaps_between_drops() -> None:
+    reference = np.array([10.0, 10.375, 30.0, 30.375])
+    estimated = np.array([10.0, 10.375, 15.0, 20.0, 30.0, 30.375])
+
+    score = score_onsets(estimated, reference, threshold=0.5)
+
+    assert score.f_measure == 1.0
+
+
+def test_score_onsets_keeps_pauses_of_five_seconds() -> None:
+    reference = np.array([10.0, 15.0])
+    estimated = np.array([10.0, 12.0, 15.0])
+
+    score = score_onsets(estimated, reference, threshold=0.5)
+
+    assert score.precision == pytest.approx(2 / 3)
+    assert score.recall == 1.0
+
+
+def test_select_labeled_onsets_includes_span_edges() -> None:
+    reference = np.array([10.0, 11.0, 30.0])
+    estimated = np.array(
+        [9.979, 9.98, 11.02, 11.021, 29.979, 29.98, 30.02, 30.021]
+    )
+
+    selected = select_labeled_onsets(estimated, reference)
+
+    np.testing.assert_allclose(selected, [9.98, 11.02, 29.98, 30.02])
+
+
+def test_select_labeled_onsets_has_no_spans_without_labels() -> None:
+    selected = select_labeled_onsets(np.array([1.0]), np.array([]))
+
+    assert selected.size == 0
 
 
 def test_add_clicks_keeps_the_length() -> None:

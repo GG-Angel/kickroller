@@ -155,7 +155,10 @@ def test_train_passes_the_options(tmp_path: Path) -> None:
     assert config.steps == 7
 
 
-def test_analyze_writes_onsets_clicks_and_scores(tmp_path: Path) -> None:
+@pytest.mark.parametrize("threshold", [0.0, 0.3])
+def test_analyze_writes_onsets_clicks_and_scores(
+    tmp_path: Path, threshold: float
+) -> None:
     track = tmp_path / "track.wav"
     model = tmp_path / "model.pt"
     labels = tmp_path / "labels.csv"
@@ -181,7 +184,7 @@ def test_analyze_writes_onsets_clicks_and_scores(tmp_path: Path) -> None:
                 "-m",
                 str(model),
                 "--threshold",
-                "0.3",
+                str(threshold),
                 "--clicks",
                 "--labels",
                 str(labels),
@@ -189,7 +192,7 @@ def test_analyze_writes_onsets_clicks_and_scores(tmp_path: Path) -> None:
         )
 
     assert result.exit_code == 0, result.output
-    assert run.call_args.args[2] == 0.3
+    assert run.call_args.args[2] == threshold
     assert (tmp_path / "track.csv").exists()
     assert (tmp_path / "track.clicks.wav").exists()
     assert "F-measure 1.000" in result.output

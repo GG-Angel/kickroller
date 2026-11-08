@@ -38,18 +38,36 @@ def analyze_signal(
     return Analysis(onsets=onsets, confidences=probabilities[frames])
 
 
+def select_labeled_onsets(
+    estimated: np.ndarray,
+    reference: np.ndarray,
+    tolerance: float = CONFIG.train.tolerance,
+) -> np.ndarray:
+    """Keep predictions in label groups separated by gaps longer than 5 s.
+
+    Each span runs from its first to last label, plus ``tolerance`` at
+    each end. An empty reference has no scored spans.
+    """
+    if not len(reference):
+        return estimated[:0]
+    labels = np.sort(reference)
+    groups = np.split(labels, np.flatnonzero(np.diff(labels) > 5.0) + 1)
+    keep = np.zeros(len(estimated), dtype=bool)
+    for group in groups:
+        keep |= (estimated >= group[0] - tolerance) & (
+            estimated <= group[-1] + tolerance
+        )
+    return estimated[keep]
+
+
 def score_onsets(
     estimated: np.ndarray,
     reference: np.ndarray,
     threshold: float,
     tolerance: float = CONFIG.train.tolerance,
 ) -> Evaluation:
-    """Score the onsets against labels, with a hit within ``tolerance``."""
-    # shortcut: scores one span from the first to the last label, not the
-    # labeled drop regions; read the region files when they exist
-    if len(reference):
-        start, end = reference.min() - tolerance, reference.max() + tolerance
-        estimated = estimated[(estimated >= start) & (estimated <= end)]
+    """Score only labeled spans, with a hit within ``tolerance``."""
+    estimated = select_labeled_onsets(estimated, reference, tolerance)
     f_measure, precision, recall = mir_eval.onset.f_measure(
         reference, estimated, window=tolerance
     )
