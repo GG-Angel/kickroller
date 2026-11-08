@@ -1,0 +1,34 @@
+# Audio and video
+*.wav
+*.mp3
+*.m4a
+*.aac
+*.flac
+*.ogg
+*.aif
+*.aiff
+*.mov
+*.mp4
+
+# Environment
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.ruff_cache/
+
+# Bank
+bank.yaml
+bank.yaml.cache
+banks/
+
+# Trainer
+drops/
+samples/
+songs/
+results/
+
+# Models
+*.pt
