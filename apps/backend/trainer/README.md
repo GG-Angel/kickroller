@@ -22,3 +22,23 @@ affects scoring only. Each model uses its saved threshold unless you supply
 
 These spans are inferred from onset times, not exact drop boundaries. A pause
 longer than 5 seconds inside a labeled drop is excluded by this rule.
+
+# Real-data fine-tuning
+
+`src.services.training.finetune.fine_tune` starts from an existing checkpoint
+and uses equal numbers of real and synthetic examples in each batch. It keeps
+the checkpoint's feature normalization and uses the existing kick-attack trim
+for synthetic examples. Frames outside labeled spans and crop-edge context
+are excluded from the loss.
+
+Supply separate lists of training and validation audio paths. Each audio
+file must have exactly one matching `<name>.csv` or `<name>-labels.csv`.
+Validation selects the checkpoint and peak threshold by combined F-score
+inside labeled spans. The starting checkpoint is also a selection candidate,
+so a run with no validation improvement retains the starting weights.
+The output path must be new.
+
+Keep test tracks separate from both lists. Select the baseline's threshold
+on the same validation tracks, then compare both checkpoints on the test
+tracks with their selected thresholds. Record the split, seed, training and
+synthesis settings with each run. A single run does not measure seed variation.
