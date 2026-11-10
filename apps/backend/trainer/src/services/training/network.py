@@ -9,8 +9,7 @@ from src.core.config import FeatureConfig
 from src.services.training.features import count_bands
 
 CONTEXT_FRAMES = 41
-"""Frames on each side of a frame that its output can see (±410 ms): 10
-from the conv blocks and 31 from the dilated head."""
+"""Frames visible on each side of an output frame (±410 ms)."""
 _FREQUENCY_POOL = 3
 _HEAD_DILATIONS = (1, 2, 4, 8, 16)
 _HEAD_CHANNELS = 64
@@ -29,13 +28,13 @@ def _build_conv_block(
         ),
         nn.BatchNorm2d(outputs),
         nn.ReLU(),
-        # pool frequency only: pooling time would lose the 10 ms precision
+        # Pool frequency only to keep 10 ms timing precision.
         nn.MaxPool2d((_FREQUENCY_POOL, 1)),
     )
 
 
 class KickNet(nn.Module):
-    """Features (batch, windows, bands, frames) to kick logits (batch, frames)."""
+    """Map audio features to kick logits."""
 
     mean: torch.Tensor
     std: torch.Tensor
@@ -53,7 +52,7 @@ class KickNet(nn.Module):
         )
         channels = 32 * (bands // _FREQUENCY_POOL**3)
         layers: list[nn.Module] = []
-        # dilated time convolutions see the kick tail and its neighbors
+        # See the kick tail and its neighboring frames.
         for dilation in _HEAD_DILATIONS:
             layers += [
                 nn.Conv1d(
@@ -84,11 +83,11 @@ class KickNet(nn.Module):
 class Checkpoint:
     model: KickNet
     threshold: float
-    """Peak threshold with the best validation F-measure."""
+    """Threshold with the best validation F-measure."""
 
 
 def save_checkpoint(path: Path, model: KickNet, threshold: float) -> None:
-    """Save a checkpoint containing the model state and threshold."""
+    """Save the model, features, and threshold."""
     torch.save(
         {
             "state_dict": model.state_dict(),
@@ -100,7 +99,7 @@ def save_checkpoint(path: Path, model: KickNet, threshold: float) -> None:
 
 
 def load_checkpoint(path: Path) -> Checkpoint:
-    """Load a checkpoint containing the model state and threshold."""
+    """Load a model checkpoint."""
     logger.debug(f"Loading model from {path}")
     data = torch.load(path, map_location="cpu", weights_only=True)
     model = KickNet(FeatureConfig(**data["features"]))

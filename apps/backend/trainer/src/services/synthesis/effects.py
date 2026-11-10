@@ -12,10 +12,9 @@ from src.models.audio import Signal
 
 
 def trim_to_attack(signal: Signal, top_db: float = 20.0) -> Signal:
-    """Trim the signal, and start it at the first sample within ``top_db`` of its peak.
+    """Trim silence, then start within ``top_db`` of the peak.
 
-    The -60 dB trim keeps MP3 encoder delay and pre-echo (about 25 ms), which
-    would put the onset label before the attack.
+    The default 60 dB trim keeps MP3 delay and pre-echo before the attack.
     """
     trimmed, _ = librosa.effects.trim(signal)
     magnitude = np.abs(trimmed)
@@ -49,7 +48,7 @@ def _design_resonant_sos(
 def _design_biquad_sos(
     cutoff: float, btype: str, q: float, sr: int
 ) -> np.ndarray:
-    # analog prototype with the cutoff pre-warped for the bilinear transform
+    # Pre-warp the analog cutoff for the bilinear transform.
     w0 = 2 * sr * np.tan(np.pi * cutoff / sr)
     numerator = [0.0, 0.0, w0**2] if btype == "lowpass" else [1.0, 0.0, 0.0]
     b, a = bilinear(numerator, [1.0, w0 / q, w0**2], fs=sr)
@@ -57,7 +56,7 @@ def _design_biquad_sos(
 
 
 def measure_loudest_rms(signal: Signal, sr: int, window: float = 0.1) -> float:
-    """The RMS of the loudest ``window`` seconds of the signal."""
+    """Measure RMS in the loudest window."""
     if len(signal) == 0:
         return 0.0
     length = min(round(window * sr), len(signal))
@@ -117,11 +116,7 @@ class Filter(Effect):
     q: float | None = None
 
     def process(self, signal: Signal, sr: int) -> Signal:
-        """Filter with Butterworth, or resonant filtering when ``q`` is set.
-
-        Resonant filters are low/high-pass biquads with a gain of ``q`` at
-        cutoff, followed by Butterworth sections for orders above two.
-        """
+        """Apply a Butterworth or resonant low/high-pass filter."""
         if self.q is None:
             sos = butter(
                 self.order, self.cutoff, self.btype, fs=sr, output="sos"

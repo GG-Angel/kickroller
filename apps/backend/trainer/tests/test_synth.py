@@ -115,7 +115,7 @@ def _make_sample(kind: SampleKind, is_loop: bool, seconds: float) -> Sample:
 def _make_bank() -> SampleBank:
     one_shots = [_make_sample(kind, False, 0.3) for kind in SampleKind]
     loops = [
-        _make_sample(kind, True, 6.0)  # 4 bars at 160 BPM
+        _make_sample(kind, True, 6.0)  # Four bars at 160 BPM.
         for kind in (SampleKind.MELODY, SampleKind.VOCAL, SampleKind.DRUM)
     ]
     return SampleBank(samples=one_shots + loops)

@@ -51,10 +51,10 @@ def train(
     feature_config: FeatureConfig,
     sr: int,
 ) -> Evaluation:
-    """Train a KickNet and save the version with the best validation F-measure.
+    """Train KickNet and save its best validation checkpoint.
 
-    Validation uses a fixed set of drops with the held-out kicks only.
-    Without a seed, a new seed is drawn and logged.
+    Validate on a fixed set of drops with held-out kicks.
+    Draw and log a seed if none is set.
     """
     seed_sequence = np.random.SeedSequence(seed)
     logger.info(f"Seed: {seed_sequence.entropy}")

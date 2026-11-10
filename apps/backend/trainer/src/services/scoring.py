@@ -28,7 +28,7 @@ def pick_onsets(
     feature_config: FeatureConfig,
     sr: int,
 ) -> np.ndarray:
-    """Onset times in seconds: peaks above ``threshold``, spaced apart."""
+    """Return spaced peak times above the threshold, in seconds."""
     hop = feature_config.hop
     distance = max(1, round(config.min_onset_distance * sr / hop))
     peaks, _ = find_peaks(probabilities, height=threshold, distance=distance)
@@ -39,7 +39,7 @@ def pick_onsets(
 def predict(
     model: KickNet, features: torch.Tensor, batch_size: int
 ) -> np.ndarray:
-    """Kick probabilities (drops, frames) of features (drops, ...)."""
+    """Return kick probabilities for each drop and frame."""
     model.eval()
     device = next(model.parameters()).device
     batches = [
@@ -54,10 +54,9 @@ def select_labeled_onsets(
     reference: np.ndarray,
     tolerance: float,
 ) -> np.ndarray:
-    """Keep predictions in label groups separated by gaps longer than 5 s.
+    """Keep estimates within label spans, with tolerance at each end.
 
-    Each span runs from its first to last label, plus ``tolerance`` at
-    each end. An empty reference has no scored spans.
+    Split spans at label gaps longer than 5 seconds.
     """
     if not len(reference):
         return estimated[:0]
@@ -77,7 +76,7 @@ def score_onsets(
     threshold: float,
     tolerance: float,
 ) -> Evaluation:
-    """Score only labeled spans, with a hit within ``tolerance``."""
+    """Score estimates against reference onsets."""
     selected = select_labeled_onsets(estimated, reference, tolerance)
     f_measure, precision, recall = mir_eval.onset.f_measure(
         reference, selected, window=tolerance
@@ -130,7 +129,7 @@ def evaluate(
     feature_config: FeatureConfig,
     sr: int,
 ) -> Evaluation:
-    """Select the best threshold over all reference onsets."""
+    """Choose the best threshold over all reference onsets."""
     return _evaluate_thresholds(
         probabilities,
         references,
@@ -149,7 +148,7 @@ def evaluate_labeled(
     feature_config: FeatureConfig,
     sr: int,
 ) -> Evaluation:
-    """Select the best threshold using predictions inside labeled spans."""
+    """Choose the best threshold inside labeled spans."""
     return _evaluate_thresholds(
         probabilities,
         references,

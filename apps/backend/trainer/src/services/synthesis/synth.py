@@ -57,7 +57,6 @@ def generate_drop(
     grid = draw_grid(config, rng, sr)
     mix = Mix(sr=grid.sr)
 
-    # 1. Generate the kick track
     kick = draw_kick_track(
         grid,
         bank,
@@ -69,7 +68,6 @@ def generate_drop(
     )
     mix.add_tracks(kick.track)
 
-    # 2. Generate the tracks of each layer
     kick_starts = grid.to_samples(kick.beats)
     is_pumping = rng.random() < config.sidechain_probability
     sidechain = Sidechain(
@@ -87,7 +85,6 @@ def generate_drop(
             _add_layer_effects(track, layer, sidechain, rng)
             mix.add_tracks(track)
 
-    # 3. Normalize and augment the mix
     mix.add_effects(*draw_master_effects(config.master, config.peak_db, rng))
 
     onsets = librosa.samples_to_time(kick_starts, sr=grid.sr)

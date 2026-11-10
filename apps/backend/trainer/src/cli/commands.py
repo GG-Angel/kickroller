@@ -87,7 +87,7 @@ def analyze(
         help="Label CSV for scoring labeled spans.",
     ),
 ) -> None:
-    """Find the kick onsets of a track."""
+    """Find kick onsets in a track."""
     output = output or track.with_name(f"{track.stem}-onsets.csv")
     checkpoint = load_checkpoint(model)
     signal = load_audio(track, CONFIG.sr)
@@ -154,7 +154,7 @@ def train(
         help="Random seed (default: generated and logged).",
     ),
 ) -> None:
-    """Train a kick onset model on synthetic drops."""
+    """Train a kick-onset model on synthetic drops."""
     config = CONFIG.train.model_copy(update={"steps": steps})
     best = train_model(
         bank_file,
@@ -216,7 +216,7 @@ def synthesize(
         help="Disable master effects.",
     ),
 ) -> None:
-    """Write synthetic drops with labeled kick onsets."""
+    """Write synthetic drops and their kick onsets."""
     bank = load_sample_bank_from_file(
         bank_file, CONFIG.sr, use_cache=not no_cache
     )
@@ -234,7 +234,7 @@ def synthesize(
 def _select_kinds(
     kinds: list[SampleKind] | None, config: SynthConfig
 ) -> SynthConfig:
-    """The synth config with only the layers of ``kinds``, or all layers."""
+    """Keep selected layers, or all layers if none are selected."""
     if kinds is None:
         return config
     layers = [layer for layer in config.layers if layer.kind in kinds]

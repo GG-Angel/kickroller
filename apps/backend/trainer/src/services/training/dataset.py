@@ -14,12 +14,8 @@ from src.services.training.features import compute_features, make_targets
 
 
 class Example(NamedTuple):
-    """A NamedTuple, because the DataLoader can batch it."""
-
     features: torch.Tensor
-    """(windows, bands, frames)"""
     targets: torch.Tensor
-    """(frames,)"""
 
 
 def make_example(drop: LabeledDrop, config: FeatureConfig, sr: int) -> Example:
@@ -29,7 +25,7 @@ def make_example(drop: LabeledDrop, config: FeatureConfig, sr: int) -> Example:
 
 
 class DropStream(IterableDataset[Example]):
-    """An endless stream of examples from new drops with training kicks."""
+    """Yield endless examples from new drops with training kicks."""
 
     def __init__(
         self,
@@ -40,7 +36,7 @@ class DropStream(IterableDataset[Example]):
         feature_config: FeatureConfig,
         sr: int,
     ) -> None:
-        # the bank is loaded in each worker: pickling its memmaps copies them
+        # Load the bank in each worker to avoid copying its memory maps.
         self.bank_file = bank_file
         self.use_cache = use_cache
         self.seed = seed

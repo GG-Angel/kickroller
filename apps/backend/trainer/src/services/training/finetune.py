@@ -36,7 +36,7 @@ def load_real_track(
     train_config: TrainConfig,
     sr: int,
 ) -> RealTrack:
-    """Load a track, masking sections with no labels out of the loss."""
+    """Load a track and mask unlabeled sections from the loss."""
     candidates = [
         path.with_suffix(".csv"),
         path.with_name(f"{path.stem}-labels.csv"),
@@ -70,7 +70,7 @@ def load_real_track(
 def _crop_real_track(
     track: RealTrack, frames: int, rng: np.random.Generator
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Crop around a scored frame, keeping its full network context."""
+    """Crop around a scored frame and keep its full context."""
     if frames <= 2 * CONTEXT_FRAMES:
         raise ValueError("A crop must be longer than the network context.")
     if track.features.shape[-1] < frames:
@@ -96,7 +96,7 @@ def evaluate_real(
     feature_config: FeatureConfig,
     sr: int,
 ) -> Evaluation:
-    """Select a threshold using pooled counts inside labeled spans only."""
+    """Choose a threshold using counts from labeled spans."""
     if not tracks:
         raise ValueError("Real validation needs at least one track.")
     return evaluate_labeled(
@@ -120,10 +120,10 @@ def fine_tune(
     feature_config: FeatureConfig,
     sr: int,
 ) -> Evaluation:
-    """Fine-tune with equal real/synthetic batches and real validation.
+    """Fine-tune on equal real and synthetic batches; validate on real tracks.
 
-    Keep the checkpoint's feature normalization. Unlabeled real frames and
-    crop edges do not contribute to the loss.
+    Keep the checkpoint's feature normalization. Ignore unlabeled frames and
+    crop edges in the loss.
     """
     if not training or not validation:
         raise ValueError("Training and validation tracks are required.")
@@ -177,7 +177,7 @@ def fine_tune(
         losses = F.binary_cross_entropy_with_logits(
             logits, targets, pos_weight=positive_weight, reduction="none"
         )
-        # Normalize each example so sparse real spans keep their batch weight.
+        # Keep sparse real spans at the same batch weight.
         return (
             (losses * mask).sum(dim=1) / mask.sum(dim=1).clamp_min(1)
         ).mean()

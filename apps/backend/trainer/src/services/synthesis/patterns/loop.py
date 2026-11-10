@@ -42,10 +42,7 @@ def draw_loop_track(
     kick_level: float,
     rng: np.random.Generator,
 ) -> Track:
-    """A loop stretched to the grid tempo and repeated from the first bar.
-
-    The loop is leveled to a random dB of the layer's range below the kick.
-    """
+    """Stretch a loop to the grid tempo, repeat it, and level it below the kick."""
     track = Track(grid)
     sample = bank.draw(layer.kind, rng, is_loop=True).stretch(track)
     db = rng.uniform(*layer.level_db_range)

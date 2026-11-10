@@ -15,12 +15,7 @@ from src.services.synthesis.effects import (
 def draw_master_effects(
     config: MasterConfig | None, peak_db: float, rng: np.random.Generator
 ) -> list[Effect]:
-    """The master effects of one drop.
-
-    The first effect sets the peak to ``peak_db``, so that the drives of the
-    clip and the limiter do not depend on the level of the mix. The random
-    effects of ``config`` follow, if it is not None.
-    """
+    """Set the peak, then apply the configured master effects."""
     effects: list[Effect] = [Normalize(peak_db)]
     if config is None:
         return effects

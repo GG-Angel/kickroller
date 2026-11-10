@@ -17,7 +17,7 @@ FPS = CONFIG.sr / CONFIG.features.hop
 
 
 class _FixedNet(KickNet):
-    """Logits with peaks at frames 20 (high) and 60 (low)."""
+    """Set peaks at frames 20 and 60."""
 
     def __init__(self) -> None:
         super().__init__(CONFIG.features)

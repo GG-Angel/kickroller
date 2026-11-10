@@ -18,12 +18,7 @@ def export_drops(
     config: SynthConfig,
     sr: int,
 ) -> None:
-    """Write ``count`` cropped drops and their kick onsets to ``folder``.
-
-    Each drop is written as ``drop_000.wav`` (float32, so the master gain can
-    put peaks above 0 dBFS) with its onsets in ``drop_000.csv``.
-    Without a seed, a new seed is drawn and logged, so the run can be repeated.
-    """
+    """Write float32 WAV drops and onset CSVs. Draw and log a seed if unset."""
     seed_sequence = np.random.SeedSequence(seed)
     logger.info(f"Seed: {seed_sequence.entropy}")
     rng = np.random.default_rng(seed_sequence)

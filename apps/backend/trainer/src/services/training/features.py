@@ -16,12 +16,8 @@ def count_bands(config: FeatureConfig) -> int:
 def _build_log_filterbank(
     n_fft: int, fmin: float, bands: int, bands_per_octave: int, sr: int
 ) -> np.ndarray:
-    """Triangular bands on a log scale, of shape (bands, FFT bins).
-
-    A band narrower than one FFT bin uses its nearest bin, so that each window
-    length has the same bands.
-    """
-    # one extra frequency on each side gives the edges of the outer bands
+    """Build log-spaced triangular filters with shape (bands, FFT bins)."""
+    # Add edge frequencies for the first and last bands.
     frequencies = librosa.cqt_frequencies(
         bands + 2,
         fmin=fmin * 2 ** (-1 / bands_per_octave),
@@ -47,11 +43,7 @@ def _build_log_filterbank(
 def compute_features(
     signal: Signal, config: FeatureConfig, sr: int
 ) -> np.ndarray:
-    """Log spectrograms of shape (windows, bands, frames).
-
-    Frame ``t`` is centered at sample ``t * hop``, so a drop has
-    ``1 + len(signal) // hop`` frames.
-    """
+    """Build log spectrograms with shape (windows, bands, frames)."""
     layers = []
     for n_fft in config.windows:
         magnitude = np.abs(
@@ -75,7 +67,7 @@ def make_targets(
     config: FeatureConfig,
     sr: int,
 ) -> np.ndarray:
-    """1 at the frame of each onset and ``neighbor_target`` at its neighbors."""
+    """Mark each onset frame and its neighbors."""
     targets = np.zeros(frames, dtype=np.float32)
     at = np.rint(onsets * sr / config.hop).astype(int)
     for offset, value in (

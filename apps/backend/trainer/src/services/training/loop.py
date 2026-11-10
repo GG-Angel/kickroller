@@ -54,7 +54,7 @@ def run_training_loop(
     validate: Validator,
     initial_validation: Validator | None = None,
 ) -> Evaluation:
-    """Optimize a model and save its best validation checkpoint."""
+    """Train the model and save its best checkpoint."""
     device = _pick_device()
     model.to(device)
     positive_weight = torch.tensor(config.positive_weight, device=device)

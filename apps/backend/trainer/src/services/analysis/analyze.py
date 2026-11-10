@@ -14,9 +14,9 @@ from src.services.training.network import Checkpoint
 @dataclass(frozen=True)
 class Analysis:
     onsets: np.ndarray
-    """Kick onsets in seconds."""
+    """Onset times in seconds."""
     confidences: np.ndarray
-    """Kick probability at each onset, from 0 to 1."""
+    """Probability at each onset, from 0 to 1."""
 
 
 def analyze_signal(
@@ -26,7 +26,7 @@ def analyze_signal(
     config: TrainConfig,
     sr: int,
 ) -> Analysis:
-    """Find the kick onsets of a track."""
+    """Find kick onsets in a track."""
     feature_config = checkpoint.model.config
     features = torch.from_numpy(compute_features(signal, feature_config, sr))
     probabilities = predict(checkpoint.model, features[None], batch_size=1)[0]
@@ -42,10 +42,9 @@ def analyze_signal(
 
 
 def add_clicks(signal: Signal, onsets: np.ndarray, sr: int) -> Signal:
-    """The signal with a click at each onset, for listening.
+    """Add a click at each onset for listening.
 
-    The signal is 12 dB quieter, so that the clicks are audible over a loud
-    master, and the peak stays at or below 1.
+    The clicks are 12 dB quieter and the peak stays at or below 1.
     """
     clicks = librosa.clicks(times=onsets, sr=sr, length=len(signal))
     quiet = librosa.util.normalize(signal) * 0.25

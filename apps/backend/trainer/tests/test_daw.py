@@ -279,7 +279,6 @@ def test_resonant_filter_without_resonance_is_butterworth() -> None:
 def _measure_sine_gain(
     frequency: float, cutoff: float, btype: str, order: int, q: float
 ) -> float:
-    """The steady-state gain of the resonant filter for a sine."""
     sr = 8000
     time = np.arange(4 * sr) / sr
     sine = np.sin(2 * np.pi * frequency * time).astype(np.float32)
