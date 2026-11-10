@@ -160,6 +160,7 @@ def test_sidechain_ducks_at_each_trigger_for_requested_duration() -> None:
     assert wet.dtype == np.float32
     assert wet[0] == pytest.approx(1.0)
     assert wet[CONFIG.sr // 200] == pytest.approx(0.5, abs=1e-3)
+    assert 0.5 < wet[CONFIG.sr // 20] < 1.0
     assert wet[CONFIG.sr // 10 - 1] == pytest.approx(1.0, abs=1e-3)
     assert wet[CONFIG.sr // 10] == pytest.approx(1.0)
     assert wet[CONFIG.sr // 2] == pytest.approx(1.0)

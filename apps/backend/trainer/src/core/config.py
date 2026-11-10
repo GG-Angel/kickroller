@@ -24,8 +24,9 @@ class LayerConfig(BaseModel):
     """Weight of each number of tracks in a drop."""
     level_db_range: tuple[float, float]
     """Range of the level relative to the kick, in dB of ``loudest_rms``."""
-    high_pass_hz: float | None = 200.0
-    """High-pass cutoff, or None for no high-pass."""
+    high_pass_hz_range: tuple[float, float] | None = (200.0, 200.0)
+    """Range of the high-pass cutoff, drawn log-uniform for each track, or
+    None for no high-pass."""
     is_sidechained: bool = False
     """Whether the tracks duck at each kick, with the sidechain of the drop."""
     placements: list[Placement] = []
@@ -40,7 +41,6 @@ class LayerConfig(BaseModel):
         return self
 
 
-PHRASE = Placement(period=16, probability_range=(0.5, 1.0))
 BAR = Placement(period=4, probability_range=(0.2, 0.5))
 BACKBEAT = Placement(period=2, offset=1, probability_range=(0.6, 1.0))
 BEAT = Placement(period=1, probability_range=(0.2, 0.5))
@@ -53,6 +53,7 @@ DEFAULT_LAYERS = [
         is_loop=True,
         track_count_weights={0: 0.2, 1: 0.8},
         level_db_range=(-8, 0),
+        high_pass_hz_range=(60.0, 200.0),
         is_sidechained=True,
     ),
     LayerConfig(
@@ -60,6 +61,7 @@ DEFAULT_LAYERS = [
         is_loop=False,
         track_count_weights={0: 0.85, 1: 0.15},
         level_db_range=(-10, -2),
+        high_pass_hz_range=(60.0, 200.0),
         is_sidechained=True,
         placements=[OFFBEAT, STEP],
     ),
@@ -91,15 +93,6 @@ DEFAULT_LAYERS = [
         track_count_weights={0: 0.4, 1: 0.5, 2: 0.1},
         level_db_range=(-12, -3),
         placements=[BACKBEAT, BEAT, OFFBEAT, STEP],
-    ),
-    LayerConfig(
-        kind=SampleKind.IMPACT,
-        is_loop=False,
-        track_count_weights={0: 0.7, 1: 0.3},
-        level_db_range=(-6, 0),
-        high_pass_hz=None,
-        is_sidechained=True,
-        placements=[PHRASE],
     ),
     LayerConfig(
         kind=SampleKind.FX,
@@ -139,6 +132,17 @@ class KickFxConfig(SectionConfig):
     """Filter orders to draw from: each order adds 6 dB/oct of slope."""
 
 
+class KickRollConfig(SectionConfig):
+    """Sections where a kick plays on every step of a fast roll."""
+
+    section_count_weights: dict[int, float] = {0: 0.5, 1: 0.35, 2: 0.15}
+    section_beats: list[int] = [1, 2]
+    steps_per_beat: list[int] = [2, 3, 4]
+    """Roll rates to draw from: 1/8, 1/12 (triplet) and 1/16 notes."""
+    level_db_range: tuple[float, float] = (-3.0, 0.0)
+    """Range of the roll kick level relative to the other kicks."""
+
+
 class MasterConfig(BaseModel):
     """Random master effects on each drop, which make the drops more varied.
 
@@ -176,10 +180,17 @@ class SynthConfig(BaseModel):
         section_count_weights={0: 0.4, 1: 0.35, 2: 0.25}
     )
     """Sections where the kick stops and the other layers continue."""
-    sidechain_ratio_range: tuple[float, float] = (0.7, 0.95)
+    kick_rolls: KickRollConfig = KickRollConfig()
+    kick_off_beat_range: tuple[float, float] = (0.0, 0.3)
+    """Range of the extra chance of a 1/8 off-beat kick on each beat, drawn
+    once per drop."""
+    sidechain_probability: float = Field(default=0.75, ge=0, le=1)
+    """Chance that the layers of a drop duck at each kick, so that the model
+    does not rely on the pumping to find kicks."""
+    sidechain_ratio_range: tuple[float, float] = (0.3, 0.95)
     """Range of the duck depth at each kick."""
     sidechain_seconds_range: tuple[float, float] = (0.06, 0.25)
-    """Range of the duck length after each kick."""
+    """Range of the duck length after each kick, attack and release."""
 
     steps: list[int] = [3, 4, 6, 8]
     bpms: list[int] = [140, 150, 155, 160, 165, 170, 180]
@@ -192,14 +203,67 @@ class SynthConfig(BaseModel):
     master: MasterConfig | None = MasterConfig()
     """Master effects for augmentation, or None for no augmentation."""
 
-    held_out_kick_fraction: float = Field(default=0.1, ge=0, le=1)
+    held_out_kick_fraction: float = Field(default=0.2, ge=0, le=1)
     """Part of the kicks that only validation drops use."""
+
+
+class FeatureConfig(BaseModel):
+    """The model input: log spectrograms at several window lengths."""
+
+    hop: int = 441
+    """Samples between frames (10 ms at 44.1 kHz)."""
+    windows: tuple[int, ...] = (1024, 2048, 4096)
+    """FFT window lengths in samples (23, 46 and 93 ms at 44.1 kHz). Each
+    window is one input channel of the model."""
+    fmin: float = 30.0
+    """Center of the lowest band, in Hz."""
+    fmax: float = 16000.0
+    """Upper limit for the band centers, in Hz."""
+    bands_per_octave: int = 12
+    """Number of log-spaced bands in each octave."""
+    neighbor_target: float = 0.5
+    """Target of the frames next to an onset frame (label widening)."""
+
+
+class TrainConfig(BaseModel):
+    """The training loop, validation and peak picking."""
+
+    steps: int = 3000
+    """Number of optimizer steps (batches) in a run."""
+    batch_size: int = 16
+    """Drops in each batch, for training and for validation."""
+    learning_rate: float = 1e-3
+    """Learning rate of the AdamW optimizer."""
+    positive_weight: float = 5.0
+    """Loss weight of the positive targets, because kicks are rare frames."""
+    validation_drops: int = 64
+    """Drops with held-out kicks in the fixed validation set."""
+    validation_seed: int = 0
+    """Fixed seed, so that runs with other seeds use the same validation."""
+    stats_drops: int = 32
+    """Training drops for the standardization statistics."""
+    validate_every: int = 250
+    """Steps between validations. A checkpoint is saved when the F-measure
+    improves."""
+    log_every: int = 50
+    """Steps between log lines with the mean training loss."""
+    workers: int = 4
+    """DataLoader processes that make training drops; 0 makes them in the
+    main process."""
+    thresholds: list[float] = [round(0.05 * i, 2) for i in range(2, 19)]
+    """Peak thresholds that validation tries; the best one is saved."""
+    tolerance: float = 0.02
+    """Largest onset error, in seconds, that counts as a hit."""
+    min_onset_distance: float = 0.04
+    """Shortest time between two detected onsets, in seconds."""
 
 
 class Config(BaseSettings):
     sr: int = 44100
 
     synth: SynthConfig = SynthConfig()
+    features: FeatureConfig = FeatureConfig()
+    train: TrainConfig = TrainConfig()
 
 
 CONFIG = Config()
