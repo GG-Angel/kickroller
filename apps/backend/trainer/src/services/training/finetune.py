@@ -108,6 +108,64 @@ def evaluate_real(
     )
 
 
+def _check_fine_tune_inputs(
+    initial: Path,
+    output: Path,
+    training: list[Path],
+    validation: list[Path],
+    config: TrainConfig,
+) -> None:
+    if not training or not validation:
+        raise ValueError("Training and validation tracks are required.")
+    if {path.resolve() for path in training} & {
+        path.resolve() for path in validation
+    }:
+        raise ValueError("Training and validation tracks must be separate.")
+    if config.batch_size < 2 or config.batch_size % 2:
+        raise ValueError("Fine-tuning requires an even batch size.")
+    if initial.resolve() == output.resolve() or output.exists():
+        raise ValueError(f"Refusing to overwrite a checkpoint: {output}.")
+
+
+def _compute_masked_loss(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    mask: torch.Tensor,
+    positive_weight: torch.Tensor,
+) -> torch.Tensor:
+    losses = F.binary_cross_entropy_with_logits(
+        logits, targets, pos_weight=positive_weight, reduction="none"
+    )
+    # Keep sparse real spans at the same batch weight.
+    return ((losses * mask).sum(dim=1) / mask.sum(dim=1).clamp_min(1)).mean()
+
+
+def _generate_mixed_batches(
+    loader: DataLoader,
+    tracks: list[RealTrack],
+    real_count: int,
+    rng: np.random.Generator,
+) -> Iterable[TrainingBatch]:
+    """Append real crops to each synthetic batch."""
+    for synthetic_features, synthetic_targets in loader:
+        crops = [
+            _crop_real_track(
+                tracks[int(rng.integers(len(tracks)))],
+                synthetic_features.shape[-1],
+                rng,
+            )
+            for _ in range(real_count)
+        ]
+        real_features, real_targets, real_mask = (
+            torch.stack(parts) for parts in zip(*crops, strict=True)
+        )
+        yield (
+            torch.cat([synthetic_features, real_features]),
+            torch.cat([synthetic_targets, real_targets]),
+            torch.cat([torch.ones_like(synthetic_targets), real_mask]),
+        )
+
+
 def fine_tune(
     initial: Path,
     bank_file: Path,
@@ -125,16 +183,7 @@ def fine_tune(
     Keep the checkpoint's feature normalization. Ignore unlabeled frames and
     crop edges in the loss.
     """
-    if not training or not validation:
-        raise ValueError("Training and validation tracks are required.")
-    if {path.resolve() for path in training} & {
-        path.resolve() for path in validation
-    }:
-        raise ValueError("Training and validation tracks must be separate.")
-    if config.batch_size < 2 or config.batch_size % 2:
-        raise ValueError("Fine-tuning requires an even batch size.")
-    if initial.resolve() == output.resolve() or output.exists():
-        raise ValueError(f"Refusing to overwrite a checkpoint: {output}.")
+    _check_fine_tune_inputs(initial, output, training, validation, config)
     checkpoint = load_checkpoint(initial)
     if checkpoint.model.config != feature_config:
         raise ValueError("Checkpoint features differ from trainer features.")
@@ -168,53 +217,14 @@ def fine_tune(
             probabilities, real_validation, config, feature_config, sr
         )
 
-    def compute_real_and_synthetic_loss(
-        logits: torch.Tensor,
-        targets: torch.Tensor,
-        mask: torch.Tensor,
-        positive_weight: torch.Tensor,
-    ) -> torch.Tensor:
-        losses = F.binary_cross_entropy_with_logits(
-            logits, targets, pos_weight=positive_weight, reduction="none"
-        )
-        # Keep sparse real spans at the same batch weight.
-        return (
-            (losses * mask).sum(dim=1) / mask.sum(dim=1).clamp_min(1)
-        ).mean()
-
-    def generate_mixed_batches() -> Iterable[TrainingBatch]:
-        for synthetic_features, synthetic_targets in loader:
-            crops = [
-                _crop_real_track(
-                    real_training[int(rng.integers(len(real_training)))],
-                    synthetic_features.shape[-1],
-                    rng,
-                )
-                for _ in range(config.batch_size // 2)
-            ]
-            features = torch.cat(
-                [
-                    synthetic_features,
-                    torch.stack([crop[0] for crop in crops]),
-                ]
-            )
-            targets = torch.cat(
-                [synthetic_targets, torch.stack([crop[1] for crop in crops])]
-            )
-            mask = torch.cat(
-                [
-                    torch.ones_like(synthetic_targets),
-                    torch.stack([crop[2] for crop in crops]),
-                ]
-            )
-            yield features, targets, mask
-
     return run_training_loop(
         model,
-        generate_mixed_batches(),
+        _generate_mixed_batches(
+            loader, real_training, config.batch_size // 2, rng
+        ),
         output,
         config,
-        compute_real_and_synthetic_loss,
+        _compute_masked_loss,
         validate,
         initial_validation=validate,
     )
