@@ -43,9 +43,7 @@ def test_export_drops_keeps_the_level_of_the_drop(tmp_path: Path) -> None:
         onsets=np.arange(0.0, 13.0, 0.375),
     )
 
-    with patch(
-        "src.services.synthesis.synth.generate_drop", return_value=drop
-    ):
+    with patch("src.services.synthesis.synth.generate_drop", return_value=drop):
         export_drops(SampleBank(samples=[]), tmp_path, count=1, seed=0)
 
     _, signal = wavfile.read(tmp_path / "drop_000.wav")

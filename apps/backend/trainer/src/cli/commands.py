@@ -9,8 +9,8 @@ from src.models.audio import SampleKind
 from src.services.analysis.analyze import (
     add_clicks,
     analyze_signal,
-    score_onsets,
 )
+from src.services.scoring import score_onsets
 from src.services.synthesis.bank import load_sample_bank_from_file
 from src.services.synthesis.export import export_drops
 from src.services.training.network import load_checkpoint

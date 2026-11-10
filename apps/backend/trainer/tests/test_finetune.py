@@ -111,7 +111,7 @@ def test_fine_tune_keeps_best_checkpoint_and_normalization(
             return_value=[batch],
         ),
         patch(
-            "src.services.training.finetune._pick_device",
+            "src.services.training.loop._pick_device",
             return_value=torch.device("cpu"),
         ),
     ):

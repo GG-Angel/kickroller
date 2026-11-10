@@ -1,13 +1,12 @@
 from dataclasses import dataclass
 
 import librosa
-import mir_eval
 import numpy as np
 import torch
 
 from src.core.config import CONFIG
 from src.models.audio import Signal
-from src.services.training.evaluate import Evaluation, pick_onsets, predict
+from src.services.scoring import pick_onsets, predict
 from src.services.training.features import compute_features
 from src.services.training.network import Checkpoint
 
@@ -35,42 +34,6 @@ def analyze_signal(
         hop_length=CONFIG.features.hop,
     )
     return Analysis(onsets=onsets, confidences=probabilities[frames])
-
-
-def select_labeled_onsets(
-    estimated: np.ndarray,
-    reference: np.ndarray,
-    tolerance: float = CONFIG.train.tolerance,
-) -> np.ndarray:
-    """Keep predictions in label groups separated by gaps longer than 5 s.
-
-    Each span runs from its first to last label, plus ``tolerance`` at
-    each end. An empty reference has no scored spans.
-    """
-    if not len(reference):
-        return estimated[:0]
-    labels = np.sort(reference)
-    groups = np.split(labels, np.flatnonzero(np.diff(labels) > 5.0) + 1)
-    keep = np.zeros(len(estimated), dtype=bool)
-    for group in groups:
-        keep |= (estimated >= group[0] - tolerance) & (
-            estimated <= group[-1] + tolerance
-        )
-    return estimated[keep]
-
-
-def score_onsets(
-    estimated: np.ndarray,
-    reference: np.ndarray,
-    threshold: float,
-    tolerance: float = CONFIG.train.tolerance,
-) -> Evaluation:
-    """Score only labeled spans, with a hit within ``tolerance``."""
-    estimated = select_labeled_onsets(estimated, reference, tolerance)
-    f_measure, precision, recall = mir_eval.onset.f_measure(
-        reference, estimated, window=tolerance
-    )
-    return Evaluation(f_measure, precision, recall, threshold)
 
 
 def add_clicks(signal: Signal, onsets: np.ndarray) -> Signal:

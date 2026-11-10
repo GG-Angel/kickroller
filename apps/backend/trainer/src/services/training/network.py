@@ -100,7 +100,7 @@ def save_checkpoint(path: Path, model: KickNet, threshold: float) -> None:
 def load_checkpoint(path: Path) -> Checkpoint:
     """Load a checkpoint containing the model state and threshold."""
     logger.debug(f"Loading model from {path}")
-    data = torch.load(path, map_location="cpu")
+    data = torch.load(path, map_location="cpu", weights_only=True)
     model = KickNet(FeatureConfig(**data["features"]))
     model.load_state_dict(data["state_dict"])
     checkpoint = Checkpoint(model=model.eval(), threshold=data["threshold"])

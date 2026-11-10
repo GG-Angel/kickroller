@@ -1,8 +1,7 @@
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from time import perf_counter
 
-import mir_eval
 import numpy as np
 import torch
 from loguru import logger
@@ -11,16 +10,16 @@ from torch.utils.data import DataLoader
 
 from src.core.config import CONFIG, SynthConfig, TrainConfig
 from src.core.storage import load_audio, load_onsets
-from src.services.analysis.analyze import select_labeled_onsets
-from src.services.training.dataset import DropStream
-from src.services.training.evaluate import Evaluation, pick_onsets, predict
-from src.services.training.features import compute_features, make_targets
-from src.services.training.network import (
-    CONTEXT_FRAMES,
-    load_checkpoint,
-    save_checkpoint,
+from src.services.scoring import (
+    Evaluation,
+    evaluate_labeled,
+    predict,
+    select_labeled_onsets,
 )
-from src.services.training.train import _pick_device
+from src.services.training.dataset import DropStream
+from src.services.training.features import compute_features, make_targets
+from src.services.training.loop import TrainingBatch, train_loop
+from src.services.training.network import CONTEXT_FRAMES, load_checkpoint
 
 
 @dataclass(frozen=True)
@@ -93,28 +92,9 @@ def evaluate_real(
     """Select a threshold using pooled counts inside labeled spans only."""
     if not tracks:
         raise ValueError("Real validation needs at least one track.")
-    references = sum(len(track.onsets) for track in tracks)
-    best = Evaluation(-1.0, 0.0, 0.0, config.thresholds[0])
-    for threshold in config.thresholds:
-        detected = hits = 0
-        for probability, track in zip(probabilities, tracks, strict=True):
-            estimated = select_labeled_onsets(
-                pick_onsets(probability, threshold, config),
-                track.onsets,
-                config.tolerance,
-            )
-            detected += len(estimated)
-            hits += len(
-                mir_eval.util.match_events(
-                    track.onsets, estimated, config.tolerance
-                )
-            )
-        precision = hits / max(detected, 1)
-        recall = hits / max(references, 1)
-        f_measure = 2 * precision * recall / max(precision + recall, 1e-9)
-        if f_measure > best.f_measure:
-            best = Evaluation(f_measure, precision, recall, threshold)
-    return best
+    return evaluate_labeled(
+        probabilities, [track.onsets for track in tracks], config
+    )
 
 
 def fine_tune(
@@ -154,16 +134,13 @@ def fine_tune(
     )
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
-    model = checkpoint.model.to(_pick_device())
-    device = next(model.parameters()).device
+    model = checkpoint.model
     loader = DataLoader(
         DropStream(bank_file, True, seed, synth),
         batch_size=config.batch_size // 2,
         num_workers=config.workers,
         persistent_workers=config.workers > 0,
     )
-    optimizer = torch.optim.AdamW(model.parameters(), config.learning_rate)
-    positive_weight = torch.tensor(config.positive_weight, device=device)
 
     def validate() -> Evaluation:
         probabilities = [
@@ -172,68 +149,53 @@ def fine_tune(
         ]
         return evaluate_real(probabilities, real_validation, config)
 
-    best = validate()
-    save_checkpoint(output, model, best.threshold)
-    logger.info(
-        f"Baseline validation F {best.f_measure:.4f}, "
-        f"threshold {best.threshold}, saved to {output}."
-    )
-    running, start = 0.0, perf_counter()
-    for step, (synthetic_features, synthetic_targets) in enumerate(loader, 1):
-        crops = [
-            _real_crop(
-                real_training[int(rng.integers(len(real_training)))],
-                synthetic_features.shape[-1],
-                rng,
-            )
-            for _ in range(config.batch_size // 2)
-        ]
-        features = torch.cat(
-            [synthetic_features, torch.stack([crop[0] for crop in crops])]
-        ).to(device)
-        targets = torch.cat(
-            [synthetic_targets, torch.stack([crop[1] for crop in crops])]
-        ).to(device)
-        mask = torch.cat(
-            [
-                torch.ones_like(synthetic_targets),
-                torch.stack([crop[2] for crop in crops]),
-            ]
-        ).to(device)
-        mask[:, :CONTEXT_FRAMES] = 0
-        mask[:, -CONTEXT_FRAMES:] = 0
-        model.train()
-        logits = model(features)
+    def real_and_synthetic_loss(
+        logits: torch.Tensor,
+        targets: torch.Tensor,
+        mask: torch.Tensor,
+        positive_weight: torch.Tensor,
+    ) -> torch.Tensor:
         losses = F.binary_cross_entropy_with_logits(
             logits, targets, pos_weight=positive_weight, reduction="none"
         )
         # Normalize each example so sparse real spans keep their batch weight.
-        loss = (
+        return (
             (losses * mask).sum(dim=1) / mask.sum(dim=1).clamp_min(1)
         ).mean()
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        running += loss.item()
-        if step % config.log_every == 0:
-            logger.info(
-                f"Step {step}/{config.steps}: loss "
-                f"{running / config.log_every:.4f}, "
-                f"{step / (perf_counter() - start):.2f} steps/s"
+
+    def mixed_batches() -> Iterable[TrainingBatch]:
+        for synthetic_features, synthetic_targets in loader:
+            crops = [
+                _real_crop(
+                    real_training[int(rng.integers(len(real_training)))],
+                    synthetic_features.shape[-1],
+                    rng,
+                )
+                for _ in range(config.batch_size // 2)
+            ]
+            features = torch.cat(
+                [
+                    synthetic_features,
+                    torch.stack([crop[0] for crop in crops]),
+                ]
             )
-            running = 0.0
-        if step % config.validate_every == 0 or step == config.steps:
-            evaluation = validate()
-            if evaluation.f_measure > best.f_measure:
-                best = evaluation
-                save_checkpoint(output, model, best.threshold)
-            logger.info(
-                f"Step {step}: validation F {evaluation.f_measure:.4f}, "
-                f"precision {evaluation.precision:.4f}, "
-                f"recall {evaluation.recall:.4f}, "
-                f"threshold {evaluation.threshold}; "
-                f"best F {best.f_measure:.4f}."
+            targets = torch.cat(
+                [synthetic_targets, torch.stack([crop[1] for crop in crops])]
             )
-        if step == config.steps:
-            break
-    return best
+            mask = torch.cat(
+                [
+                    torch.ones_like(synthetic_targets),
+                    torch.stack([crop[2] for crop in crops]),
+                ]
+            )
+            yield features, targets, mask
+
+    return train_loop(
+        model,
+        mixed_batches(),
+        output,
+        config,
+        real_and_synthetic_loss,
+        validate,
+        initial_validation=validate,
+    )

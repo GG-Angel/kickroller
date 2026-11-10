@@ -9,9 +9,8 @@ from src.core.storage import load_onsets, save_onsets
 from src.services.analysis.analyze import (
     add_clicks,
     analyze_signal,
-    score_onsets,
-    select_labeled_onsets,
 )
+from src.services.scoring import score_onsets, select_labeled_onsets
 from src.services.training.network import Checkpoint, KickNet
 
 FPS = CONFIG.sr / CONFIG.features.hop
