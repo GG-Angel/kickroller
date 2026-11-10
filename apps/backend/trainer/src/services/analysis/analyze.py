@@ -23,8 +23,7 @@ class Analysis:
 def analyze_signal(
     signal: Signal, checkpoint: Checkpoint, threshold: float | None = None
 ) -> Analysis:
-    """Find the kick onsets of a track, with the threshold of the checkpoint
-    if ``threshold`` is None."""
+    """Find the kick onsets of a track."""
     features = torch.from_numpy(compute_features(signal))
     probabilities = predict(checkpoint.model, features[None], batch_size=1)[0]
     if threshold is None:
@@ -82,4 +81,4 @@ def add_clicks(signal: Signal, onsets: np.ndarray) -> Signal:
     """
     clicks = librosa.clicks(times=onsets, sr=CONFIG.sr, length=len(signal))
     quiet = librosa.util.normalize(signal) * 0.25
-    return (quiet + 0.75 * clicks).astype(np.float32)
+    return (quiet + (clicks * 0.75)).astype(np.float32)

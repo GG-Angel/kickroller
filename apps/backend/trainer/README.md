@@ -45,3 +45,8 @@ Keep test tracks separate from both lists. Select the baseline's threshold
 on the same validation tracks, then compare both checkpoints on the test
 tracks with their selected thresholds. Record the split, seed, training and
 synthesis settings with each run. A single run does not measure seed variation.
+
+Synthetic tail-note negatives and their skip setting have been removed.
+Existing checkpoints still load unchanged. Seeded synthesis differs from
+older versions because the removed feature consumed random draws even when
+disabled.
