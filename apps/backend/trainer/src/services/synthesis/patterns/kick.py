@@ -15,12 +15,11 @@ from src.services.synthesis.effects import (
     trim_to_attack,
 )
 from src.services.synthesis.grid import Grid
-from src.services.synthesis.patterns.pattern import PatternGenerator
 from src.services.synthesis.track import Track
 
 
 @dataclass
-class KickPatternGenerator(PatternGenerator):
+class KickPatternGenerator:
     """Randomly place kicks on a grid, favoring steps on coarser subdivisions.
 
     Each step in a beat fires with probability ``probability * weight ** depth``,

@@ -8,12 +8,11 @@ from src.core.config import LayerConfig
 from src.services.synthesis.bank import SampleBank
 from src.services.synthesis.effects import Level, Trim
 from src.services.synthesis.grid import Grid
-from src.services.synthesis.patterns.pattern import PatternGenerator
 from src.services.synthesis.track import Track
 
 
 @dataclass
-class OneShotPatternGenerator(PatternGenerator):
+class OneShotPatternGenerator:
     """Allow a one-shot every ``period`` beats from ``offset``.
 
     Each allowed position plays with ``probability``.

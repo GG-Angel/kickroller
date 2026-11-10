@@ -8,12 +8,11 @@ from src.core.config import LayerConfig
 from src.services.synthesis.bank import Sample, SampleBank
 from src.services.synthesis.effects import Level
 from src.services.synthesis.grid import Grid
-from src.services.synthesis.patterns.pattern import PatternGenerator
 from src.services.synthesis.track import Track
 
 
 @dataclass
-class LoopPatternGenerator(PatternGenerator):
+class LoopPatternGenerator:
     grid: Grid
     sample: Sample
     rng: np.random.Generator = field(default_factory=np.random.default_rng)
