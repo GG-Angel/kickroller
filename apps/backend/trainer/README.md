@@ -4,11 +4,14 @@ Run from this directory:
 
 ```sh
 uv run trainer analyze songs/2004_MN4.mp3 -m model-rolls.pt \
-  --labels songs/2004_MN4-labels.csv -o results/2004_MN4.csv
+  --labels songs/2004_MN4-labels.csv -o results/2004_MN4-onsets.csv
 ```
 
-Create the output directory before you run the command. Always use `-o` when
-the track's CSV contains hand labels, to keep those labels unchanged.
+Create the output directory before you run the command. Without `-o`,
+`analyze` writes `<audio-name>-onsets.csv` beside the audio, leaving
+`<audio-name>.csv` label files unchanged. An explicit `-o` path is used
+exactly as supplied. With `--clicks`, the default click file is
+`<audio-name>-onsets.clicks.wav`.
 
 With `--labels`, scoring splits the labels at gaps longer than 5 seconds.
 Each scored span starts at its first label minus 20 ms and ends at its last

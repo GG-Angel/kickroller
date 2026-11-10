@@ -45,7 +45,7 @@ def configure_cli(
 @app.command()
 def analyze(
     track: Path = typer.Argument(
-        ..., exists=True, dir_okay=False, help="Audio file of the track."
+        ..., exists=True, dir_okay=False, help="Audio file."
     ),
     model: Path = typer.Option(
         Path("model.pt"),
@@ -53,44 +53,42 @@ def analyze(
         "-m",
         exists=True,
         dir_okay=False,
-        help="Trained model file.",
+        help="Model checkpoint.",
     ),
     output: Path | None = typer.Option(
         None,
         "--output",
         "-o",
         dir_okay=False,
-        help="CSV of `time,confidence` lines (default: the track path, .csv).",
+        help="Onset CSV (default: <audio-name>-onsets.csv).",
     ),
     confidences: bool = typer.Option(
         True,
         "--confidences/--no-confidences",
-        help="Write the confidence of each onset, or only the onset times.",
+        help="Include onset confidence.",
     ),
     threshold: float | None = typer.Option(
         None,
         "--threshold",
         min=0,
         max=1,
-        help="Peak threshold (default: the threshold of the model).",
+        help="Peak threshold (default: model setting).",
     ),
     clicks: bool = typer.Option(
         False,
         "--clicks",
-        help="Also write the track with a click at each onset, as "
-        "`<output>.clicks.wav`.",
+        help="Write click audio as <output>.clicks.wav.",
     ),
     labels: Path | None = typer.Option(
         None,
         "--labels",
         exists=True,
         dir_okay=False,
-        help="CSV of labeled onset times. Score only label groups separated "
-        "by gaps longer than 5 seconds, with 20 ms at each end.",
+        help="Label CSV for scoring labeled spans.",
     ),
 ) -> None:
     """Find the kick onsets of a track."""
-    output = output or track.with_suffix(".csv")
+    output = output or track.with_name(f"{track.stem}-onsets.csv")
     checkpoint = load_checkpoint(model)
     signal = load_audio(track)
     analysis = analyze_signal(signal, checkpoint, threshold)
@@ -120,30 +118,33 @@ def analyze(
 def train(
     bank_file: Path = typer.Option(
         Path("bank.yaml"),
-        "--bank-file",
+        "--bank",
         "-b",
-        help="Path to the sample bank configuration file.",
+        help="Sample bank config.",
     ),
     no_cache: bool = typer.Option(
         False,
         "--no-cache",
-        help="Decode samples without reading or writing the bank cache.",
+        help="Bypass the sample cache.",
     ),
     output: Path = typer.Option(
         Path("model.pt"),
         "--output",
         "-o",
         dir_okay=False,
-        help="File for the model with the best validation F-measure.",
+        help="Best checkpoint output.",
     ),
     steps: int = typer.Option(
-        CONFIG.train.steps, "--steps", min=1, help="Number of training steps."
+        CONFIG.train.steps,
+        "--steps",
+        min=1,
+        help="Training steps.",
     ),
     seed: int | None = typer.Option(
         None,
         "--seed",
         min=0,
-        help="Seed for reproducible training (default: a new seed in the log).",
+        help="Random seed (default: generated and logged).",
     ),
 ) -> None:
     """Train a kick onset model on synthetic drops."""
@@ -159,48 +160,44 @@ def train(
 def synth(
     bank_file: Path = typer.Option(
         Path("bank.yaml"),
-        "--bank-file",
+        "--bank",
         "-b",
-        help="Path to the sample bank configuration file.",
+        help="Sample bank config.",
     ),
     no_cache: bool = typer.Option(
         False,
         "--no-cache",
-        help="Decode samples without reading or writing the bank cache.",
+        help="Bypass the sample cache.",
     ),
     output: Path = typer.Option(
         Path("drops"),
         "--output",
         "-o",
         file_okay=False,
-        help="Folder for the drops and their kick onsets.",
+        help="Drop output folder.",
     ),
-    count: int = typer.Option(
-        4, "--count", "-n", min=1, help="Number of drops to write."
-    ),
+    count: int = typer.Option(4, "--count", "-n", min=1, help="Drop count."),
     seed: int | None = typer.Option(
         None,
         "--seed",
         min=0,
-        help="Seed for reproducible drops (default: a new seed in the log).",
+        help="Random seed (default: generated and logged).",
     ),
     kinds: list[SampleKind] | None = typer.Option(
         None,
         "--kind",
         "-k",
-        help="Only use layers of this kind (repeatable; default: all). "
-        "The kick is always used, so `-k kick` gives kicks only.",
+        help="Layer kind (repeatable; default: all). Kicks always included.",
     ),
     held_out: bool = typer.Option(
         False,
         "--held-out",
-        help="Use only the held-out kicks, for validation drops. Without it, "
-        "the held-out kicks are never used.",
+        help="Use validation kicks instead of training kicks.",
     ),
     no_master: bool = typer.Option(
         False,
         "--no-master",
-        help="Do not augment the drops with random master effects.",
+        help="Disable master effects.",
     ),
 ) -> None:
     """Write synthetic drops with labeled kick onsets."""

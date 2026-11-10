@@ -193,17 +193,24 @@ def test_analyze_writes_onsets_clicks_and_scores(
 
     assert result.exit_code == 0, result.output
     assert run.call_args.args[2] == threshold
-    assert (tmp_path / "track.csv").exists()
-    assert (tmp_path / "track.clicks.wav").exists()
+    assert (tmp_path / "track-onsets.csv").exists()
+    assert (tmp_path / "track-onsets.clicks.wav").exists()
     assert "F-measure 1.000" in result.output
 
 
-def test_analyze_can_write_onsets_without_confidences(tmp_path: Path) -> None:
+@pytest.mark.parametrize("custom_output", [False, True])
+def test_analyze_can_write_onsets_without_confidences(
+    tmp_path: Path, custom_output: bool
+) -> None:
     track = tmp_path / "track.wav"
     model = tmp_path / "model.pt"
     for path in (track, model):
         path.touch()
     analysis = Analysis(onsets=np.array([0.5, 1.0]), confidences=np.ones(2))
+    labels = tmp_path / "track.csv"
+    labels.write_text("original labels\n")
+    output = tmp_path / ("custom.csv" if custom_output else "track-onsets.csv")
+    options = ["-o", str(output)] if custom_output else []
 
     with (
         patch("src.cli.commands.load_checkpoint"),
@@ -214,8 +221,17 @@ def test_analyze_can_write_onsets_without_confidences(tmp_path: Path) -> None:
         patch("src.cli.commands.analyze_signal", return_value=analysis),
     ):
         result = CliRunner().invoke(
-            app, ["analyze", str(track), "-m", str(model), "--no-confidences"]
+            app,
+            [
+                "analyze",
+                str(track),
+                "-m",
+                str(model),
+                "--no-confidences",
+                *options,
+            ],
         )
 
     assert result.exit_code == 0, result.output
-    assert (tmp_path / "track.csv").read_text() == "0.500000\n1.000000\n"
+    assert output.read_text() == "0.500000\n1.000000\n"
+    assert labels.read_text() == "original labels\n"
