@@ -4,6 +4,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from src.core.config import CONFIG
 from src.models.audio import SampleKind
 from src.services.synthesis import bank
 
@@ -31,7 +32,7 @@ def test_load_sample_bank_resolves_workspace_paths_and_globs(
     with patch(
         "src.services.synthesis.bank.load_audio", return_value=np.zeros(0)
     ) as load_audio:
-        sample_bank = bank.load_sample_bank(config)
+        sample_bank = bank.load_sample_bank(config, CONFIG.sr)
 
     assert [call.args[0] for call in load_audio.call_args_list] == [
         direct_path,
@@ -59,7 +60,7 @@ def test_load_sample_bank_raises_when_path_does_not_match(
     )
 
     with pytest.raises(FileNotFoundError, match="No audio files matched"):
-        bank.load_sample_bank(config)
+        bank.load_sample_bank(config, CONFIG.sr)
 
 
 def _write_bank_config(
@@ -74,7 +75,7 @@ def _write_bank_config(
     )
 
 
-def _decode(path: Path) -> np.ndarray:
+def _decode(path: Path, sr: int) -> np.ndarray:
     return np.full(4, len(path.name), dtype=np.float32)
 
 
@@ -87,14 +88,35 @@ def test_load_sample_bank_from_file_reuses_cache(tmp_path: Path) -> None:
     with patch(
         "src.services.synthesis.bank.load_audio", side_effect=_decode
     ) as load_audio:
-        first_bank = bank.load_sample_bank_from_file(bank_path)
-        cached_bank = bank.load_sample_bank_from_file(bank_path)
+        first_bank = bank.load_sample_bank_from_file(bank_path, CONFIG.sr)
+        cached_bank = bank.load_sample_bank_from_file(bank_path, CONFIG.sr)
 
     assert load_audio.call_count == 1
     assert np.array_equal(
         cached_bank.samples[0].signal, first_bank.samples[0].signal
     )
     assert cached_bank.samples[0].name == "kicks/kick.wav"
+
+
+def test_load_sample_bank_from_file_refreshes_cache_for_new_sample_rate(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "kicks").mkdir()
+    (tmp_path / "kicks" / "kick.wav").touch()
+    bank_path = tmp_path / "bank.yaml"
+    _write_bank_config(bank_path, tmp_path)
+
+    with patch(
+        "src.services.synthesis.bank.load_audio", side_effect=_decode
+    ) as load_audio:
+        bank.load_sample_bank_from_file(bank_path, CONFIG.sr)
+        bank.load_sample_bank_from_file(bank_path, CONFIG.sr // 2)
+
+    assert load_audio.call_count == 2
+    assert load_audio.call_args.args == (
+        tmp_path / "kicks" / "kick.wav",
+        CONFIG.sr // 2,
+    )
 
 
 def test_load_sample_bank_from_file_refreshes_cache_for_new_files(
@@ -106,9 +128,9 @@ def test_load_sample_bank_from_file_refreshes_cache_for_new_files(
     _write_bank_config(bank_path, tmp_path)
 
     with patch("src.services.synthesis.bank.load_audio", side_effect=_decode):
-        bank.load_sample_bank_from_file(bank_path)
+        bank.load_sample_bank_from_file(bank_path, CONFIG.sr)
         (tmp_path / "kicks" / "new_kick.wav").touch()
-        refreshed_bank = bank.load_sample_bank_from_file(bank_path)
+        refreshed_bank = bank.load_sample_bank_from_file(bank_path, CONFIG.sr)
 
     assert [sample.name for sample in refreshed_bank.samples] == [
         "kicks/kick.wav",
@@ -128,9 +150,9 @@ def test_load_sample_bank_from_file_refreshes_cache_for_new_settings(
     with patch(
         "src.services.synthesis.bank.load_audio", side_effect=_decode
     ) as load_audio:
-        bank.load_sample_bank_from_file(bank_path)
+        bank.load_sample_bank_from_file(bank_path, CONFIG.sr)
         _write_bank_config(bank_path, tmp_path, bpm=150)
-        refreshed_bank = bank.load_sample_bank_from_file(bank_path)
+        refreshed_bank = bank.load_sample_bank_from_file(bank_path, CONFIG.sr)
 
     assert load_audio.call_count == 2
     assert refreshed_bank.samples[0].bpm == 150
@@ -146,7 +168,7 @@ def test_load_sample_bank_from_file_replaces_old_cache_file(
     (tmp_path / "bank.yaml.cache").write_bytes(b"old pickle")
 
     with patch("src.services.synthesis.bank.load_audio", side_effect=_decode):
-        sample_bank = bank.load_sample_bank_from_file(bank_path)
+        sample_bank = bank.load_sample_bank_from_file(bank_path, CONFIG.sr)
 
     assert (tmp_path / "bank.yaml.cache").is_dir()
     assert len(sample_bank.samples) == 1
@@ -167,8 +189,8 @@ def test_load_sample_bank_from_file_can_bypass_cache(tmp_path: Path) -> None:
         "src.services.synthesis.bank.load_audio",
         return_value=np.zeros(4, dtype=np.float32),
     ) as load_audio:
-        bank.load_sample_bank_from_file(bank_path)
-        bank.load_sample_bank_from_file(bank_path, use_cache=False)
+        bank.load_sample_bank_from_file(bank_path, CONFIG.sr)
+        bank.load_sample_bank_from_file(bank_path, CONFIG.sr, use_cache=False)
 
     assert load_audio.call_count == 2
 

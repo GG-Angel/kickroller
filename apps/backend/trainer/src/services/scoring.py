@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from scipy.signal import find_peaks
 
-from src.core.config import CONFIG, TrainConfig
+from src.core.config import FeatureConfig, TrainConfig
 from src.services.training.network import KickNet
 
 type Probabilities = np.ndarray | Sequence[np.ndarray]
@@ -24,11 +24,12 @@ class Evaluation:
 def pick_onsets(
     probabilities: np.ndarray,
     threshold: float,
-    config: TrainConfig = CONFIG.train,
-    sr: int = CONFIG.sr,
+    config: TrainConfig,
+    feature_config: FeatureConfig,
+    sr: int,
 ) -> np.ndarray:
     """Onset times in seconds: peaks above ``threshold``, spaced apart."""
-    hop = CONFIG.features.hop
+    hop = feature_config.hop
     distance = max(1, round(config.min_onset_distance * sr / hop))
     peaks, _ = find_peaks(probabilities, height=threshold, distance=distance)
     return librosa.frames_to_time(peaks, sr=sr, hop_length=hop)
@@ -51,7 +52,7 @@ def predict(
 def select_labeled_onsets(
     estimated: np.ndarray,
     reference: np.ndarray,
-    tolerance: float = CONFIG.train.tolerance,
+    tolerance: float,
 ) -> np.ndarray:
     """Keep predictions in label groups separated by gaps longer than 5 s.
 
@@ -74,7 +75,7 @@ def score_onsets(
     estimated: np.ndarray,
     reference: np.ndarray,
     threshold: float,
-    tolerance: float = CONFIG.train.tolerance,
+    tolerance: float,
 ) -> Evaluation:
     """Score only labeled spans, with a hit within ``tolerance``."""
     selected = select_labeled_onsets(estimated, reference, tolerance)
@@ -88,6 +89,8 @@ def _evaluate_thresholds(
     probabilities: Probabilities,
     references: Sequence[np.ndarray],
     config: TrainConfig,
+    feature_config: FeatureConfig,
+    sr: int,
     *,
     labeled_spans_only: bool,
     initial_f_measure: float,
@@ -99,7 +102,9 @@ def _evaluate_thresholds(
         for probability, reference in zip(
             probabilities, references, strict=True
         ):
-            estimated = pick_onsets(probability, threshold, config)
+            estimated = pick_onsets(
+                probability, threshold, config, feature_config, sr
+            )
             if labeled_spans_only:
                 estimated = select_labeled_onsets(
                     estimated, reference, config.tolerance
@@ -121,13 +126,17 @@ def _evaluate_thresholds(
 def evaluate(
     probabilities: Probabilities,
     references: Sequence[np.ndarray],
-    config: TrainConfig = CONFIG.train,
+    config: TrainConfig,
+    feature_config: FeatureConfig,
+    sr: int,
 ) -> Evaluation:
     """Select the best threshold over all reference onsets."""
     return _evaluate_thresholds(
         probabilities,
         references,
         config,
+        feature_config,
+        sr,
         labeled_spans_only=False,
         initial_f_measure=0.0,
     )
@@ -136,13 +145,17 @@ def evaluate(
 def evaluate_labeled(
     probabilities: Probabilities,
     references: Sequence[np.ndarray],
-    config: TrainConfig = CONFIG.train,
+    config: TrainConfig,
+    feature_config: FeatureConfig,
+    sr: int,
 ) -> Evaluation:
     """Select the best threshold using predictions inside labeled spans."""
     return _evaluate_thresholds(
         probabilities,
         references,
         config,
+        feature_config,
+        sr,
         labeled_spans_only=True,
         initial_f_measure=-1.0,
     )

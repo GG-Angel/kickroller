@@ -8,7 +8,6 @@ import soundfile
 from scipy.ndimage import maximum_filter1d, uniform_filter1d
 from scipy.signal import bilinear, butter, sosfilt, tf2sos
 
-from src.core.config import CONFIG
 from src.models.audio import Signal
 
 
@@ -55,9 +54,7 @@ def _biquad_sos(cutoff: float, btype: str, q: float, sr: int) -> np.ndarray:
     return tf2sos(b, a)
 
 
-def loudest_rms(
-    signal: Signal, window: float = 0.1, sr: int = CONFIG.sr
-) -> float:
+def loudest_rms(signal: Signal, sr: int, window: float = 0.1) -> float:
     """The RMS of the loudest ``window`` seconds of the signal."""
     if len(signal) == 0:
         return 0.0

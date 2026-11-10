@@ -29,7 +29,7 @@ def test_synth_can_bypass_sample_bank_cache(tmp_path: Path) -> None:
         )
 
     assert result.exit_code == 0
-    load_bank.assert_called_once_with(bank_path, use_cache=False)
+    load_bank.assert_called_once_with(bank_path, CONFIG.sr, use_cache=False)
 
 
 def test_synth_writes_drops_to_output_folder(tmp_path: Path) -> None:
@@ -45,7 +45,9 @@ def test_synth_writes_drops_to_output_folder(tmp_path: Path) -> None:
         )
 
     assert result.exit_code == 0
-    export.assert_called_once_with(bank, output, 3, 5, CONFIG.synth)
+    export.assert_called_once_with(
+        bank, output, 3, 5, config=CONFIG.synth, sr=CONFIG.sr
+    )
 
 
 def _invoke_synth(*options: str) -> list:
@@ -59,7 +61,7 @@ def _invoke_synth(*options: str) -> list:
         result = CliRunner().invoke(app, ["synth", *options])
 
     assert result.exit_code == 0, result.output
-    return export.call_args.args[4].layers
+    return export.call_args.kwargs["config"].layers
 
 
 def test_synth_uses_all_layers_by_default() -> None:
@@ -126,7 +128,7 @@ def test_synth_can_turn_off_the_master_effects(options: list[str]) -> None:
         result = CliRunner().invoke(app, ["synth", "-k", "kick", *options])
 
     assert result.exit_code == 0, result.output
-    config = export.call_args.args[4]
+    config = export.call_args.kwargs["config"]
     assert config.layers == []
     if options:
         assert config.master is None
@@ -145,7 +147,8 @@ def test_train_passes_the_options(tmp_path: Path) -> None:
         )
 
     assert result.exit_code == 0, result.output
-    bank_file, saved, use_cache, seed, config = train.call_args.args
+    bank_file, saved, use_cache, seed = train.call_args.args
+    config = train.call_args.kwargs["config"]
     assert (bank_file, saved, use_cache, seed) == (
         Path("bank.yaml"),
         output,

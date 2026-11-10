@@ -6,7 +6,6 @@ import yaml
 from loguru import logger
 from scipy.io import wavfile
 
-from src.core.config import CONFIG
 from src.models.audio import Signal
 
 
@@ -16,16 +15,16 @@ def load_yaml(path: Path) -> dict:
         return yaml.safe_load(f)
 
 
-def load_audio(path: Path) -> np.ndarray:
+def load_audio(path: Path, sr: int) -> np.ndarray:
     """Load an audio file as a numpy array."""
-    signal, _ = librosa.load(path, sr=CONFIG.sr)
+    signal, _ = librosa.load(path, sr=sr)
     logger.debug(f"Loaded audio from {path}")
     return signal
 
 
-def save_audio(path: Path, signal: Signal) -> None:
+def save_audio(path: Path, signal: Signal, sr: int) -> None:
     """Save a numpy array as an audio file."""
-    wavfile.write(path, CONFIG.sr, signal)
+    wavfile.write(path, sr, signal)
     logger.info(f"Saved audio to {path}")
 
 

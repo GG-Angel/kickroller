@@ -2,6 +2,7 @@ from pathlib import Path
 
 import torch
 
+from src.core.config import CONFIG
 from src.services.training.features import band_count
 from src.services.training.network import (
     CONTEXT_FRAMES,
@@ -13,15 +14,15 @@ from src.services.training.network import (
 
 def _features(frames: int = 100) -> torch.Tensor:
     torch.manual_seed(0)
-    return torch.randn(2, 3, band_count(), frames)
+    return torch.randn(2, 3, band_count(CONFIG.features), frames)
 
 
 def test_kick_net_gives_one_logit_per_frame() -> None:
-    assert KickNet()(_features()).shape == (2, 100)
+    assert KickNet(CONFIG.features)(_features()).shape == (2, 100)
 
 
 def test_kick_net_sees_exactly_its_context() -> None:
-    model = KickNet().eval()
+    model = KickNet(CONFIG.features).eval()
     features = _features()
     changed = features.clone()
     changed[:, :, :, 50] += 5.0
@@ -35,7 +36,7 @@ def test_kick_net_sees_exactly_its_context() -> None:
 
 
 def test_kick_net_standardizes_its_input() -> None:
-    model = KickNet()
+    model = KickNet(CONFIG.features)
     features = _features() * 3 + 7
 
     model.set_standardization(features)
@@ -46,7 +47,7 @@ def test_kick_net_standardizes_its_input() -> None:
 
 
 def test_checkpoint_keeps_the_model_and_threshold(tmp_path: Path) -> None:
-    model = KickNet()
+    model = KickNet(CONFIG.features)
     model.set_standardization(_features() + 2)
     model.eval()
     path = tmp_path / "model.pt"

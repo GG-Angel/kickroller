@@ -3,7 +3,6 @@ from dataclasses import dataclass
 import librosa
 import numpy as np
 
-from src.core.config import CONFIG
 from src.models.audio import LabeledDrop
 
 
@@ -15,9 +14,7 @@ class CropWindow:
     """End of the window in seconds."""
 
 
-def crop_drop(
-    drop: LabeledDrop, window: CropWindow, sr: int = CONFIG.sr
-) -> LabeledDrop:
+def crop_drop(drop: LabeledDrop, window: CropWindow, sr: int) -> LabeledDrop:
     """Cut the window from the drop and shift its onsets.
 
     The times are rounded to samples, so the onsets stay on the same samples.

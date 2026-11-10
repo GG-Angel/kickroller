@@ -10,7 +10,6 @@ import numpy as np
 from loguru import logger
 from pydantic import BaseModel
 
-from src.core.config import CONFIG
 from src.core.storage import load_audio, load_yaml
 from src.models.audio import SampleKind, Signal
 from src.services.synthesis.track import Track
@@ -196,19 +195,21 @@ def _log_bank(sample_bank: SampleBank) -> None:
     logger.info(f"Loaded sample bank: {summary}")
 
 
-def load_sample_bank(config: SampleBankConfig) -> SampleBank:
+def load_sample_bank(config: SampleBankConfig, sr: int) -> SampleBank:
     """Decode all of the samples into memory."""
     files = find_sample_files(config)
     logger.info(f"Decoding {len(files)} samples")
     sample_bank = SampleBank(
-        samples=[_create_sample(file, load_audio(file.path)) for file in files]
+        samples=[
+            _create_sample(file, load_audio(file.path, sr)) for file in files
+        ]
     )
     _log_bank(sample_bank)
     return sample_bank
 
 
 def _open_sample_bank_cache(
-    folder: Path, files: list[SampleFile]
+    folder: Path, files: list[SampleFile], sr: int
 ) -> SampleBank | None:
     """The cached bank, or None if the cache is missing or out of date."""
     try:
@@ -220,7 +221,7 @@ def _open_sample_bank_cache(
         logger.debug(f"Could not open sample bank cache at {folder}: {error}")
         return None
 
-    if index.sr != CONFIG.sr or index.files != files:
+    if index.sr != sr or index.files != files:
         return None
     samples = [
         _create_sample(file, audio[start:end])
@@ -231,7 +232,9 @@ def _open_sample_bank_cache(
     return SampleBank(samples=samples)
 
 
-def _write_sample_bank_cache(folder: Path, files: list[SampleFile]) -> None:
+def _write_sample_bank_cache(
+    folder: Path, files: list[SampleFile], sr: int
+) -> None:
     """Decode each file into the cache, one file at a time.
 
     The index is written last, so an interrupted write is not used.
@@ -244,10 +247,10 @@ def _write_sample_bank_cache(folder: Path, files: list[SampleFile]) -> None:
     offsets = [0]
     with open(folder / CACHE_AUDIO_FILE, "wb") as audio_file:
         for file in files:
-            signal = np.asarray(load_audio(file.path), dtype=np.float32)
+            signal = np.asarray(load_audio(file.path, sr), dtype=np.float32)
             audio_file.write(signal.tobytes())
             offsets.append(offsets[-1] + len(signal))
-    index = SampleBankCacheIndex(sr=CONFIG.sr, files=files, offsets=offsets)
+    index = SampleBankCacheIndex(sr=sr, files=files, offsets=offsets)
     (folder / CACHE_INDEX_FILE).write_text(index.model_dump_json())
 
 
@@ -256,7 +259,7 @@ def load_sample_bank_config(path: Path) -> SampleBankConfig:
 
 
 def load_sample_bank_from_file(
-    path: Path, use_cache: bool = True
+    path: Path, sr: int, use_cache: bool = True
 ) -> SampleBank:
     """Load the bank of a config file.
 
@@ -265,14 +268,14 @@ def load_sample_bank_from_file(
     """
     config = load_sample_bank_config(path)
     if not use_cache:
-        return load_sample_bank(config)
+        return load_sample_bank(config, sr)
 
     files = find_sample_files(config)
     cache_folder = path.with_suffix(f"{path.suffix}.cache")
-    sample_bank = _open_sample_bank_cache(cache_folder, files)
+    sample_bank = _open_sample_bank_cache(cache_folder, files, sr)
     if sample_bank is None:
-        _write_sample_bank_cache(cache_folder, files)
-        sample_bank = _open_sample_bank_cache(cache_folder, files)
+        _write_sample_bank_cache(cache_folder, files, sr)
+        sample_bank = _open_sample_bank_cache(cache_folder, files, sr)
         assert sample_bank is not None
     _log_bank(sample_bank)
     return sample_bank

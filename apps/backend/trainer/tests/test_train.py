@@ -54,7 +54,13 @@ def test_train_saves_a_checkpoint(tmp_path: Path) -> None:
         ),
     ):
         best = train(
-            Path("bank.yaml"), output, seed=0, config=config, synth=synth
+            Path("bank.yaml"),
+            output,
+            seed=0,
+            config=config,
+            synth=synth,
+            feature_config=CONFIG.features,
+            sr=CONFIG.sr,
         )
 
     assert 0 <= best.f_measure <= 1

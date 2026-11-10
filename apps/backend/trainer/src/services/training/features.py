@@ -3,11 +3,11 @@ from functools import cache
 import librosa
 import numpy as np
 
-from src.core.config import CONFIG, FeatureConfig
+from src.core.config import FeatureConfig
 from src.models.audio import Signal
 
 
-def band_count(config: FeatureConfig = CONFIG.features) -> int:
+def band_count(config: FeatureConfig) -> int:
     octaves = np.log2(config.fmax / config.fmin)
     return int(octaves * config.bands_per_octave) + 1
 
@@ -45,7 +45,7 @@ def _log_filterbank(
 
 
 def compute_features(
-    signal: Signal, config: FeatureConfig = CONFIG.features
+    signal: Signal, config: FeatureConfig, sr: int
 ) -> np.ndarray:
     """Log spectrograms of shape (windows, bands, frames).
 
@@ -62,7 +62,7 @@ def compute_features(
             config.fmin,
             band_count(config),
             config.bands_per_octave,
-            CONFIG.sr,
+            sr,
         )
         bands = filters @ magnitude
         layers.append(librosa.amplitude_to_db(bands, amin=1e-5, top_db=None))
@@ -72,8 +72,8 @@ def compute_features(
 def make_targets(
     onsets: np.ndarray,
     frames: int,
-    config: FeatureConfig = CONFIG.features,
-    sr: int = CONFIG.sr,
+    config: FeatureConfig,
+    sr: int,
 ) -> np.ndarray:
     """1 at the frame of each onset and ``neighbor_target`` at its neighbors."""
     targets = np.zeros(frames, dtype=np.float32)

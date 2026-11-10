@@ -254,7 +254,7 @@ def draw_kick_track(
     return KickTrack(
         track=track,
         beats=pattern.beats,
-        level=loudest_rms(kick),
+        level=loudest_rms(kick, grid.sr),
         gaps=gaps,
         rolls=rolls,
     )

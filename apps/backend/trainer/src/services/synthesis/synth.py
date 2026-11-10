@@ -3,7 +3,7 @@ from math import ceil
 import librosa
 import numpy as np
 
-from src.core.config import CONFIG, LayerConfig, SynthConfig
+from src.core.config import LayerConfig, SynthConfig
 from src.models.audio import LabeledDrop
 from src.services.synthesis.bank import SampleBank
 from src.services.synthesis.crop import crop_drop, draw_crop
@@ -18,7 +18,7 @@ from src.services.synthesis.patterns.one_shot import draw_one_shot_track
 from src.services.synthesis.track import Track
 
 
-def draw_grid(config: SynthConfig, rng: np.random.Generator) -> Grid:
+def draw_grid(config: SynthConfig, rng: np.random.Generator, sr: int) -> Grid:
     bpm = int(rng.choice(config.bpms))
     bar_seconds = 60 * Grid.beats_per_bar / bpm
     # One extra bar leaves room for a random crop start.
@@ -26,6 +26,7 @@ def draw_grid(config: SynthConfig, rng: np.random.Generator) -> Grid:
     return Grid(
         bars=bars,
         bpm=bpm,
+        sr=sr,
         steps_per_beat=int(rng.choice(config.steps)),
     )
 
@@ -46,13 +47,14 @@ def _add_layer_effects(
 def generate_drop(
     bank: SampleBank,
     rng: np.random.Generator,
-    config: SynthConfig = CONFIG.synth,
+    config: SynthConfig,
+    sr: int,
 ) -> LabeledDrop:
     """Generate a random drop and the onset of each kick in it.
 
     The drop peaks at ``config.peak_db`` before the master effects.
     """
-    grid = draw_grid(config, rng)
+    grid = draw_grid(config, rng, sr)
     mix = Mix(sr=grid.sr)
 
     # 1. Generate the kick track
@@ -95,9 +97,10 @@ def generate_drop(
 def generate_cropped_drop(
     bank: SampleBank,
     rng: np.random.Generator,
-    config: SynthConfig = CONFIG.synth,
+    config: SynthConfig,
+    sr: int,
 ) -> LabeledDrop:
     """Generate a drop and crop a random window of ``drop_seconds`` from it."""
-    drop = generate_drop(bank, rng, config)
-    duration = len(drop.signal) / CONFIG.sr
-    return crop_drop(drop, draw_crop(rng, duration, config.drop_seconds))
+    drop = generate_drop(bank, rng, config, sr)
+    duration = len(drop.signal) / sr
+    return crop_drop(drop, draw_crop(rng, duration, config.drop_seconds), sr)

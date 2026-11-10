@@ -88,7 +88,7 @@ def test_mix_sums_wet_track_signals() -> None:
     wet_track = make_track(np.ones(16, dtype=np.float32))
     wet_track.add_effects(Gain(0.5), Cut(8, fade=0.0))
 
-    mix = Mix()
+    mix = Mix(CONFIG.sr)
     mix.add_tracks(dry_track, wet_track)
     mixed = mix.mix()
 
@@ -180,14 +180,14 @@ def test_loudest_rms_finds_the_loudest_window() -> None:
     signal = np.full(CONFIG.sr, 0.1, dtype=np.float32)
     signal[CONFIG.sr // 2 : CONFIG.sr // 2 + 4410] = 0.8
 
-    assert loudest_rms(signal) == pytest.approx(0.8)
+    assert loudest_rms(signal, CONFIG.sr) == pytest.approx(0.8)
 
 
 def test_loudest_rms_uses_the_whole_signal_when_shorter_than_window() -> None:
     signal = np.full(100, -0.5, dtype=np.float32)
 
-    assert loudest_rms(signal) == pytest.approx(0.5)
-    assert loudest_rms(np.zeros(0, dtype=np.float32)) == 0.0
+    assert loudest_rms(signal, CONFIG.sr) == pytest.approx(0.5)
+    assert loudest_rms(np.zeros(0, dtype=np.float32), CONFIG.sr) == 0.0
 
 
 def test_level_scales_to_the_level() -> None:
@@ -197,7 +197,7 @@ def test_level_scales_to_the_level() -> None:
     leveled = Level(0.25).process(signal, CONFIG.sr)
 
     assert leveled.dtype == np.float32
-    assert loudest_rms(leveled) == pytest.approx(0.25, rel=1e-5)
+    assert loudest_rms(leveled, CONFIG.sr) == pytest.approx(0.25, rel=1e-5)
 
 
 def test_level_leaves_silence_unchanged() -> None:
@@ -421,7 +421,7 @@ def test_master_effects_keep_the_length_and_dtype(effect: Effect) -> None:
 
 
 def test_mix_applies_master_effects_after_the_sum() -> None:
-    mix = Mix()
+    mix = Mix(CONFIG.sr)
     mix.add_tracks(
         make_track(np.full(4, 0.5, dtype=np.float32)),
         make_track(np.full(4, 0.5, dtype=np.float32)),

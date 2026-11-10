@@ -90,8 +90,10 @@ def analyze(
     """Find the kick onsets of a track."""
     output = output or track.with_name(f"{track.stem}-onsets.csv")
     checkpoint = load_checkpoint(model)
-    signal = load_audio(track)
-    analysis = analyze_signal(signal, checkpoint, threshold)
+    signal = load_audio(track, CONFIG.sr)
+    analysis = analyze_signal(
+        signal, checkpoint, threshold, CONFIG.train, CONFIG.sr
+    )
     save_onsets(
         output,
         analysis.onsets,
@@ -100,13 +102,18 @@ def analyze(
     typer.echo(f"Found {len(analysis.onsets)} kicks, saved to {output}.")
     if clicks:
         clicks_path = output.with_suffix(".clicks.wav")
-        save_audio(clicks_path, add_clicks(signal, analysis.onsets))
+        save_audio(
+            clicks_path,
+            add_clicks(signal, analysis.onsets, CONFIG.sr),
+            CONFIG.sr,
+        )
         typer.echo(f"Saved clicks to {clicks_path}.")
     if labels:
         score = score_onsets(
             analysis.onsets,
             load_onsets(labels),
             checkpoint.threshold if threshold is None else threshold,
+            CONFIG.train.tolerance,
         )
         typer.echo(
             f"F-measure {score.f_measure:.3f} (precision "
@@ -149,7 +156,16 @@ def train(
 ) -> None:
     """Train a kick onset model on synthetic drops."""
     config = CONFIG.train.model_copy(update={"steps": steps})
-    best = train_model(bank_file, output, not no_cache, seed, config)
+    best = train_model(
+        bank_file,
+        output,
+        not no_cache,
+        seed,
+        config=config,
+        synth=CONFIG.synth,
+        feature_config=CONFIG.features,
+        sr=CONFIG.sr,
+    )
     typer.echo(
         f"Best validation F-measure {best.f_measure:.3f} at threshold "
         f"{best.threshold}, saved to {output}."
@@ -201,21 +217,25 @@ def synth(
     ),
 ) -> None:
     """Write synthetic drops with labeled kick onsets."""
-    bank = load_sample_bank_from_file(bank_file, use_cache=not no_cache)
+    bank = load_sample_bank_from_file(
+        bank_file, CONFIG.sr, use_cache=not no_cache
+    )
     typer.echo(f"Loaded bank with {len(bank.samples)} samples.")
     bank = bank.select_kicks(held_out, CONFIG.synth.held_out_kick_fraction)
     kicks = sum(sample.kind == SampleKind.KICK for sample in bank.samples)
     typer.echo(f"Using {kicks} {'held-out' if held_out else 'training'} kicks.")
-    config = _select_kinds(kinds)
+    config = _select_kinds(kinds, CONFIG.synth)
     if no_master:
         config = config.model_copy(update={"master": None})
-    export_drops(bank, output, count, seed, config)
+    export_drops(bank, output, count, seed, config=config, sr=CONFIG.sr)
     typer.echo(f"Wrote {count} drops to {output}.")
 
 
-def _select_kinds(kinds: list[SampleKind] | None) -> SynthConfig:
+def _select_kinds(
+    kinds: list[SampleKind] | None, config: SynthConfig
+) -> SynthConfig:
     """The synth config with only the layers of ``kinds``, or all layers."""
     if kinds is None:
-        return CONFIG.synth
-    layers = [layer for layer in CONFIG.synth.layers if layer.kind in kinds]
-    return CONFIG.synth.model_copy(update={"layers": layers})
+        return config
+    layers = [layer for layer in config.layers if layer.kind in kinds]
+    return config.model_copy(update={"layers": layers})

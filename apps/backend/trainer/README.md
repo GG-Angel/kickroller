@@ -41,6 +41,10 @@ inside labeled spans. The starting checkpoint is also a selection candidate,
 so a run with no validation improvement retains the starting weights.
 The output path must be new.
 
+Direct calls to trainer functions must pass the relevant `TrainConfig`,
+`SynthConfig`, `FeatureConfig`, and sample rate. The CLI supplies the current
+default settings; service functions do not read them implicitly.
+
 Keep test tracks separate from both lists. Select the baseline's threshold
 on the same validation tracks, then compare both checkpoints on the test
 tracks with their selected thresholds. Record the split, seed, training and

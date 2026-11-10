@@ -8,7 +8,7 @@ from loguru import logger
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 
-from src.core.config import CONFIG, SynthConfig, TrainConfig
+from src.core.config import FeatureConfig, SynthConfig, TrainConfig
 from src.core.storage import load_audio, load_onsets
 from src.services.scoring import (
     Evaluation,
@@ -30,7 +30,12 @@ class RealTrack:
     onsets: np.ndarray
 
 
-def load_real_track(path: Path) -> RealTrack:
+def load_real_track(
+    path: Path,
+    feature_config: FeatureConfig,
+    train_config: TrainConfig,
+    sr: int,
+) -> RealTrack:
     """Load a track, masking sections with no labels out of the loss."""
     candidates = [
         path.with_suffix(".csv"),
@@ -40,20 +45,20 @@ def load_real_track(path: Path) -> RealTrack:
     if len(labels) != 1:
         raise ValueError(f"Expected one label CSV for {path}, got {labels}.")
     onsets = load_onsets(labels[0])
-    signal = load_audio(path)
+    signal = load_audio(path, sr)
     if (
         not len(onsets)
         or not np.isfinite(onsets).all()
         or (onsets < 0).any()
         or (np.diff(onsets) <= 0).any()
-        or onsets[-1] > len(signal) / CONFIG.sr
+        or onsets[-1] > len(signal) / sr
     ):
         raise ValueError(f"Invalid or empty onset labels in {labels[0]}.")
-    features = compute_features(signal)
-    times = np.arange(features.shape[-1]) * CONFIG.features.hop / CONFIG.sr
-    selected = select_labeled_onsets(times, onsets)
+    features = compute_features(signal, feature_config, sr)
+    times = np.arange(features.shape[-1]) * feature_config.hop / sr
+    selected = select_labeled_onsets(times, onsets, train_config.tolerance)
     mask = np.isin(times, selected).astype(np.float32)
-    targets = make_targets(onsets, len(times))
+    targets = make_targets(onsets, len(times), feature_config, sr)
     return RealTrack(
         torch.from_numpy(features),
         torch.from_numpy(targets),
@@ -87,13 +92,19 @@ def _real_crop(
 def evaluate_real(
     probabilities: list[np.ndarray],
     tracks: list[RealTrack],
-    config: TrainConfig = CONFIG.train,
+    config: TrainConfig,
+    feature_config: FeatureConfig,
+    sr: int,
 ) -> Evaluation:
     """Select a threshold using pooled counts inside labeled spans only."""
     if not tracks:
         raise ValueError("Real validation needs at least one track.")
     return evaluate_labeled(
-        probabilities, [track.onsets for track in tracks], config
+        probabilities,
+        [track.onsets for track in tracks],
+        config,
+        feature_config,
+        sr,
     )
 
 
@@ -105,7 +116,9 @@ def fine_tune(
     validation: list[Path],
     seed: int,
     config: TrainConfig,
-    synth: SynthConfig = CONFIG.synth,
+    synth: SynthConfig,
+    feature_config: FeatureConfig,
+    sr: int,
 ) -> Evaluation:
     """Fine-tune with equal real/synthetic batches and real validation.
 
@@ -123,10 +136,14 @@ def fine_tune(
     if initial.resolve() == output.resolve() or output.exists():
         raise ValueError(f"Refusing to overwrite a checkpoint: {output}.")
     checkpoint = load_checkpoint(initial)
-    if checkpoint.model.config != CONFIG.features:
+    if checkpoint.model.config != feature_config:
         raise ValueError("Checkpoint features differ from trainer features.")
-    real_training = [load_real_track(path) for path in training]
-    real_validation = [load_real_track(path) for path in validation]
+    real_training = [
+        load_real_track(path, feature_config, config, sr) for path in training
+    ]
+    real_validation = [
+        load_real_track(path, feature_config, config, sr) for path in validation
+    ]
     logger.info(
         f"Fine-tuning {initial}: {len(training)} training tracks, "
         f"{len(validation)} validation tracks, seed {seed}, "
@@ -136,7 +153,7 @@ def fine_tune(
     rng = np.random.default_rng(seed)
     model = checkpoint.model
     loader = DataLoader(
-        DropStream(bank_file, True, seed, synth),
+        DropStream(bank_file, True, seed, synth, feature_config, sr),
         batch_size=config.batch_size // 2,
         num_workers=config.workers,
         persistent_workers=config.workers > 0,
@@ -147,7 +164,9 @@ def fine_tune(
             predict(model, track.features[None], 1)[0]
             for track in real_validation
         ]
-        return evaluate_real(probabilities, real_validation, config)
+        return evaluate_real(
+            probabilities, real_validation, config, feature_config, sr
+        )
 
     def real_and_synthetic_loss(
         logits: torch.Tensor,

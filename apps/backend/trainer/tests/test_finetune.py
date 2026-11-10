@@ -23,7 +23,7 @@ def test_load_real_track_masks_unlabeled_gaps(tmp_path: Path) -> None:
         "src.services.training.finetune.load_audio",
         return_value=np.zeros(CONFIG.sr * 12, dtype=np.float32),
     ):
-        track = load_real_track(path)
+        track = load_real_track(path, CONFIG.features, CONFIG.train, CONFIG.sr)
 
     assert track.mask[100] == track.mask[150] == track.mask[1000] == 1
     assert track.mask[0] == track.mask[500] == track.mask[1190] == 0
@@ -43,7 +43,7 @@ def test_load_real_track_rejects_invalid_labels(
         ),
         pytest.raises(ValueError, match="Invalid or empty"),
     ):
-        load_real_track(path)
+        load_real_track(path, CONFIG.features, CONFIG.train, CONFIG.sr)
 
 
 def _track() -> RealTrack:
@@ -71,7 +71,13 @@ def test_real_validation_ignores_predictions_between_spans() -> None:
     probabilities = np.zeros(1201, dtype=np.float32)
     probabilities[[100, 500, 1000]] = 0.9
 
-    best = evaluate_real([probabilities], [track])
+    best = evaluate_real(
+        [probabilities],
+        [track],
+        CONFIG.train,
+        CONFIG.features,
+        CONFIG.sr,
+    )
 
     assert best.f_measure == best.precision == best.recall == 1.0
 
@@ -86,6 +92,9 @@ def test_fine_tune_rejects_overlapping_tracks(tmp_path: Path) -> None:
             [tmp_path / "track.mp3"],
             1,
             CONFIG.train,
+            CONFIG.synth,
+            CONFIG.features,
+            CONFIG.sr,
         )
 
 
@@ -93,7 +102,7 @@ def test_fine_tune_keeps_best_checkpoint_and_normalization(
     tmp_path: Path,
 ) -> None:
     initial, output = tmp_path / "base.pt", tmp_path / "out.pt"
-    model = KickNet()
+    model = KickNet(CONFIG.features)
     model.mean.fill_(3.0)
     save_checkpoint(initial, model, 0.8)
     track = _track()
@@ -123,6 +132,9 @@ def test_fine_tune_keeps_best_checkpoint_and_normalization(
             [tmp_path / "validate.mp3"],
             1,
             config,
+            CONFIG.synth,
+            CONFIG.features,
+            CONFIG.sr,
         )
     saved = torch.load(output, weights_only=True)
     assert saved["threshold"] == best.threshold

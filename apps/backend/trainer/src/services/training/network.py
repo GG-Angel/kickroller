@@ -5,7 +5,7 @@ import torch
 from loguru import logger
 from torch import nn
 
-from src.core.config import CONFIG, FeatureConfig
+from src.core.config import FeatureConfig
 from src.services.training.features import band_count
 
 CONTEXT_FRAMES = 41
@@ -38,7 +38,7 @@ class KickNet(nn.Module):
     mean: torch.Tensor
     std: torch.Tensor
 
-    def __init__(self, config: FeatureConfig = CONFIG.features) -> None:
+    def __init__(self, config: FeatureConfig) -> None:
         super().__init__()
         self.config = config
         windows, bands = len(config.windows), band_count(config)
