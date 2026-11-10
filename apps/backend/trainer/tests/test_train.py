@@ -2,11 +2,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
+import pytest
+import torch
 
 from src.core.config import CONFIG
 from src.models.audio import SampleKind
 from src.services.synthesis.bank import Sample, SampleBank
-from src.services.training.network import load_checkpoint
+from src.services.training.loop import TrainingBatch, _prepare_training_batch
+from src.services.training.network import CONTEXT_FRAMES, load_checkpoint
 from src.services.training.train import train
 
 
@@ -27,6 +30,35 @@ def _make_bank() -> SampleBank:
     return SampleBank(
         samples=[*kicks, make_sample("clap.wav", SampleKind.DRUM)]
     )
+
+
+@pytest.mark.parametrize("with_mask", [False, True])
+def test_prepare_training_batch_preserves_inputs_and_masks_context(
+    with_mask: bool,
+) -> None:
+    frames = 2 * CONTEXT_FRAMES + 10
+    features = torch.ones(1, 3, 4, frames)
+    targets = torch.ones(1, frames)
+    supplied_mask = torch.zeros_like(targets)
+    supplied_mask[:, CONTEXT_FRAMES : CONTEXT_FRAMES + 3] = 1
+    original_mask = supplied_mask.clone()
+    batch: TrainingBatch = (
+        (features, targets, supplied_mask) if with_mask else (features, targets)
+    )
+
+    prepared_features, prepared_targets, mask = _prepare_training_batch(
+        batch, torch.device("cpu")
+    )
+
+    torch.testing.assert_close(prepared_features, features)
+    torch.testing.assert_close(prepared_targets, targets)
+    expected_mask = (
+        original_mask.clone() if with_mask else torch.ones_like(targets)
+    )
+    expected_mask[:, :CONTEXT_FRAMES] = 0
+    expected_mask[:, -CONTEXT_FRAMES:] = 0
+    torch.testing.assert_close(mask, expected_mask)
+    torch.testing.assert_close(supplied_mask, original_mask)
 
 
 def test_train_saves_a_checkpoint(tmp_path: Path) -> None:

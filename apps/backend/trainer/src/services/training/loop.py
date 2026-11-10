@@ -27,15 +27,22 @@ def _pick_device() -> torch.device:
     return torch.device("cpu")
 
 
-def _make_training_mask(
-    targets: Tensor, mask: Tensor | None, device: torch.device
-) -> Tensor:
+def _prepare_training_batch(
+    batch: TrainingBatch, device: torch.device
+) -> tuple[Tensor, Tensor, Tensor]:
+    if len(batch) == 2:
+        features, targets = batch
+        mask = None
+    else:
+        features, targets, mask = batch
+    features = features.to(device)
+    targets = targets.to(device)
     training_mask = (
         torch.ones_like(targets) if mask is None else mask.to(device).clone()
     )
     training_mask[:, :CONTEXT_FRAMES] = 0
     training_mask[:, -CONTEXT_FRAMES:] = 0
-    return training_mask
+    return features, targets, training_mask
 
 
 def run_training_loop(
@@ -53,7 +60,9 @@ def run_training_loop(
     positive_weight = torch.tensor(config.positive_weight, device=device)
     weights = sum(parameter.numel() for parameter in model.parameters())
     logger.info(f"Training {weights} weights on {device}.")
-    optimizer = torch.optim.AdamW(model.parameters(), config.learning_rate)
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=config.learning_rate, weight_decay=0.01
+    )
 
     if initial_validation is None:
         best = Evaluation(-1.0, 0.0, 0.0, config.thresholds[0])
@@ -67,15 +76,7 @@ def run_training_loop(
     running, start = 0.0, perf_counter()
     model.train()
     for step, batch in enumerate(batches, 1):
-        if len(batch) == 2:
-            features, targets = batch
-            supplied_mask = None
-        else:
-            features, targets, supplied_mask = batch
-
-        features = features.to(device)
-        targets = targets.to(device)
-        mask = _make_training_mask(targets, supplied_mask, device)
+        features, targets, mask = _prepare_training_batch(batch, device)
         logits = model(features)
         loss = loss_policy(logits, targets, mask, positive_weight)
         optimizer.zero_grad()
