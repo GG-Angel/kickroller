@@ -10,6 +10,9 @@
 *.mov
 *.mp4
 
+# Sonic visualizer
+*.sv
+
 # Environment
 .env
 
@@ -22,13 +25,6 @@ __pycache__/
 # Bank
 bank.yaml
 bank.yaml.cache
-banks/
 
 # Trainer
-drops/
-samples/
-songs/
-results/
-
-# Models
-*.pt
+data/
