@@ -26,7 +26,7 @@ from src.services.synthesis.effects import (
     Section,
     Sidechain,
     Tilt,
-    loudest_rms,
+    measure_loudest_rms,
     trim_to_attack,
 )
 from src.services.synthesis.grid import Grid
@@ -99,7 +99,7 @@ def test_one_shot_layer_needs_placements() -> None:
         )
 
 
-def _sample(kind: SampleKind, is_loop: bool, seconds: float) -> Sample:
+def _make_sample(kind: SampleKind, is_loop: bool, seconds: float) -> Sample:
     rng = np.random.default_rng(len(kind))
     signal = rng.uniform(-0.5, 0.5, round(seconds * CONFIG.sr))
     return Sample(
@@ -112,17 +112,17 @@ def _sample(kind: SampleKind, is_loop: bool, seconds: float) -> Sample:
     )
 
 
-def _bank() -> SampleBank:
-    one_shots = [_sample(kind, False, 0.3) for kind in SampleKind]
+def _make_bank() -> SampleBank:
+    one_shots = [_make_sample(kind, False, 0.3) for kind in SampleKind]
     loops = [
-        _sample(kind, True, 6.0)  # 4 bars at 160 BPM
+        _make_sample(kind, True, 6.0)  # 4 bars at 160 BPM
         for kind in (SampleKind.MELODY, SampleKind.VOCAL, SampleKind.DRUM)
     ]
     return SampleBank(samples=one_shots + loops)
 
 
 def test_sample_bank_draws_only_loops_or_one_shots() -> None:
-    bank = _bank()
+    bank = _make_bank()
     rng = np.random.default_rng(0)
 
     assert bank.draw(SampleKind.DRUM, rng, is_loop=True).is_loop
@@ -137,7 +137,7 @@ def test_layers_do_not_change_kick_onsets() -> None:
         layer.model_copy(update={"track_count_weights": {1: 1.0}})
         for layer in config.layers
     ]
-    bank = _bank()
+    bank = _make_bank()
 
     kicks_only = generate_drop(
         bank,
@@ -160,7 +160,7 @@ def test_layers_do_not_change_kick_onsets() -> None:
 @pytest.mark.parametrize("db", [0.0, -6.0])
 def test_layer_tracks_are_leveled_relative_to_the_kick(db: float) -> None:
     grid = Grid(bpm=160, bars=4, sr=CONFIG.sr)
-    bank = _bank()
+    bank = _make_bank()
     rng = np.random.default_rng(0)
     one_shot_layer = LayerConfig(
         kind=SampleKind.DRUM,
@@ -177,10 +177,10 @@ def test_layer_tracks_are_leveled_relative_to_the_kick(db: float) -> None:
     loop = draw_loop_track(grid, bank, loop_layer, 0.5, rng)
 
     expected = 0.5 * 10 ** (db / 20)
-    assert loudest_rms(one_shot.signal, CONFIG.sr) == pytest.approx(
+    assert measure_loudest_rms(one_shot.signal, CONFIG.sr) == pytest.approx(
         expected, rel=1e-4
     )
-    assert loudest_rms(loop.signal, CONFIG.sr) == pytest.approx(
+    assert measure_loudest_rms(loop.signal, CONFIG.sr) == pytest.approx(
         expected, rel=1e-4
     )
 
@@ -276,7 +276,7 @@ def test_kick_off_beat_chance_adds_off_beat_kicks_on_any_grid() -> None:
 
     kick = draw_kick_track(
         grid,
-        _bank(),
+        _make_bank(),
         no_sections,
         _NO_ROLLS,
         no_fx,
@@ -297,7 +297,13 @@ def test_kick_gaps_have_no_kicks_and_no_kick_fx() -> None:
 
     for _ in range(50):
         kick = draw_kick_track(
-            grid, _bank(), gap_config, _ROLLS, fx_config, _NO_OFF_BEATS, rng
+            grid,
+            _make_bank(),
+            gap_config,
+            _ROLLS,
+            fx_config,
+            _NO_OFF_BEATS,
+            rng,
         )
 
         assert len(kick.gaps) == 2
@@ -323,7 +329,7 @@ def test_kick_gaps_keep_the_kicks_outside_the_gaps() -> None:
 
     full = draw_kick_track(
         grid,
-        _bank(),
+        _make_bank(),
         no_gaps,
         _NO_ROLLS,
         fx_config,
@@ -332,7 +338,7 @@ def test_kick_gaps_keep_the_kicks_outside_the_gaps() -> None:
     )
     gapped = draw_kick_track(
         grid,
-        _bank(),
+        _make_bank(),
         gaps,
         _NO_ROLLS,
         fx_config,
@@ -359,7 +365,7 @@ def test_kick_rolls_play_every_roll_step_at_the_roll_level() -> None:
 
     kick = draw_kick_track(
         grid,
-        _bank(),
+        _make_bank(),
         no_gaps,
         rolls,
         no_fx,
@@ -436,7 +442,9 @@ def test_master_effects_can_skip_the_optional_effects() -> None:
 def test_generate_drop_without_master_peaks_at_peak_db() -> None:
     config = CONFIG.synth.model_copy(update={"master": None})
 
-    drop = generate_drop(_bank(), np.random.default_rng(0), config, CONFIG.sr)
+    drop = generate_drop(
+        _make_bank(), np.random.default_rng(0), config, CONFIG.sr
+    )
 
     peak = 10 ** (config.peak_db / 20)
     assert np.abs(drop.signal).max() == pytest.approx(peak, rel=1e-5)
@@ -444,10 +452,10 @@ def test_generate_drop_without_master_peaks_at_peak_db() -> None:
 
 def test_generate_drop_with_master_is_the_same_for_a_seed() -> None:
     first = generate_drop(
-        _bank(), np.random.default_rng(4), CONFIG.synth, CONFIG.sr
+        _make_bank(), np.random.default_rng(4), CONFIG.synth, CONFIG.sr
     )
     second = generate_drop(
-        _bank(), np.random.default_rng(4), CONFIG.synth, CONFIG.sr
+        _make_bank(), np.random.default_rng(4), CONFIG.synth, CONFIG.sr
     )
 
     np.testing.assert_array_equal(first.signal, second.signal)
@@ -472,7 +480,7 @@ def test_sidechained_layers_of_a_drop_share_one_sidechain() -> None:
             "src.services.synthesis.synth.Sidechain", wraps=Sidechain
         ) as sidechain:
             generate_drop(
-                _bank(), np.random.default_rng(seed), config, CONFIG.sr
+                _make_bank(), np.random.default_rng(seed), config, CONFIG.sr
             )
         sidechain.assert_called_once()
         sidechains.append(sidechain.call_args.kwargs)
@@ -493,6 +501,6 @@ def test_drop_without_pumping_has_no_sidechain() -> None:
     with patch(
         "src.services.synthesis.synth.Sidechain", wraps=Sidechain
     ) as sidechain:
-        generate_drop(_bank(), np.random.default_rng(0), config, CONFIG.sr)
+        generate_drop(_make_bank(), np.random.default_rng(0), config, CONFIG.sr)
 
     assert sidechain.call_args.kwargs["ratio"] == 0.0

@@ -11,7 +11,7 @@ from src.services.synthesis.draws import draw_count, draw_log_uniform
 from src.services.synthesis.effects import (
     Filter,
     Section,
-    loudest_rms,
+    measure_loudest_rms,
     trim_to_attack,
 )
 from src.services.synthesis.grid import Grid
@@ -110,7 +110,7 @@ class KickTrack:
     beats: np.ndarray
     """Beat positions of the kicks."""
     level: float
-    """``loudest_rms`` of the kick, which the other layers are leveled to."""
+    """Loudest RMS of the kick, which the other layers are leveled to."""
     gaps: list[BeatSpan]
     """Spans where the kick stops."""
     rolls: list[BeatSpan]
@@ -253,7 +253,7 @@ def draw_kick_track(
     return KickTrack(
         track=track,
         beats=pattern.beats,
-        level=loudest_rms(kick, grid.sr),
+        level=measure_loudest_rms(kick, grid.sr),
         gaps=gaps,
         rolls=rolls,
     )

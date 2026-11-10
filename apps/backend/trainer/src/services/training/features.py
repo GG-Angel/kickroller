@@ -7,13 +7,13 @@ from src.core.config import FeatureConfig
 from src.models.audio import Signal
 
 
-def band_count(config: FeatureConfig) -> int:
+def count_bands(config: FeatureConfig) -> int:
     octaves = np.log2(config.fmax / config.fmin)
     return int(octaves * config.bands_per_octave) + 1
 
 
 @cache
-def _log_filterbank(
+def _build_log_filterbank(
     n_fft: int, fmin: float, bands: int, bands_per_octave: int, sr: int
 ) -> np.ndarray:
     """Triangular bands on a log scale, of shape (bands, FFT bins).
@@ -57,10 +57,10 @@ def compute_features(
         magnitude = np.abs(
             librosa.stft(signal, n_fft=n_fft, hop_length=config.hop)
         )
-        filters = _log_filterbank(
+        filters = _build_log_filterbank(
             n_fft,
             config.fmin,
-            band_count(config),
+            count_bands(config),
             config.bands_per_octave,
             sr,
         )

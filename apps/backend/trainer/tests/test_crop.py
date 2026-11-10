@@ -7,7 +7,7 @@ from src.services.synthesis.crop import CropWindow, crop_drop, draw_crop
 SR = 100
 
 
-def _drop() -> LabeledDrop:
+def _make_drop() -> LabeledDrop:
     return LabeledDrop(
         signal=np.arange(1000, dtype=np.float32),
         onsets=np.array([0.0, 1.0, 2.5, 4.0, 9.99]),
@@ -15,7 +15,7 @@ def _drop() -> LabeledDrop:
 
 
 def test_crop_drop_cuts_signal_and_shifts_onsets() -> None:
-    cropped = crop_drop(_drop(), CropWindow(start=1.0, end=4.0), sr=SR)
+    cropped = crop_drop(_make_drop(), CropWindow(start=1.0, end=4.0), sr=SR)
 
     np.testing.assert_array_equal(
         cropped.signal, np.arange(100, 400, dtype=np.float32)
@@ -24,7 +24,7 @@ def test_crop_drop_cuts_signal_and_shifts_onsets() -> None:
 
 
 def test_crop_drop_rounds_times_to_samples() -> None:
-    cropped = crop_drop(_drop(), CropWindow(start=0.994, end=2.0), sr=SR)
+    cropped = crop_drop(_make_drop(), CropWindow(start=0.994, end=2.0), sr=SR)
 
     assert cropped.signal[0] == 99
     np.testing.assert_allclose(cropped.onsets, [0.01])
@@ -37,7 +37,7 @@ def test_crop_drop_rejects_windows_outside_the_drop(
     start: float, end: float
 ) -> None:
     with pytest.raises(ValueError):
-        crop_drop(_drop(), CropWindow(start=start, end=end), sr=SR)
+        crop_drop(_make_drop(), CropWindow(start=start, end=end), sr=SR)
 
 
 def test_draw_crop_stays_inside_the_duration() -> None:

@@ -18,7 +18,7 @@ from src.services.scoring import (
 )
 from src.services.training.dataset import DropStream
 from src.services.training.features import compute_features, make_targets
-from src.services.training.loop import TrainingBatch, train_loop
+from src.services.training.loop import TrainingBatch, run_training_loop
 from src.services.training.network import CONTEXT_FRAMES, load_checkpoint
 
 
@@ -67,7 +67,7 @@ def load_real_track(
     )
 
 
-def _real_crop(
+def _crop_real_track(
     track: RealTrack, frames: int, rng: np.random.Generator
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Crop around a scored frame, keeping its full network context."""
@@ -168,7 +168,7 @@ def fine_tune(
             probabilities, real_validation, config, feature_config, sr
         )
 
-    def real_and_synthetic_loss(
+    def compute_real_and_synthetic_loss(
         logits: torch.Tensor,
         targets: torch.Tensor,
         mask: torch.Tensor,
@@ -182,10 +182,10 @@ def fine_tune(
             (losses * mask).sum(dim=1) / mask.sum(dim=1).clamp_min(1)
         ).mean()
 
-    def mixed_batches() -> Iterable[TrainingBatch]:
+    def generate_mixed_batches() -> Iterable[TrainingBatch]:
         for synthetic_features, synthetic_targets in loader:
             crops = [
-                _real_crop(
+                _crop_real_track(
                     real_training[int(rng.integers(len(real_training)))],
                     synthetic_features.shape[-1],
                     rng,
@@ -209,12 +209,12 @@ def fine_tune(
             )
             yield features, targets, mask
 
-    return train_loop(
+    return run_training_loop(
         model,
-        mixed_batches(),
+        generate_mixed_batches(),
         output,
         config,
-        real_and_synthetic_loss,
+        compute_real_and_synthetic_loss,
         validate,
         initial_validation=validate,
     )

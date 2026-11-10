@@ -23,7 +23,7 @@ class LayerConfig(BaseModel):
     track_count_weights: dict[int, float]
     """Weight of each number of tracks in a drop."""
     level_db_range: tuple[float, float]
-    """Range of the level relative to the kick, in dB of ``loudest_rms``."""
+    """Range of the level relative to the kick's loudest-window RMS, in dB."""
     high_pass_hz_range: tuple[float, float] | None = (200.0, 200.0)
     """Range of the high-pass cutoff, drawn log-uniform for each track, or
     None for no high-pass."""

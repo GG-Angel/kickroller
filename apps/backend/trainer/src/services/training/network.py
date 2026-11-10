@@ -6,7 +6,7 @@ from loguru import logger
 from torch import nn
 
 from src.core.config import FeatureConfig
-from src.services.training.features import band_count
+from src.services.training.features import count_bands
 
 CONTEXT_FRAMES = 41
 """Frames on each side of a frame that its output can see (±410 ms): 10
@@ -17,7 +17,9 @@ _HEAD_CHANNELS = 64
 _DROPOUT = 0.1
 
 
-def _conv_block(inputs: int, outputs: int, time_kernel: int) -> nn.Sequential:
+def _build_conv_block(
+    inputs: int, outputs: int, time_kernel: int
+) -> nn.Sequential:
     return nn.Sequential(
         nn.Conv2d(
             inputs,
@@ -41,13 +43,13 @@ class KickNet(nn.Module):
     def __init__(self, config: FeatureConfig) -> None:
         super().__init__()
         self.config = config
-        windows, bands = len(config.windows), band_count(config)
+        windows, bands = len(config.windows), count_bands(config)
         self.register_buffer("mean", torch.zeros(windows, bands, 1))
         self.register_buffer("std", torch.ones(windows, bands, 1))
         self.convs = nn.Sequential(
-            _conv_block(windows, 16, 7),
-            _conv_block(16, 32, 7),
-            _conv_block(32, 32, 9),
+            _build_conv_block(windows, 16, 7),
+            _build_conv_block(16, 32, 7),
+            _build_conv_block(32, 32, 9),
         )
         channels = 32 * (bands // _FREQUENCY_POOL**3)
         layers: list[nn.Module] = []

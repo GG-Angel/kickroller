@@ -2,9 +2,9 @@ import numpy as np
 
 from src.core.config import CONFIG
 from src.services.training.features import (
-    _log_filterbank,
-    band_count,
+    _build_log_filterbank,
     compute_features,
+    count_bands,
     make_targets,
 )
 
@@ -17,23 +17,23 @@ def test_compute_features_has_one_frame_per_hop() -> None:
     features = compute_features(signal, CONFIG.features, CONFIG.sr)
 
     frames = 1 + len(signal) // CONFIG.features.hop
-    assert features.shape == (3, band_count(CONFIG.features), frames)
+    assert features.shape == (3, count_bands(CONFIG.features), frames)
     assert features.dtype == np.float32
     assert np.isfinite(features).all()
 
 
 def test_every_band_has_a_bin_in_every_window() -> None:
     for n_fft in CONFIG.features.windows:
-        filters = _log_filterbank(
+        filters = _build_log_filterbank(
             n_fft,
             CONFIG.features.fmin,
-            band_count(CONFIG.features),
+            count_bands(CONFIG.features),
             CONFIG.features.bands_per_octave,
             CONFIG.sr,
         )
 
         assert filters.shape == (
-            band_count(CONFIG.features),
+            count_bands(CONFIG.features),
             n_fft // 2 + 1,
         )
         assert (filters.sum(axis=1) > 0).all()

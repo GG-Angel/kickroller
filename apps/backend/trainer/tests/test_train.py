@@ -10,10 +10,10 @@ from src.services.training.network import load_checkpoint
 from src.services.training.train import train
 
 
-def _bank() -> SampleBank:
+def _make_bank() -> SampleBank:
     rng = np.random.default_rng(0)
 
-    def sample(name: str, kind: SampleKind) -> Sample:
+    def make_sample(name: str, kind: SampleKind) -> Sample:
         return Sample(
             name=name,
             path=Path(name),
@@ -23,8 +23,10 @@ def _bank() -> SampleBank:
             is_loop=False,
         )
 
-    kicks = [sample(f"kick_{i}.wav", SampleKind.KICK) for i in range(20)]
-    return SampleBank(samples=[*kicks, sample("clap.wav", SampleKind.DRUM)])
+    kicks = [make_sample(f"kick_{i}.wav", SampleKind.KICK) for i in range(20)]
+    return SampleBank(
+        samples=[*kicks, make_sample("clap.wav", SampleKind.DRUM)]
+    )
 
 
 def test_train_saves_a_checkpoint(tmp_path: Path) -> None:
@@ -46,11 +48,11 @@ def test_train_saves_a_checkpoint(tmp_path: Path) -> None:
     with (
         patch(
             "src.services.training.train.load_sample_bank_from_file",
-            return_value=_bank(),
+            return_value=_make_bank(),
         ),
         patch(
             "src.services.training.dataset.load_sample_bank_from_file",
-            return_value=_bank(),
+            return_value=_make_bank(),
         ),
     ):
         best = train(

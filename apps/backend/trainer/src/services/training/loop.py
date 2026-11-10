@@ -27,7 +27,7 @@ def _pick_device() -> torch.device:
     return torch.device("cpu")
 
 
-def _training_mask(
+def _make_training_mask(
     targets: Tensor, mask: Tensor | None, device: torch.device
 ) -> Tensor:
     training_mask = (
@@ -38,7 +38,7 @@ def _training_mask(
     return training_mask
 
 
-def train_loop(
+def run_training_loop(
     model: KickNet,
     batches: Iterable[TrainingBatch],
     output: Path,
@@ -75,7 +75,7 @@ def train_loop(
 
         features = features.to(device)
         targets = targets.to(device)
-        mask = _training_mask(targets, supplied_mask, device)
+        mask = _make_training_mask(targets, supplied_mask, device)
         logits = model(features)
         loss = loss_policy(logits, targets, mask, positive_weight)
         optimizer.zero_grad()

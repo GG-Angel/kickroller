@@ -29,7 +29,7 @@ class _FixedNet(KickNet):
         return logits
 
 
-def _checkpoint(threshold: float) -> Checkpoint:
+def _make_checkpoint(threshold: float) -> Checkpoint:
     return Checkpoint(model=_FixedNet().eval(), threshold=threshold)
 
 
@@ -37,7 +37,7 @@ def test_analyze_signal_uses_the_checkpoint_threshold() -> None:
     signal = np.zeros(CONFIG.sr, dtype=np.float32)
 
     analysis = analyze_signal(
-        signal, _checkpoint(0.8), None, CONFIG.train, CONFIG.sr
+        signal, _make_checkpoint(0.8), None, CONFIG.train, CONFIG.sr
     )
 
     np.testing.assert_allclose(analysis.onsets, [20 / FPS])
@@ -50,7 +50,7 @@ def test_analyze_signal_can_override_the_threshold() -> None:
     signal = np.zeros(CONFIG.sr, dtype=np.float32)
 
     analysis = analyze_signal(
-        signal, _checkpoint(0.8), 0.4, CONFIG.train, CONFIG.sr
+        signal, _make_checkpoint(0.8), 0.4, CONFIG.train, CONFIG.sr
     )
 
     np.testing.assert_allclose(analysis.onsets, [20 / FPS, 60 / FPS])

@@ -206,7 +206,7 @@ def test_is_held_out_is_fixed_and_holds_out_the_fraction() -> None:
     assert all(bank.is_held_out(name, 1.0) for name in names)
 
 
-def _sample(name: str, kind: SampleKind) -> bank.Sample:
+def _make_sample(name: str, kind: SampleKind) -> bank.Sample:
     return bank.Sample(
         name=name,
         path=Path(name),
@@ -219,25 +219,28 @@ def _sample(name: str, kind: SampleKind) -> bank.Sample:
 
 def test_select_kicks_splits_only_the_kicks() -> None:
     kicks = [
-        _sample(f"kick_{index}.wav", SampleKind.KICK) for index in range(200)
+        _make_sample(f"kick_{index}.wav", SampleKind.KICK)
+        for index in range(200)
     ]
     others = [
-        _sample("clap.wav", SampleKind.DRUM),
-        _sample("fx.wav", SampleKind.FX),
+        _make_sample("clap.wav", SampleKind.DRUM),
+        _make_sample("fx.wav", SampleKind.FX),
     ]
     sample_bank = bank.SampleBank(samples=kicks + others)
 
     training = sample_bank.select_kicks(held_out=False, fraction=0.2)
     validation = sample_bank.select_kicks(held_out=True, fraction=0.2)
 
-    def kick_names(selected: bank.SampleBank) -> set[str]:
+    def collect_kick_names(selected: bank.SampleBank) -> set[str]:
         return {s.name for s in selected.samples if s.kind == SampleKind.KICK}
 
-    assert kick_names(training).isdisjoint(kick_names(validation))
-    assert kick_names(training) | kick_names(validation) == kick_names(
-        sample_bank
+    assert collect_kick_names(training).isdisjoint(
+        collect_kick_names(validation)
     )
-    assert kick_names(validation)
+    assert collect_kick_names(training) | collect_kick_names(
+        validation
+    ) == collect_kick_names(sample_bank)
+    assert collect_kick_names(validation)
     for selected in (training, validation):
         assert [
             s for s in selected.samples if s.kind != SampleKind.KICK

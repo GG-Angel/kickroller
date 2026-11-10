@@ -28,7 +28,7 @@ dev = [
 ]
 
 [project.scripts]
-trainer = "src.cli:main"
+trainer = "src.cli:run_cli"
 
 
 [build-system]

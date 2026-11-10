@@ -10,7 +10,7 @@ from src.services.synthesis.bank import SampleBank
 from src.services.synthesis.export import export_drops
 
 
-def _drop() -> LabeledDrop:
+def _make_drop() -> LabeledDrop:
     return LabeledDrop(
         signal=np.zeros(13 * CONFIG.sr, dtype=np.float32),
         onsets=np.arange(0.0, 13.0, 0.375),
@@ -21,7 +21,7 @@ def test_export_drops_writes_numbered_audio_and_onsets(tmp_path: Path) -> None:
     folder = tmp_path / "drops"
 
     with patch(
-        "src.services.synthesis.synth.generate_drop", return_value=_drop()
+        "src.services.synthesis.synth.generate_drop", return_value=_make_drop()
     ):
         export_drops(
             SampleBank(samples=[]),
@@ -69,7 +69,7 @@ def test_export_drops_uses_the_given_config(tmp_path: Path) -> None:
     config = CONFIG.synth.model_copy(update={"drop_seconds": 2.0})
 
     with patch(
-        "src.services.synthesis.synth.generate_drop", return_value=_drop()
+        "src.services.synthesis.synth.generate_drop", return_value=_make_drop()
     ) as generate:
         export_drops(
             SampleBank(samples=[]),

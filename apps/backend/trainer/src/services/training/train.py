@@ -12,11 +12,11 @@ from src.services.scoring import Evaluation, evaluate, predict
 from src.services.synthesis.bank import SampleBank, load_sample_bank_from_file
 from src.services.synthesis.synth import generate_cropped_drop
 from src.services.training.dataset import DropStream, Example, make_example
-from src.services.training.loop import train_loop
+from src.services.training.loop import run_training_loop
 from src.services.training.network import KickNet
 
 
-def _synthetic_loss_policy(
+def _compute_synthetic_loss(
     logits: Tensor, targets: Tensor, mask: Tensor, positive_weight: Tensor
 ) -> Tensor:
     return F.binary_cross_entropy_with_logits(
@@ -111,11 +111,11 @@ def train(
             probabilities, validation_onsets, config, feature_config, sr
         )
 
-    return train_loop(
+    return run_training_loop(
         model,
         loader,
         output,
         config,
-        _synthetic_loss_policy,
+        _compute_synthetic_loss,
         validate,
     )

@@ -8,7 +8,7 @@ import torch
 from src.core.config import CONFIG
 from src.services.training.finetune import (
     RealTrack,
-    _real_crop,
+    _crop_real_track,
     evaluate_real,
     fine_tune,
     load_real_track,
@@ -46,7 +46,7 @@ def test_load_real_track_rejects_invalid_labels(
         load_real_track(path, CONFIG.features, CONFIG.train, CONFIG.sr)
 
 
-def _track() -> RealTrack:
+def _make_real_track() -> RealTrack:
     features = torch.zeros(3, 109, 2000)
     mask = torch.zeros(2000)
     mask[500:700] = 1
@@ -55,16 +55,16 @@ def _track() -> RealTrack:
 
 def test_real_crops_keep_scored_frames() -> None:
     rng = np.random.default_rng(0)
-    track = _track()
+    track = _make_real_track()
     for _ in range(10):
-        features, targets, mask = _real_crop(track, 1201, rng)
+        features, targets, mask = _crop_real_track(track, 1201, rng)
         assert features.shape == (3, 109, 1201)
         assert targets.shape == mask.shape == (1201,)
         assert mask[41:-41].sum() > 0
 
 
 def test_real_validation_ignores_predictions_between_spans() -> None:
-    track = _track()
+    track = _make_real_track()
     track = RealTrack(
         track.features, track.targets, track.mask, np.array([1.0, 10.0])
     )
@@ -105,7 +105,7 @@ def test_fine_tune_keeps_best_checkpoint_and_normalization(
     model = KickNet(CONFIG.features)
     model.mean.fill_(3.0)
     save_checkpoint(initial, model, 0.8)
-    track = _track()
+    track = _make_real_track()
     config = CONFIG.train.model_copy(
         update={"steps": 1, "batch_size": 2, "workers": 0}
     )

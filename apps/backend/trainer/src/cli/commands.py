@@ -172,8 +172,8 @@ def train(
     )
 
 
-@app.command()
-def synth(
+@app.command("synth")
+def synthesize(
     bank_file: Path = typer.Option(
         Path("bank.yaml"),
         "--bank",

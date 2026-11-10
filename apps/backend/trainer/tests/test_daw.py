@@ -19,7 +19,7 @@ from src.services.synthesis.effects import (
     Sidechain,
     Tilt,
     Trim,
-    loudest_rms,
+    measure_loudest_rms,
 )
 from src.services.synthesis.effects import (
     Gain as AudioGain,
@@ -176,18 +176,20 @@ def test_sidechain_rejects_negative_trigger() -> None:
         process_sidechain(np.array([-1]))
 
 
-def test_loudest_rms_finds_the_loudest_window() -> None:
+def test_measure_loudest_rms_finds_the_loudest_window() -> None:
     signal = np.full(CONFIG.sr, 0.1, dtype=np.float32)
     signal[CONFIG.sr // 2 : CONFIG.sr // 2 + 4410] = 0.8
 
-    assert loudest_rms(signal, CONFIG.sr) == pytest.approx(0.8)
+    assert measure_loudest_rms(signal, CONFIG.sr) == pytest.approx(0.8)
 
 
-def test_loudest_rms_uses_the_whole_signal_when_shorter_than_window() -> None:
+def test_measure_loudest_rms_uses_the_whole_signal_when_shorter_than_window() -> (
+    None
+):
     signal = np.full(100, -0.5, dtype=np.float32)
 
-    assert loudest_rms(signal, CONFIG.sr) == pytest.approx(0.5)
-    assert loudest_rms(np.zeros(0, dtype=np.float32), CONFIG.sr) == 0.0
+    assert measure_loudest_rms(signal, CONFIG.sr) == pytest.approx(0.5)
+    assert measure_loudest_rms(np.zeros(0, dtype=np.float32), CONFIG.sr) == 0.0
 
 
 def test_level_scales_to_the_level() -> None:
@@ -197,7 +199,9 @@ def test_level_scales_to_the_level() -> None:
     leveled = Level(0.25).process(signal, CONFIG.sr)
 
     assert leveled.dtype == np.float32
-    assert loudest_rms(leveled, CONFIG.sr) == pytest.approx(0.25, rel=1e-5)
+    assert measure_loudest_rms(leveled, CONFIG.sr) == pytest.approx(
+        0.25, rel=1e-5
+    )
 
 
 def test_level_leaves_silence_unchanged() -> None:
@@ -272,7 +276,7 @@ def test_resonant_filter_without_resonance_is_butterworth() -> None:
         )
 
 
-def _sine_gain(
+def _measure_sine_gain(
     frequency: float, cutoff: float, btype: str, order: int, q: float
 ) -> float:
     """The steady-state gain of the resonant filter for a sine."""
@@ -291,7 +295,7 @@ def test_resonant_filter_gain_at_cutoff(
 ) -> None:
     expected = q if order == 2 else q * 2**-0.5
 
-    assert _sine_gain(500, 500, btype, order, q) == pytest.approx(
+    assert _measure_sine_gain(500, 500, btype, order, q) == pytest.approx(
         expected, rel=0.01
     )
 
@@ -303,9 +307,9 @@ def test_resonant_filter_slope_grows_with_order(
     btype: str, frequency: float
 ) -> None:
     q = 2**-0.5
-    db_order_2 = 20 * np.log10(_sine_gain(frequency, 500, btype, 2, q))
-    db_order_4 = 20 * np.log10(_sine_gain(frequency, 500, btype, 4, q))
-    db_order_6 = 20 * np.log10(_sine_gain(frequency, 500, btype, 6, q))
+    db_order_2 = 20 * np.log10(_measure_sine_gain(frequency, 500, btype, 2, q))
+    db_order_4 = 20 * np.log10(_measure_sine_gain(frequency, 500, btype, 4, q))
+    db_order_6 = 20 * np.log10(_measure_sine_gain(frequency, 500, btype, 6, q))
 
     assert db_order_2 < -6
     assert db_order_4 == pytest.approx(2 * db_order_2, rel=0.01)
@@ -332,21 +336,21 @@ def test_resonant_filter_rejects_invalid_settings(
         )
 
 
-def _click_train(seconds: float = 2.0) -> Signal:
+def _make_click_train(seconds: float = 2.0) -> Signal:
     rng = np.random.default_rng(0)
     signal = 0.05 * rng.standard_normal(round(seconds * CONFIG.sr))
     signal[CONFIG.sr // 4 :: CONFIG.sr // 3] = 0.9
     return signal.astype(np.float32)
 
 
-def _lag(wet: Signal, dry: Signal, max_lag: int = 2000) -> int:
+def _measure_lag(wet: Signal, dry: Signal, max_lag: int = 2000) -> int:
     lags = np.arange(-max_lag, max_lag + 1)
     scores = [np.dot(np.roll(dry, lag), wet) for lag in lags]
     return int(lags[np.argmax(scores)])
 
 
 def test_normalize_sets_the_peak() -> None:
-    signal = _click_train()
+    signal = _make_click_train()
 
     normalized = Normalize(-6.0).process(signal, CONFIG.sr)
 
@@ -355,7 +359,7 @@ def test_normalize_sets_the_peak() -> None:
 
 
 def test_gain_and_tilt_of_zero_db_keep_the_signal() -> None:
-    signal = _click_train()
+    signal = _make_click_train()
 
     np.testing.assert_allclose(
         AudioGain(0.0).process(signal, CONFIG.sr), signal
@@ -370,39 +374,39 @@ def test_tilt_moves_the_balance_of_lows_and_highs() -> None:
     low = np.sin(2 * np.pi * 50 * t).astype(np.float32)
     high = np.sin(2 * np.pi * 10000 * t).astype(np.float32)
 
-    def gain_db(signal: Signal) -> float:
+    def measure_gain_db(signal: Signal) -> float:
         tilted = Tilt(6.0).process(signal, CONFIG.sr)[CONFIG.sr // 2 :]
         return 20 * np.log10(np.abs(tilted).max() / np.abs(signal).max())
 
-    assert gain_db(low) == pytest.approx(-3.0, abs=0.1)
-    assert gain_db(high) == pytest.approx(3.0, abs=0.1)
+    assert measure_gain_db(low) == pytest.approx(-3.0, abs=0.1)
+    assert measure_gain_db(high) == pytest.approx(3.0, abs=0.1)
 
 
 def test_clip_stays_at_or_below_one() -> None:
-    clipped = Clip(12.0).process(_click_train() * 4, CONFIG.sr)
+    clipped = Clip(12.0).process(_make_click_train() * 4, CONFIG.sr)
 
     assert np.abs(clipped).max() <= 1.0
 
 
 def test_limit_keeps_the_ceiling_and_the_timing() -> None:
-    signal = _click_train()
+    signal = _make_click_train()
 
     limited = Limit(9.0, ceiling_db=-1.0).process(signal, CONFIG.sr)
 
     assert np.abs(limited).max() <= 10 ** (-1 / 20) + 1e-6
-    assert _lag(limited, signal) == 0
+    assert _measure_lag(limited, signal) == 0
     quiet = Limit(0.0).process(signal * 0.1, CONFIG.sr)
     np.testing.assert_allclose(quiet, signal * 0.1, atol=1e-7)
 
 
 def test_mp3_keeps_the_length_and_the_timing() -> None:
-    signal = _click_train()
+    signal = _make_click_train()
 
     encoded = Mp3(0.75).process(signal, CONFIG.sr)
 
     assert len(encoded) == len(signal)
     assert encoded.dtype == np.float32
-    assert _lag(encoded, signal) == 0
+    assert _measure_lag(encoded, signal) == 0
     assert not np.array_equal(encoded, signal)
 
 
@@ -411,7 +415,7 @@ def test_mp3_keeps_the_length_and_the_timing() -> None:
     [effects.Gain(-6.0), Tilt(6.0), Clip(6.0), Limit(6.0), Mp3(0.5)],
 )
 def test_master_effects_keep_the_length_and_dtype(effect: Effect) -> None:
-    signal = _click_train(0.5)
+    signal = _make_click_train(0.5)
 
     wet = effect.process(signal, CONFIG.sr)
 

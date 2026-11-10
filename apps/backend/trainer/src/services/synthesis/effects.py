@@ -24,7 +24,7 @@ def trim_to_attack(signal: Signal, top_db: float = 20.0) -> Signal:
     ]
 
 
-def _resonant_sos(
+def _design_resonant_sos(
     cutoff: float | tuple[float, float],
     btype: str,
     order: int,
@@ -39,14 +39,16 @@ def _resonant_sos(
         raise ValueError("A resonant filter must have an even order of 2+.")
     if q <= 0:
         raise ValueError("Q must be positive.")
-    resonant = _biquad_sos(cutoff, btype, q, sr)
+    resonant = _design_biquad_sos(cutoff, btype, q, sr)
     if order == 2:
         return resonant
     rest = np.asarray(butter(order - 2, cutoff, btype, fs=sr, output="sos"))
     return np.vstack([resonant, rest])
 
 
-def _biquad_sos(cutoff: float, btype: str, q: float, sr: int) -> np.ndarray:
+def _design_biquad_sos(
+    cutoff: float, btype: str, q: float, sr: int
+) -> np.ndarray:
     # analog prototype with the cutoff pre-warped for the bilinear transform
     w0 = 2 * sr * np.tan(np.pi * cutoff / sr)
     numerator = [0.0, 0.0, w0**2] if btype == "lowpass" else [1.0, 0.0, 0.0]
@@ -54,7 +56,7 @@ def _biquad_sos(cutoff: float, btype: str, q: float, sr: int) -> np.ndarray:
     return tf2sos(b, a)
 
 
-def loudest_rms(signal: Signal, sr: int, window: float = 0.1) -> float:
+def measure_loudest_rms(signal: Signal, sr: int, window: float = 0.1) -> float:
     """The RMS of the loudest ``window`` seconds of the signal."""
     if len(signal) == 0:
         return 0.0
@@ -125,7 +127,9 @@ class Filter(Effect):
                 self.order, self.cutoff, self.btype, fs=sr, output="sos"
             )
         else:
-            sos = _resonant_sos(self.cutoff, self.btype, self.order, self.q, sr)
+            sos = _design_resonant_sos(
+                self.cutoff, self.btype, self.order, self.q, sr
+            )
         return np.asarray(sosfilt(sos, signal), dtype=np.float32)
 
 
@@ -153,7 +157,7 @@ class Level(Effect):
     level: float
 
     def process(self, signal: Signal, sr: int) -> Signal:
-        current = loudest_rms(signal, sr=sr)
+        current = measure_loudest_rms(signal, sr=sr)
         if current == 0:
             return signal
         return (signal * (self.level / current)).astype(np.float32)
