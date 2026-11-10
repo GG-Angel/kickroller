@@ -11,6 +11,7 @@ from src.services.synthesis.effects import (
     Cut,
     Effect,
     Filter,
+    Level,
     Limit,
     Mp3,
     Normalize,
@@ -18,19 +19,10 @@ from src.services.synthesis.effects import (
     Sidechain,
     Tilt,
     Trim,
-    clip_signal,
-    cut_signal,
-    encode_mp3_signal,
-    filter_signal,
-    gain_signal,
-    level_signal,
-    limit_signal,
     loudest_rms,
-    normalize_signal,
-    section_signal,
-    sidechain_signal,
-    tilt_signal,
-    trim_signal,
+)
+from src.services.synthesis.effects import (
+    Gain as AudioGain,
 )
 from src.services.synthesis.mix import Mix
 from src.services.synthesis.track import Grid, Track
@@ -105,57 +97,26 @@ def test_mix_sums_wet_track_signals() -> None:
     np.testing.assert_allclose(mixed[8:16], 1.0)
 
 
-@pytest.mark.parametrize(
-    ("effect", "function"),
-    [
-        (Cut(100), lambda s, sr: cut_signal(s, 100, sr=sr)),
-        (Trim(), lambda s, sr: trim_signal(s)),
-        (
-            Filter(500, "lowpass"),
-            lambda s, sr: filter_signal(s, 500, "lowpass", sr=sr),
-        ),
-        (
-            Filter(500, "highpass", order=4, q=4.0),
-            lambda s, sr: filter_signal(s, 500, "highpass", 4, q=4.0, sr=sr),
-        ),
-        (Normalize(), lambda s, sr: normalize_signal(s)),
-        (
-            Sidechain(np.array([0, 300]), ratio=0.7),
-            lambda s, sr: sidechain_signal(
-                s, np.array([0, 300]), ratio=0.7, sr=sr
-            ),
-        ),
-        (
-            Section(Gain(2.0), start=200, end=600),
-            lambda s, sr: section_signal(s, Gain(2.0), 200, 600, sr=sr),
-        ),
-    ],
-    ids=[
-        "cut",
-        "trim",
-        "filter",
-        "resonant_filter",
-        "normalize",
-        "sidechain",
-        "section",
-    ],
-)
-def test_effects_delegate_to_functions(effect: Effect, function) -> None:
-    sr = 8000
-    signal = (
-        np.random.default_rng(0).uniform(-0.5, 0.5, 1000).astype(np.float32)
+def test_trim_removes_silence_around_the_signal() -> None:
+    signal = np.concatenate(
+        [
+            np.zeros(4000, dtype=np.float32),
+            np.ones(8000, dtype=np.float32),
+            np.zeros(4000, dtype=np.float32),
+        ]
     )
 
-    np.testing.assert_array_equal(
-        effect.process(signal, sr), function(signal, sr)
-    )
+    trimmed = Trim().process(signal, 8000)
+
+    assert 0 < len(trimmed) < len(signal)
+    assert trimmed.dtype == np.float32
 
 
 def test_sidechain_ducks_at_each_trigger_for_requested_duration() -> None:
     signal = np.ones(CONFIG.sr, dtype=np.float32)
     triggers = np.array([0, CONFIG.sr // 2])
 
-    wet = sidechain_signal(signal, triggers, ratio=0.5)
+    wet = Sidechain(triggers, ratio=0.5).process(signal, CONFIG.sr)
 
     assert wet.dtype == np.float32
     assert wet[0] == pytest.approx(1.0)
@@ -172,7 +133,7 @@ def test_sidechain_fades_smoothly_at_trigger_boundaries() -> None:
     start = 1000
     end = start + CONFIG.sr // 10
 
-    wet = sidechain_signal(signal, np.array([start]), ratio=1.0)
+    wet = Sidechain(np.array([start]), ratio=1.0).process(signal, CONFIG.sr)
 
     assert wet[start] == pytest.approx(1.0)
     assert wet[start + 1] < 1.0
@@ -183,15 +144,11 @@ def test_sidechain_fades_smoothly_at_trigger_boundaries() -> None:
 def test_sidechain_does_not_stack_overlapping_triggers() -> None:
     signal = np.ones(1000, dtype=np.float32)
 
-    wet = sidechain_signal(signal, np.array([10, 15]), ratio=0.5, duration=0.01)
+    wet = Sidechain(np.array([10, 15]), ratio=0.5, duration=0.01).process(
+        signal, CONFIG.sr
+    )
 
     assert wet[235] == pytest.approx(0.5)
-
-
-def apply_sidechain(
-    triggers: np.ndarray, ratio: float = 0.5, duration: float = 0.1
-) -> None:
-    sidechain_signal(np.ones(16, dtype=np.float32), triggers, ratio, duration)
 
 
 def process_sidechain(
@@ -202,29 +159,21 @@ def process_sidechain(
     )
 
 
-SIDECHAIN_ENTRY_POINTS = pytest.mark.parametrize(
-    "make", [apply_sidechain, process_sidechain], ids=["function", "effect"]
-)
-
-
-@SIDECHAIN_ENTRY_POINTS
 @pytest.mark.parametrize("ratio", [-0.1, 1.1, float("nan"), float("inf")])
-def test_sidechain_rejects_invalid_ratio(make, ratio: float) -> None:
+def test_sidechain_rejects_invalid_ratio(ratio: float) -> None:
     with pytest.raises(ValueError, match="ratio must be between 0 and 1"):
-        make(np.array([0]), ratio=ratio)
+        process_sidechain(np.array([0]), ratio=ratio)
 
 
-@SIDECHAIN_ENTRY_POINTS
 @pytest.mark.parametrize("duration", [-0.1, float("nan"), float("inf")])
-def test_sidechain_rejects_invalid_duration(make, duration: float) -> None:
+def test_sidechain_rejects_invalid_duration(duration: float) -> None:
     with pytest.raises(ValueError, match="duration must be"):
-        make(np.array([0]), duration=duration)
+        process_sidechain(np.array([0]), duration=duration)
 
 
-@SIDECHAIN_ENTRY_POINTS
-def test_sidechain_rejects_negative_trigger(make) -> None:
+def test_sidechain_rejects_negative_trigger() -> None:
     with pytest.raises(ValueError, match="non-negative sample indices"):
-        make(np.array([-1]))
+        process_sidechain(np.array([-1]))
 
 
 def test_loudest_rms_finds_the_loudest_window() -> None:
@@ -241,27 +190,29 @@ def test_loudest_rms_uses_the_whole_signal_when_shorter_than_window() -> None:
     assert loudest_rms(np.zeros(0, dtype=np.float32)) == 0.0
 
 
-def test_level_signal_scales_to_the_level() -> None:
+def test_level_scales_to_the_level() -> None:
     rng = np.random.default_rng(0)
     signal = rng.uniform(-1, 1, CONFIG.sr).astype(np.float32)
 
-    leveled = level_signal(signal, 0.25)
+    leveled = Level(0.25).process(signal, CONFIG.sr)
 
     assert leveled.dtype == np.float32
     assert loudest_rms(leveled) == pytest.approx(0.25, rel=1e-5)
 
 
-def test_level_signal_leaves_silence_unchanged() -> None:
+def test_level_leaves_silence_unchanged() -> None:
     silence = np.zeros(100, dtype=np.float32)
 
-    np.testing.assert_array_equal(level_signal(silence, 0.5), silence)
+    np.testing.assert_array_equal(
+        Level(0.5).process(silence, CONFIG.sr), silence
+    )
 
 
 def test_section_applies_the_effect_only_inside_the_section() -> None:
     sr = 1000
     signal = np.ones(1000, dtype=np.float32)
 
-    result = section_signal(signal, Gain(3.0), 200, 600, fade=0.01, sr=sr)
+    result = Section(Gain(3.0), 200, 600, fade=0.01).process(signal, sr)
 
     np.testing.assert_array_equal(result[:200], 1.0)
     np.testing.assert_array_equal(result[600:], 1.0)
@@ -277,7 +228,7 @@ def test_section_keeps_the_effect_state_continuous() -> None:
     )
     effect = Filter(500, "lowpass")
 
-    result = section_signal(signal, effect, 1000, 3000, sr=sr)
+    result = Section(effect, 1000, 3000).process(signal, sr)
 
     np.testing.assert_allclose(
         result[1040:2960], effect.process(signal, sr)[1040:2960], atol=1e-6
@@ -287,7 +238,7 @@ def test_section_keeps_the_effect_state_continuous() -> None:
 def test_section_end_is_clipped_to_the_signal() -> None:
     signal = np.ones(100, dtype=np.float32)
 
-    result = section_signal(signal, Gain(2.0), 50, 200, fade=0, sr=1000)
+    result = Section(Gain(2.0), 50, 200, fade=0).process(signal, 1000)
 
     np.testing.assert_array_equal(result[50:], 2.0)
 
@@ -297,14 +248,14 @@ def test_section_rejects_invalid_bounds(start: int, end: int) -> None:
     signal = np.ones(100, dtype=np.float32)
 
     with pytest.raises(ValueError):
-        section_signal(signal, Gain(2.0), start, end)
+        Section(Gain(2.0), start, end).process(signal, CONFIG.sr)
 
 
 def test_section_rejects_effects_that_change_the_length() -> None:
     signal = np.ones(1000, dtype=np.float32)
 
     with pytest.raises(ValueError, match="length"):
-        section_signal(signal, Cut(500), 100, 200)
+        Section(Cut(500), 100, 200).process(signal, CONFIG.sr)
 
 
 def test_resonant_filter_without_resonance_is_butterworth() -> None:
@@ -315,8 +266,8 @@ def test_resonant_filter_without_resonance_is_butterworth() -> None:
 
     for btype in ("lowpass", "highpass"):
         np.testing.assert_allclose(
-            filter_signal(signal, 500, btype, q=2**-0.5, sr=sr),
-            filter_signal(signal, 500, btype, sr=sr),
+            Filter(500, btype, q=2**-0.5).process(signal, sr),
+            Filter(500, btype).process(signal, sr),
             atol=1e-6,
         )
 
@@ -328,7 +279,7 @@ def _sine_gain(
     sr = 8000
     time = np.arange(4 * sr) / sr
     sine = np.sin(2 * np.pi * frequency * time).astype(np.float32)
-    filtered = filter_signal(sine, cutoff, btype, order, q=q, sr=sr)
+    filtered = Filter(cutoff, btype, order, q).process(sine, sr)
     return float(np.abs(filtered[-sr:]).max())
 
 
@@ -376,8 +327,8 @@ def test_resonant_filter_rejects_invalid_settings(
     cutoff: float | tuple[float, float], btype: str, order: int, q: float
 ) -> None:
     with pytest.raises(ValueError):
-        filter_signal(
-            np.ones(10, dtype=np.float32), cutoff, btype, order, q=q, sr=8000
+        Filter(cutoff, btype, order, q).process(
+            np.ones(10, dtype=np.float32), 8000
         )
 
 
@@ -394,10 +345,10 @@ def _lag(wet: Signal, dry: Signal, max_lag: int = 2000) -> int:
     return int(lags[np.argmax(scores)])
 
 
-def test_normalize_signal_sets_the_peak() -> None:
+def test_normalize_sets_the_peak() -> None:
     signal = _click_train()
 
-    normalized = normalize_signal(signal, peak_db=-6.0)
+    normalized = Normalize(-6.0).process(signal, CONFIG.sr)
 
     assert np.abs(normalized).max() == pytest.approx(10 ** (-6 / 20))
     assert normalized.dtype == np.float32
@@ -406,44 +357,48 @@ def test_normalize_signal_sets_the_peak() -> None:
 def test_gain_and_tilt_of_zero_db_keep_the_signal() -> None:
     signal = _click_train()
 
-    np.testing.assert_allclose(gain_signal(signal, 0.0), signal)
-    np.testing.assert_allclose(tilt_signal(signal, 0.0), signal, atol=1e-6)
+    np.testing.assert_allclose(
+        AudioGain(0.0).process(signal, CONFIG.sr), signal
+    )
+    np.testing.assert_allclose(
+        Tilt(0.0).process(signal, CONFIG.sr), signal, atol=1e-6
+    )
 
 
-def test_tilt_signal_moves_the_balance_of_lows_and_highs() -> None:
+def test_tilt_moves_the_balance_of_lows_and_highs() -> None:
     t = np.arange(CONFIG.sr) / CONFIG.sr
     low = np.sin(2 * np.pi * 50 * t).astype(np.float32)
     high = np.sin(2 * np.pi * 10000 * t).astype(np.float32)
 
     def gain_db(signal: Signal) -> float:
-        tilted = tilt_signal(signal, 6.0)[CONFIG.sr // 2 :]
+        tilted = Tilt(6.0).process(signal, CONFIG.sr)[CONFIG.sr // 2 :]
         return 20 * np.log10(np.abs(tilted).max() / np.abs(signal).max())
 
     assert gain_db(low) == pytest.approx(-3.0, abs=0.1)
     assert gain_db(high) == pytest.approx(3.0, abs=0.1)
 
 
-def test_clip_signal_stays_at_or_below_one() -> None:
-    clipped = clip_signal(_click_train() * 4, drive_db=12.0)
+def test_clip_stays_at_or_below_one() -> None:
+    clipped = Clip(12.0).process(_click_train() * 4, CONFIG.sr)
 
     assert np.abs(clipped).max() <= 1.0
 
 
-def test_limit_signal_keeps_the_ceiling_and_the_timing() -> None:
+def test_limit_keeps_the_ceiling_and_the_timing() -> None:
     signal = _click_train()
 
-    limited = limit_signal(signal, drive_db=9.0, ceiling_db=-1.0)
+    limited = Limit(9.0, ceiling_db=-1.0).process(signal, CONFIG.sr)
 
     assert np.abs(limited).max() <= 10 ** (-1 / 20) + 1e-6
     assert _lag(limited, signal) == 0
-    quiet = limit_signal(signal * 0.1, drive_db=0.0)
+    quiet = Limit(0.0).process(signal * 0.1, CONFIG.sr)
     np.testing.assert_allclose(quiet, signal * 0.1, atol=1e-7)
 
 
-def test_encode_mp3_signal_keeps_the_length_and_the_timing() -> None:
+def test_mp3_keeps_the_length_and_the_timing() -> None:
     signal = _click_train()
 
-    encoded = encode_mp3_signal(signal, compression_level=0.75)
+    encoded = Mp3(0.75).process(signal, CONFIG.sr)
 
     assert len(encoded) == len(signal)
     assert encoded.dtype == np.float32

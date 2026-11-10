@@ -6,7 +6,7 @@ from loguru import logger
 
 from src.core.config import LayerConfig
 from src.services.synthesis.bank import Sample, SampleBank
-from src.services.synthesis.effects import level_signal
+from src.services.synthesis.effects import Level
 from src.services.synthesis.grid import Grid
 from src.services.synthesis.patterns.pattern import PatternGenerator
 from src.services.synthesis.track import Track
@@ -51,7 +51,7 @@ def draw_loop_track(
     sample = bank.draw(layer.kind, rng, is_loop=True).stretch(track)
     db = rng.uniform(*layer.level_db_range)
     level = kick_level * float(librosa.db_to_amplitude(db))
-    signal = level_signal(sample.signal, level, grid.sr)
+    signal = Level(level).process(sample.signal, grid.sr)
     logger.debug(f"{layer.kind} loop {sample.name} at {db:.1f} dB")
     for beat in LoopPatternGenerator(grid, sample, rng=rng).generate():
         track.insert(signal, beat, blend=False)

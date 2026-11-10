@@ -6,7 +6,7 @@ from loguru import logger
 
 from src.core.config import LayerConfig
 from src.services.synthesis.bank import SampleBank
-from src.services.synthesis.effects import level_signal, trim_signal
+from src.services.synthesis.effects import Level, Trim
 from src.services.synthesis.grid import Grid
 from src.services.synthesis.patterns.pattern import PatternGenerator
 from src.services.synthesis.track import Track
@@ -71,7 +71,8 @@ def draw_one_shot_track(
     ).generate()
     db = rng.uniform(*layer.level_db_range)
     level = kick_level * float(librosa.db_to_amplitude(db))
-    signal = level_signal(trim_signal(sample.signal), level, grid.sr)
+    trimmed = Trim().process(sample.signal, grid.sr)
+    signal = Level(level).process(trimmed, grid.sr)
     logger.debug(
         f"{layer.kind} one-shot {sample.name} at {db:.1f} dB: {len(beats)} "
         f"hits, every {period:g} beats from {placement.offset:g}"

@@ -12,62 +12,17 @@ from src.core.config import CONFIG
 from src.models.audio import Signal
 
 
-def cut_signal(
-    signal: Signal,
-    length: int,
-    fade: float = 0.01,
-    sr: int = CONFIG.sr,
-) -> Signal:
-    if len(signal) <= length:
-        return signal  # signal is already shorter than desired length
-
-    fade_samples = min(round(fade * sr), length)
-    cut_signal = signal[:length].copy()
-    cut_signal[length - fade_samples :] *= np.linspace(
-        1.0, 0.0, fade_samples, dtype=np.float32
-    )
-    return cut_signal
-
-
-def trim_signal(signal: Signal) -> Signal:
-    trimmed, _ = librosa.effects.trim(signal)
-    return trimmed
-
-
 def trim_to_attack(signal: Signal, top_db: float = 20.0) -> Signal:
     """Trim the signal, and start it at the first sample within ``top_db`` of its peak.
 
     The -60 dB trim keeps MP3 encoder delay and pre-echo (about 25 ms), which
     would put the onset label before the attack.
     """
-    trimmed = trim_signal(signal)
+    trimmed, _ = librosa.effects.trim(signal)
     magnitude = np.abs(trimmed)
     return trimmed[
         np.argmax(magnitude >= magnitude.max() * 10 ** (-top_db / 20)) :
     ]
-
-
-def filter_signal(
-    signal: Signal,
-    cutoff: float | tuple[float, float],
-    btype: str,
-    order: int = 2,
-    q: float | None = None,
-    sr: int = CONFIG.sr,
-) -> Signal:
-    """Filter with a Butterworth filter, or with a resonant filter if ``q`` is set.
-
-    The resonant filter is a low-pass or high-pass of an even order, with
-    6 dB/oct of slope for each order. It is one resonant biquad, with a gain of
-    ``q`` at the cutoff, followed by a Butterworth filter of ``order - 2``. Thus
-    the gain at the cutoff is ``q`` for order 2 and ``q/√2`` for higher orders.
-    A ``q`` of ``1/√2`` gives no resonance.
-    """
-    if q is None:
-        sos = butter(order, cutoff, btype, fs=sr, output="sos")
-    else:
-        sos = _resonant_sos(cutoff, btype, order, q, sr)
-    return np.asarray(sosfilt(sos, signal), dtype=np.float32)
 
 
 def _resonant_sos(
@@ -83,7 +38,7 @@ def _resonant_sos(
         raise ValueError("A resonant filter must be a lowpass or highpass.")
     if order < 2 or order % 2:
         raise ValueError("A resonant filter must have an even order of 2+.")
-    if not q > 0:
+    if q <= 0:
         raise ValueError("Q must be positive.")
     resonant = _biquad_sos(cutoff, btype, q, sr)
     if order == 2:
@@ -113,129 +68,6 @@ def loudest_rms(
     return float(rms.max())
 
 
-def level_signal(signal: Signal, level: float, sr: int = CONFIG.sr) -> Signal:
-    """Scale the signal so that its ``loudest_rms`` is ``level``."""
-    current = loudest_rms(signal, sr=sr)
-    if current == 0:
-        return signal
-    return (signal * (level / current)).astype(np.float32)
-
-
-def normalize_signal(signal: Signal, peak_db: float = 0.0) -> Signal:
-    """Scale the signal so that its peak is ``peak_db`` dBFS."""
-    peak = float(librosa.db_to_amplitude(peak_db))
-    return (librosa.util.normalize(signal) * peak).astype(np.float32)
-
-
-def gain_signal(signal: Signal, db: float) -> Signal:
-    return (signal * float(librosa.db_to_amplitude(db))).astype(np.float32)
-
-
-def tilt_signal(
-    signal: Signal, db: float, pivot: float = 1000.0, sr: int = CONFIG.sr
-) -> Signal:
-    """Tilt the spectrum: the highs get ``db/2`` and the lows ``-db/2`` of gain.
-
-    The lows are a 1st-order low-pass at the pivot, and the highs are the rest.
-    Thus a tilt of 0 dB gives the same signal.
-    """
-    lows = filter_signal(signal, pivot, "lowpass", order=1, sr=sr)
-    highs = signal - lows
-    return gain_signal(lows, -db / 2) + gain_signal(highs, db / 2)
-
-
-def clip_signal(signal: Signal, drive_db: float) -> Signal:
-    """Soft clip with ``tanh`` after a gain of ``drive_db``."""
-    return np.tanh(gain_signal(signal, drive_db)).astype(np.float32)
-
-
-def limit_signal(
-    signal: Signal,
-    drive_db: float,
-    ceiling_db: float = -0.3,
-    window: float = 0.01,
-    sr: int = CONFIG.sr,
-) -> Signal:
-    """A look-ahead limiter after a gain of ``drive_db``.
-
-    The gain at each sample is the lowest gain that the peaks in the centered
-    ``window`` need, smoothed with a mean over the same window. Thus the peaks
-    do not go above ``ceiling_db`` and the signal is not delayed.
-    """
-    driven = gain_signal(signal, drive_db)
-    if len(driven) == 0:
-        return driven
-    ceiling = float(librosa.db_to_amplitude(ceiling_db))
-    size = 2 * round(window * sr / 2) + 1
-    peaks = maximum_filter1d(np.abs(driven), size=size)
-    gain = ceiling / np.maximum(peaks, ceiling)
-    gain = uniform_filter1d(gain, size=size, mode="nearest")
-    return (driven * gain).astype(np.float32)
-
-
-def encode_mp3_signal(
-    signal: Signal, compression_level: float, sr: int = CONFIG.sr
-) -> Signal:
-    """Encode the signal to a constant-bitrate MP3 and decode it again.
-
-    A ``compression_level`` of 0 is about 320 kbps and 0.75 is about 96 kbps.
-    """
-    buffer = io.BytesIO()
-    soundfile.write(
-        buffer,
-        signal,
-        sr,
-        format="MP3",
-        subtype="MPEG_LAYER_III",
-        compression_level=compression_level,
-        bitrate_mode="CONSTANT",
-    )
-    buffer.seek(0)
-    decoded, _ = librosa.load(buffer, sr=sr)
-    return librosa.util.fix_length(decoded, size=len(signal))
-
-
-def sidechain_signal(
-    signal: Signal,
-    triggers: np.ndarray,
-    ratio: float = 0.5,
-    duration: float = 0.1,
-    fade: float = 0.005,
-    sr: int = CONFIG.sr,
-) -> Signal:
-    """Duck the signal at each trigger, like a sidechain compressor.
-
-    The gain falls by ``ratio`` over the ``fade`` attack, then rises back on
-    a smooth (cosine) release, so the whole duck lasts ``duration``.
-    """
-    _validate_sidechain(triggers, ratio, duration)
-
-    # only sidechain if both ratio and duration are non-zero
-    if ratio == 0 or duration == 0:
-        return signal
-
-    samples = len(signal)
-    duration_samples = max(1, round(duration * sr))
-    fade_samples = min(max(1, round(fade * sr)), duration_samples // 2)
-    attack = 0.5 - 0.5 * np.cos(
-        np.pi * np.linspace(0.0, 1.0, fade_samples, endpoint=False)
-    )
-    release = 0.5 + 0.5 * np.cos(
-        np.pi * np.linspace(0.0, 1.0, duration_samples - fade_samples)
-    )
-    shape = np.concatenate([attack, release]).astype(np.float32)
-    envelope = np.zeros(samples, dtype=np.float32)
-    for trigger in triggers:
-        start = int(trigger)
-        end = min(start + duration_samples, samples)
-        if end <= start:
-            continue
-        envelope[start:end] = np.maximum(
-            envelope[start:end], shape[: end - start]
-        )
-    return np.asarray(signal * (1.0 - ratio * envelope), dtype=np.float32)
-
-
 def _validate_sidechain(
     triggers: np.ndarray, ratio: float, duration: float
 ) -> None:
@@ -255,50 +87,27 @@ class Effect(Protocol):
     def process(self, signal: Signal, sr: int) -> Signal: ...
 
 
-def section_signal(
-    signal: Signal,
-    effect: Effect,
-    start: int,
-    end: int,
-    fade: float = 0.005,
-    sr: int = CONFIG.sr,
-) -> Signal:
-    """Apply the effect only from sample ``start`` to ``end``.
-
-    The effect is applied to the whole signal, so its state is continuous at
-    the section edges. The section fades in after ``start`` and out before
-    ``end``, which prevents clicks.
-    """
-    end = min(end, len(signal))
-    if not 0 <= start <= end:
-        raise ValueError("The section must start inside the signal.")
-    wet = effect.process(signal, sr)
-    if len(wet) != len(signal):
-        raise ValueError("The effect of a section must keep the length.")
-
-    mix = np.zeros(len(signal), dtype=np.float32)
-    mix[start:end] = 1.0
-    fade_samples = min(round(fade * sr), (end - start) // 2)
-    if fade_samples:
-        ramp = np.linspace(0.0, 1.0, fade_samples, dtype=np.float32)
-        mix[start : start + fade_samples] = ramp
-        mix[end - fade_samples : end] = ramp[::-1]
-    return np.asarray(signal + mix * (wet - signal), dtype=np.float32)
-
-
 @dataclass(frozen=True)
 class Cut(Effect):
     length: int
     fade: float = 0.01
 
     def process(self, signal: Signal, sr: int) -> Signal:
-        return cut_signal(signal, self.length, self.fade, sr=sr)
+        if len(signal) <= self.length:
+            return signal
+        fade_samples = min(round(self.fade * sr), self.length)
+        cut = signal[: self.length].copy()
+        cut[self.length - fade_samples :] *= np.linspace(
+            1.0, 0.0, fade_samples, dtype=np.float32
+        )
+        return cut
 
 
 @dataclass(frozen=True)
 class Trim(Effect):
     def process(self, signal: Signal, sr: int) -> Signal:
-        return trim_signal(signal)
+        trimmed, _ = librosa.effects.trim(signal)
+        return trimmed
 
 
 @dataclass(frozen=True)
@@ -309,9 +118,18 @@ class Filter(Effect):
     q: float | None = None
 
     def process(self, signal: Signal, sr: int) -> Signal:
-        return filter_signal(
-            signal, self.cutoff, self.btype, self.order, self.q, sr=sr
-        )
+        """Filter with Butterworth, or resonant filtering when ``q`` is set.
+
+        Resonant filters are low/high-pass biquads with a gain of ``q`` at
+        cutoff, followed by Butterworth sections for orders above two.
+        """
+        if self.q is None:
+            sos = butter(
+                self.order, self.cutoff, self.btype, fs=sr, output="sos"
+            )
+        else:
+            sos = _resonant_sos(self.cutoff, self.btype, self.order, self.q, sr)
+        return np.asarray(sosfilt(sos, signal), dtype=np.float32)
 
 
 @dataclass(frozen=True)
@@ -319,7 +137,8 @@ class Normalize(Effect):
     peak_db: float = 0.0
 
     def process(self, signal: Signal, sr: int) -> Signal:
-        return normalize_signal(signal, self.peak_db)
+        peak = float(librosa.db_to_amplitude(self.peak_db))
+        return (librosa.util.normalize(signal) * peak).astype(np.float32)
 
 
 @dataclass(frozen=True)
@@ -327,7 +146,20 @@ class Gain(Effect):
     db: float
 
     def process(self, signal: Signal, sr: int) -> Signal:
-        return gain_signal(signal, self.db)
+        return (signal * float(librosa.db_to_amplitude(self.db))).astype(
+            np.float32
+        )
+
+
+@dataclass(frozen=True)
+class Level(Effect):
+    level: float
+
+    def process(self, signal: Signal, sr: int) -> Signal:
+        current = loudest_rms(signal, sr=sr)
+        if current == 0:
+            return signal
+        return (signal * (self.level / current)).astype(np.float32)
 
 
 @dataclass(frozen=True)
@@ -336,7 +168,11 @@ class Tilt(Effect):
     pivot: float = 1000.0
 
     def process(self, signal: Signal, sr: int) -> Signal:
-        return tilt_signal(signal, self.db, self.pivot, sr=sr)
+        lows = Filter(self.pivot, "lowpass", order=1).process(signal, sr)
+        highs = signal - lows
+        return Gain(-self.db / 2).process(lows, sr) + Gain(self.db / 2).process(
+            highs, sr
+        )
 
 
 @dataclass(frozen=True)
@@ -344,7 +180,9 @@ class Clip(Effect):
     drive_db: float
 
     def process(self, signal: Signal, sr: int) -> Signal:
-        return clip_signal(signal, self.drive_db)
+        return np.tanh(Gain(self.drive_db).process(signal, sr)).astype(
+            np.float32
+        )
 
 
 @dataclass(frozen=True)
@@ -353,7 +191,15 @@ class Limit(Effect):
     ceiling_db: float = -0.3
 
     def process(self, signal: Signal, sr: int) -> Signal:
-        return limit_signal(signal, self.drive_db, self.ceiling_db, sr=sr)
+        driven = Gain(self.drive_db).process(signal, sr)
+        if len(driven) == 0:
+            return driven
+        ceiling = float(librosa.db_to_amplitude(self.ceiling_db))
+        size = 2 * round(0.01 * sr / 2) + 1
+        peaks = maximum_filter1d(np.abs(driven), size=size)
+        gain = ceiling / np.maximum(peaks, ceiling)
+        gain = uniform_filter1d(gain, size=size, mode="nearest")
+        return (driven * gain).astype(np.float32)
 
 
 @dataclass(frozen=True)
@@ -361,7 +207,19 @@ class Mp3(Effect):
     compression_level: float
 
     def process(self, signal: Signal, sr: int) -> Signal:
-        return encode_mp3_signal(signal, self.compression_level, sr=sr)
+        buffer = io.BytesIO()
+        soundfile.write(
+            buffer,
+            signal,
+            sr,
+            format="MP3",
+            subtype="MPEG_LAYER_III",
+            compression_level=self.compression_level,
+            bitrate_mode="CONSTANT",
+        )
+        buffer.seek(0)
+        decoded, _ = librosa.load(buffer, sr=sr)
+        return librosa.util.fix_length(decoded, size=len(signal))
 
 
 @dataclass(frozen=True, eq=False)
@@ -372,13 +230,31 @@ class Sidechain(Effect):
     fade: float = 0.005
 
     def process(self, signal: Signal, sr: int) -> Signal:
-        return sidechain_signal(
-            signal,
-            self.triggers,
-            self.ratio,
-            self.duration,
-            self.fade,
-            sr=sr,
+        _validate_sidechain(self.triggers, self.ratio, self.duration)
+        if self.ratio == 0 or self.duration == 0:
+            return signal
+
+        samples = len(signal)
+        duration_samples = max(1, round(self.duration * sr))
+        fade_samples = min(max(1, round(self.fade * sr)), duration_samples // 2)
+        attack = 0.5 - 0.5 * np.cos(
+            np.pi * np.linspace(0.0, 1.0, fade_samples, endpoint=False)
+        )
+        release = 0.5 + 0.5 * np.cos(
+            np.pi * np.linspace(0.0, 1.0, duration_samples - fade_samples)
+        )
+        shape = np.concatenate([attack, release]).astype(np.float32)
+        envelope = np.zeros(samples, dtype=np.float32)
+        for trigger in self.triggers:
+            start = int(trigger)
+            end = min(start + duration_samples, samples)
+            if end <= start:
+                continue
+            envelope[start:end] = np.maximum(
+                envelope[start:end], shape[: end - start]
+            )
+        return np.asarray(
+            signal * (1.0 - self.ratio * envelope), dtype=np.float32
         )
 
 
@@ -392,6 +268,18 @@ class Section(Effect):
     fade: float = 0.005
 
     def process(self, signal: Signal, sr: int) -> Signal:
-        return section_signal(
-            signal, self.effect, self.start, self.end, self.fade, sr=sr
-        )
+        end = min(self.end, len(signal))
+        if not 0 <= self.start <= end:
+            raise ValueError("The section must start inside the signal.")
+        wet = self.effect.process(signal, sr)
+        if len(wet) != len(signal):
+            raise ValueError("The effect of a section must keep the length.")
+
+        mix = np.zeros(len(signal), dtype=np.float32)
+        mix[self.start : end] = 1.0
+        fade_samples = min(round(self.fade * sr), (end - self.start) // 2)
+        if fade_samples:
+            ramp = np.linspace(0.0, 1.0, fade_samples, dtype=np.float32)
+            mix[self.start : self.start + fade_samples] = ramp
+            mix[end - fade_samples : end] = ramp[::-1]
+        return np.asarray(signal + mix * (wet - signal), dtype=np.float32)
