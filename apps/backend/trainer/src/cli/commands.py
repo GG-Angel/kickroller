@@ -4,9 +4,17 @@ import typer
 
 from src.core.config import CONFIG, SynthConfig
 from src.core.logging import configure_logging
+from src.core.storage import load_audio, load_onsets, save_audio, save_onsets
 from src.models.audio import SampleKind
+from src.services.analysis.analyze import (
+    add_clicks,
+    analyze_signal,
+    score_onsets,
+)
 from src.services.synthesis.bank import load_sample_bank_from_file
 from src.services.synthesis.export import export_drops
+from src.services.training.network import load_checkpoint
+from src.services.training.train import train as train_model
 
 app = typer.Typer(
     help="Find kick onsets in a hardstyle track.",
@@ -35,63 +43,161 @@ def configure_cli(
 
 
 @app.command()
-def analyze() -> None:
-    """Analyze audio tracks."""
-    typer.echo("Analyze is not implemented yet.")
+def analyze(
+    track: Path = typer.Argument(
+        ..., exists=True, dir_okay=False, help="Audio file."
+    ),
+    model: Path = typer.Option(
+        Path("model.pt"),
+        "--model",
+        "-m",
+        exists=True,
+        dir_okay=False,
+        help="Model checkpoint.",
+    ),
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        dir_okay=False,
+        help="Onset CSV (default: <audio-name>-onsets.csv).",
+    ),
+    confidences: bool = typer.Option(
+        True,
+        "--confidences/--no-confidences",
+        help="Include onset confidence.",
+    ),
+    threshold: float | None = typer.Option(
+        None,
+        "--threshold",
+        min=0,
+        max=1,
+        help="Peak threshold (default: model setting).",
+    ),
+    clicks: bool = typer.Option(
+        False,
+        "--clicks",
+        help="Write click audio as <output>.clicks.wav.",
+    ),
+    labels: Path | None = typer.Option(
+        None,
+        "--labels",
+        exists=True,
+        dir_okay=False,
+        help="Label CSV for scoring labeled spans.",
+    ),
+) -> None:
+    """Find the kick onsets of a track."""
+    output = output or track.with_name(f"{track.stem}-onsets.csv")
+    checkpoint = load_checkpoint(model)
+    signal = load_audio(track)
+    analysis = analyze_signal(signal, checkpoint, threshold)
+    save_onsets(
+        output,
+        analysis.onsets,
+        analysis.confidences if confidences else None,
+    )
+    typer.echo(f"Found {len(analysis.onsets)} kicks, saved to {output}.")
+    if clicks:
+        clicks_path = output.with_suffix(".clicks.wav")
+        save_audio(clicks_path, add_clicks(signal, analysis.onsets))
+        typer.echo(f"Saved clicks to {clicks_path}.")
+    if labels:
+        score = score_onsets(
+            analysis.onsets,
+            load_onsets(labels),
+            checkpoint.threshold if threshold is None else threshold,
+        )
+        typer.echo(
+            f"F-measure {score.f_measure:.3f} (precision "
+            f"{score.precision:.3f}, recall {score.recall:.3f})."
+        )
 
 
 @app.command()
-def train() -> None:
-    """Train a kick onset model."""
-    typer.echo("Train is not implemented yet.")
+def train(
+    bank_file: Path = typer.Option(
+        Path("bank.yaml"),
+        "--bank",
+        "-b",
+        help="Sample bank config.",
+    ),
+    no_cache: bool = typer.Option(
+        False,
+        "--no-cache",
+        help="Bypass the sample cache.",
+    ),
+    output: Path = typer.Option(
+        Path("model.pt"),
+        "--output",
+        "-o",
+        dir_okay=False,
+        help="Best checkpoint output.",
+    ),
+    steps: int = typer.Option(
+        CONFIG.train.steps,
+        "--steps",
+        min=1,
+        help="Training steps.",
+    ),
+    seed: int | None = typer.Option(
+        None,
+        "--seed",
+        min=0,
+        help="Random seed (default: generated and logged).",
+    ),
+) -> None:
+    """Train a kick onset model on synthetic drops."""
+    config = CONFIG.train.model_copy(update={"steps": steps})
+    best = train_model(bank_file, output, not no_cache, seed, config)
+    typer.echo(
+        f"Best validation F-measure {best.f_measure:.3f} at threshold "
+        f"{best.threshold}, saved to {output}."
+    )
 
 
 @app.command()
 def synth(
     bank_file: Path = typer.Option(
         Path("bank.yaml"),
-        "--bank-file",
+        "--bank",
         "-b",
-        help="Path to the sample bank configuration file.",
+        help="Sample bank config.",
     ),
     no_cache: bool = typer.Option(
         False,
         "--no-cache",
-        help="Decode samples without reading or writing the bank cache.",
+        help="Bypass the sample cache.",
     ),
     output: Path = typer.Option(
         Path("drops"),
         "--output",
         "-o",
         file_okay=False,
-        help="Folder for the drops and their kick onsets.",
+        help="Drop output folder.",
     ),
-    count: int = typer.Option(
-        4, "--count", "-n", min=1, help="Number of drops to write."
-    ),
+    count: int = typer.Option(4, "--count", "-n", min=1, help="Drop count."),
     seed: int | None = typer.Option(
         None,
         "--seed",
         min=0,
-        help="Seed for reproducible drops (default: a new seed in the log).",
+        help="Random seed (default: generated and logged).",
     ),
     kinds: list[SampleKind] | None = typer.Option(
         None,
         "--kind",
         "-k",
-        help="Only use layers of this kind (repeatable; default: all). "
-        "The kick is always used, so `-k kick` gives kicks only.",
+        help="Layer kind (repeatable; default: all). Kicks always included.",
     ),
     held_out: bool = typer.Option(
         False,
         "--held-out",
-        help="Use only the held-out kicks, for validation drops. Without it, "
-        "the held-out kicks are never used.",
+        help="Use validation kicks instead of training kicks.",
     ),
     no_master: bool = typer.Option(
         False,
         "--no-master",
-        help="Do not augment the drops with random master effects.",
+        help="Disable master effects.",
     ),
 ) -> None:
     """Write synthetic drops with labeled kick onsets."""

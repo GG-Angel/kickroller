@@ -1,3 +1,4 @@
+import os
 import sys
 
 from loguru import logger
@@ -15,6 +16,10 @@ def configure_logging(verbose: bool = False, quiet: bool = False) -> None:
         level = "WARNING"
     else:
         level = "INFO"
+
+    # DataLoader workers read these when they import loguru
+    os.environ["LOGURU_LEVEL"] = level
+    os.environ["LOGURU_FORMAT"] = LOG_FORMAT
 
     logger.remove()
     logger.add(sink=sys.stderr, level=level, format=LOG_FORMAT)
