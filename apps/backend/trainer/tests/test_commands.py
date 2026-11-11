@@ -9,6 +9,7 @@ from src.cli.commands import app
 from src.core.config import CONFIG
 from src.models.audio import SampleKind
 from src.services.analysis.analyze import Analysis
+from src.services.scoring import score_onsets
 from src.services.synthesis.bank import Sample, SampleBank, is_held_out
 
 
@@ -177,6 +178,9 @@ def test_analyze_writes_onsets_clicks_and_scores(
             return_value=np.zeros(CONFIG.sr, dtype=np.float32),
         ),
         patch("src.cli.commands.analyze_signal", return_value=analysis) as run,
+        patch(
+            "src.cli.commands.score_onsets", wraps=score_onsets
+        ) as score,
     ):
         load_model.return_value.threshold = 0.85
         result = CliRunner().invoke(
@@ -196,6 +200,7 @@ def test_analyze_writes_onsets_clicks_and_scores(
 
     assert result.exit_code == 0, result.output
     assert run.call_args.args[2] == threshold
+    assert score.call_args.kwargs["labeled_spans_only"] is True
     assert (tmp_path / "track-onsets.csv").exists()
     assert (tmp_path / "track-onsets.clicks.wav").exists()
     assert "F-measure 1.000" in result.output

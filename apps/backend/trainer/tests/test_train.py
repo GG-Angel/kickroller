@@ -7,6 +7,7 @@ import torch
 
 from src.core.config import CONFIG
 from src.models.audio import SampleKind
+from src.services.scoring import evaluate
 from src.services.synthesis.bank import Sample, SampleBank
 from src.services.training.loop import TrainingBatch, _prepare_training_batch
 from src.services.training.network import CONTEXT_FRAMES, load_checkpoint
@@ -86,6 +87,9 @@ def test_train_saves_a_checkpoint(tmp_path: Path) -> None:
             "src.services.training.dataset.load_sample_bank_from_file",
             return_value=_make_bank(),
         ),
+        patch(
+            "src.services.training.train.evaluate", wraps=evaluate
+        ) as score,
     ):
         best = train(
             Path("bank.yaml"),
@@ -98,4 +102,5 @@ def test_train_saves_a_checkpoint(tmp_path: Path) -> None:
         )
 
     assert 0 <= best.f_measure <= 1
+    assert score.call_args.kwargs["labeled_spans_only"] is False
     assert load_checkpoint(output).threshold == best.threshold

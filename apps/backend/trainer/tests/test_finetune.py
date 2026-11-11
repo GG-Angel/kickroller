@@ -6,6 +6,7 @@ import pytest
 import torch
 
 from src.core.config import CONFIG
+from src.services.scoring import evaluate
 from src.services.training.finetune import (
     RealTrack,
     _crop_real_track,
@@ -71,14 +72,18 @@ def test_real_validation_ignores_predictions_between_spans() -> None:
     probabilities = np.zeros(1201, dtype=np.float32)
     probabilities[[100, 500, 1000]] = 0.9
 
-    best = evaluate_real(
-        [probabilities],
-        [track],
-        CONFIG.train,
-        CONFIG.features,
-        CONFIG.sr,
-    )
+    with patch(
+        "src.services.training.finetune.evaluate", wraps=evaluate
+    ) as score:
+        best = evaluate_real(
+            [probabilities],
+            [track],
+            CONFIG.train,
+            CONFIG.features,
+            CONFIG.sr,
+        )
 
+    assert score.call_args.kwargs["labeled_spans_only"] is True
     assert best.f_measure == best.precision == best.recall == 1.0
 
 

@@ -108,7 +108,12 @@ def train(
     def validate() -> Evaluation:
         probabilities = predict(model, validation_features, config.batch_size)
         return evaluate(
-            probabilities, validation_onsets, config, feature_config, sr
+            probabilities,
+            validation_onsets,
+            config,
+            feature_config,
+            sr,
+            labeled_spans_only=False,
         )
 
     return run_training_loop(

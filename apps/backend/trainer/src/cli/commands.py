@@ -114,6 +114,7 @@ def analyze(
             load_onsets(labels),
             checkpoint.threshold if threshold is None else threshold,
             CONFIG.train.tolerance,
+            labeled_spans_only=True,
         )
         typer.echo(
             f"F-measure {score.f_measure:.3f} (precision "

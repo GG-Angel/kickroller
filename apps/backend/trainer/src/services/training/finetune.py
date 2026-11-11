@@ -12,7 +12,7 @@ from src.core.config import FeatureConfig, SynthConfig, TrainConfig
 from src.core.storage import load_audio, load_onsets
 from src.services.scoring import (
     Evaluation,
-    evaluate_labeled,
+    evaluate,
     predict,
     select_labeled_onsets,
 )
@@ -99,12 +99,13 @@ def evaluate_real(
     """Choose a threshold using counts from labeled spans."""
     if not tracks:
         raise ValueError("Real validation needs at least one track.")
-    return evaluate_labeled(
+    return evaluate(
         probabilities,
         [track.onsets for track in tracks],
         config,
         feature_config,
         sr,
+        labeled_spans_only=True,
     )
 
 

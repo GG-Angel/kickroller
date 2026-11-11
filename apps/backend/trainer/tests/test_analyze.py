@@ -61,7 +61,13 @@ def test_score_onsets_ignores_onsets_outside_the_labels() -> None:
     reference = np.array([10.0, 10.375, 10.75])
     estimated = np.array([2.0, 10.005, 10.375, 10.75, 30.0])
 
-    score = score_onsets(estimated, reference, 0.5, CONFIG.train.tolerance)
+    score = score_onsets(
+        estimated,
+        reference,
+        0.5,
+        CONFIG.train.tolerance,
+        labeled_spans_only=True,
+    )
 
     assert score.f_measure == pytest.approx(1.0)
     assert score.threshold == 0.5
@@ -71,7 +77,13 @@ def test_score_onsets_counts_misses_and_false_onsets() -> None:
     reference = np.array([1.0, 2.0])
     estimated = np.array([1.0, 1.5])
 
-    score = score_onsets(estimated, reference, 0.5, CONFIG.train.tolerance)
+    score = score_onsets(
+        estimated,
+        reference,
+        0.5,
+        CONFIG.train.tolerance,
+        labeled_spans_only=True,
+    )
 
     assert score.precision == score.recall == 0.5
 
@@ -80,7 +92,13 @@ def test_score_onsets_ignores_unlabeled_gaps_between_drops() -> None:
     reference = np.array([10.0, 10.375, 30.0, 30.375])
     estimated = np.array([10.0, 10.375, 15.0, 20.0, 30.0, 30.375])
 
-    score = score_onsets(estimated, reference, 0.5, CONFIG.train.tolerance)
+    score = score_onsets(
+        estimated,
+        reference,
+        0.5,
+        CONFIG.train.tolerance,
+        labeled_spans_only=True,
+    )
 
     assert score.f_measure == 1.0
 
@@ -89,10 +107,45 @@ def test_score_onsets_keeps_pauses_of_five_seconds() -> None:
     reference = np.array([10.0, 15.0])
     estimated = np.array([10.0, 12.0, 15.0])
 
-    score = score_onsets(estimated, reference, 0.5, CONFIG.train.tolerance)
+    score = score_onsets(
+        estimated,
+        reference,
+        0.5,
+        CONFIG.train.tolerance,
+        labeled_spans_only=True,
+    )
 
     assert score.precision == pytest.approx(2 / 3)
     assert score.recall == 1.0
+
+
+def test_score_onsets_can_include_unlabeled_predictions() -> None:
+    reference = np.array([1.0])
+    estimated = np.array([1.0, 2.0])
+
+    score = score_onsets(
+        estimated,
+        reference,
+        0.5,
+        CONFIG.train.tolerance,
+        labeled_spans_only=False,
+    )
+
+    assert score.f_measure == pytest.approx(2 / 3)
+    assert score.precision == 0.5
+    assert score.recall == 1.0
+
+
+def test_score_onsets_returns_zero_for_empty_labels() -> None:
+    score = score_onsets(
+        np.array([1.0]),
+        np.array([]),
+        0.5,
+        CONFIG.train.tolerance,
+        labeled_spans_only=True,
+    )
+
+    assert score.f_measure == score.precision == score.recall == 0.0
 
 
 def test_select_labeled_onsets_includes_span_edges() -> None:

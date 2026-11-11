@@ -75,12 +75,38 @@ def score_onsets(
     reference: np.ndarray,
     threshold: float,
     tolerance: float,
+    *,
+    labeled_spans_only: bool,
 ) -> Evaluation:
-    """Score estimates against reference onsets."""
-    selected = select_labeled_onsets(estimated, reference, tolerance)
-    f_measure, precision, recall = mir_eval.onset.f_measure(
-        reference, selected, window=tolerance
+    """Score estimates, optionally excluding onsets outside labeled spans."""
+    hits, detected, reference_count = _count_onset_matches(
+        estimated,
+        reference,
+        tolerance,
+        labeled_spans_only=labeled_spans_only,
     )
+    return _evaluation_from_counts(hits, detected, reference_count, threshold)
+
+
+def _count_onset_matches(
+    estimated: np.ndarray,
+    reference: np.ndarray,
+    tolerance: float,
+    *,
+    labeled_spans_only: bool,
+) -> tuple[int, int, int]:
+    if labeled_spans_only:
+        estimated = select_labeled_onsets(estimated, reference, tolerance)
+    hits = len(mir_eval.util.match_events(reference, estimated, tolerance))
+    return hits, len(estimated), len(reference)
+
+
+def _evaluation_from_counts(
+    hits: int, detected: int, reference_count: int, threshold: float
+) -> Evaluation:
+    precision = hits / max(detected, 1)
+    recall = hits / max(reference_count, 1)
+    f_measure = 2 * precision * recall / max(precision + recall, 1e-9)
     return Evaluation(f_measure, precision, recall, threshold)
 
 
@@ -92,33 +118,33 @@ def _evaluate_thresholds(
     sr: int,
     *,
     labeled_spans_only: bool,
-    initial_f_measure: float,
 ) -> Evaluation:
-    best = Evaluation(initial_f_measure, 0.0, 0.0, config.thresholds[0])
-    reference_count = sum(len(reference) for reference in references)
+    best = Evaluation(0.0, 0.0, 0.0, config.thresholds[0])
     for threshold in config.thresholds:
         detected = hits = 0
+        reference_count = 0
         for probability, reference in zip(
             probabilities, references, strict=True
         ):
             estimated = pick_onsets(
                 probability, threshold, config, feature_config, sr
             )
-            if labeled_spans_only:
-                estimated = select_labeled_onsets(
-                    estimated, reference, config.tolerance
-                )
-            detected += len(estimated)
-            hits += len(
-                mir_eval.util.match_events(
-                    reference, estimated, config.tolerance
+            track_hits, track_detected, track_references = (
+                _count_onset_matches(
+                    estimated,
+                    reference,
+                    config.tolerance,
+                    labeled_spans_only=labeled_spans_only,
                 )
             )
-        precision = hits / max(detected, 1)
-        recall = hits / max(reference_count, 1)
-        f_measure = 2 * precision * recall / max(precision + recall, 1e-9)
-        if f_measure > best.f_measure:
-            best = Evaluation(f_measure, precision, recall, threshold)
+            detected += track_detected
+            hits += track_hits
+            reference_count += track_references
+        evaluation = _evaluation_from_counts(
+            hits, detected, reference_count, threshold
+        )
+        if evaluation.f_measure > best.f_measure:
+            best = evaluation
     return best
 
 
@@ -128,33 +154,15 @@ def evaluate(
     config: TrainConfig,
     feature_config: FeatureConfig,
     sr: int,
+    *,
+    labeled_spans_only: bool,
 ) -> Evaluation:
-    """Choose the best threshold over all reference onsets."""
+    """Choose the best threshold, optionally inside labeled spans."""
     return _evaluate_thresholds(
         probabilities,
         references,
         config,
         feature_config,
         sr,
-        labeled_spans_only=False,
-        initial_f_measure=0.0,
-    )
-
-
-def evaluate_labeled(
-    probabilities: Probabilities,
-    references: Sequence[np.ndarray],
-    config: TrainConfig,
-    feature_config: FeatureConfig,
-    sr: int,
-) -> Evaluation:
-    """Choose the best threshold inside labeled spans."""
-    return _evaluate_thresholds(
-        probabilities,
-        references,
-        config,
-        feature_config,
-        sr,
-        labeled_spans_only=True,
-        initial_f_measure=-1.0,
+        labeled_spans_only=labeled_spans_only,
     )

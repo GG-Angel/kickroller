@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from src.core.config import CONFIG
 from src.services.scoring import evaluate, pick_onsets
@@ -47,7 +48,12 @@ def test_evaluate_scores_perfect_probabilities_as_one() -> None:
     onsets = [np.array([20, 60]) / FPS, np.array([100]) / FPS]
 
     evaluation = evaluate(
-        probabilities, onsets, CONFIG.train, CONFIG.features, CONFIG.sr
+        probabilities,
+        onsets,
+        CONFIG.train,
+        CONFIG.features,
+        CONFIG.sr,
+        labeled_spans_only=False,
     )
 
     assert evaluation.f_measure == 1.0
@@ -60,8 +66,52 @@ def test_evaluate_counts_misses_and_false_onsets() -> None:
     onsets = [np.array([20, 60]) / FPS]
 
     evaluation = evaluate(
-        probabilities, onsets, CONFIG.train, CONFIG.features, CONFIG.sr
+        probabilities,
+        onsets,
+        CONFIG.train,
+        CONFIG.features,
+        CONFIG.sr,
+        labeled_spans_only=False,
     )
 
     assert evaluation.precision == 0.5
     assert evaluation.recall == 0.5
+
+
+def test_evaluate_can_score_inside_labeled_spans() -> None:
+    probabilities = np.zeros((1, 200))
+    probabilities[0, [20, 100]] = 1.0
+    onsets = [np.array([20]) / FPS]
+    config = CONFIG.train.model_copy(update={"thresholds": [0.5]})
+
+    evaluation = evaluate(
+        probabilities,
+        onsets,
+        config,
+        CONFIG.features,
+        CONFIG.sr,
+        labeled_spans_only=True,
+    )
+
+    assert evaluation.f_measure == 1.0
+    assert evaluation.precision == evaluation.recall == 1.0
+
+
+def test_evaluate_can_score_outside_labeled_spans() -> None:
+    probabilities = np.zeros((1, 200))
+    probabilities[0, [20, 100]] = 1.0
+    onsets = [np.array([20]) / FPS]
+    config = CONFIG.train.model_copy(update={"thresholds": [0.5]})
+
+    evaluation = evaluate(
+        probabilities,
+        onsets,
+        config,
+        CONFIG.features,
+        CONFIG.sr,
+        labeled_spans_only=False,
+    )
+
+    assert evaluation.f_measure == pytest.approx(2 / 3)
+    assert evaluation.precision == 0.5
+    assert evaluation.recall == 1.0
