@@ -4,8 +4,6 @@ from time import perf_counter
 
 import torch
 from loguru import logger
-from torch import Tensor
-
 from src.core.config import TrainConfig
 from src.services.scoring import Evaluation
 from src.services.training.network import (
@@ -13,6 +11,7 @@ from src.services.training.network import (
     KickNet,
     save_checkpoint,
 )
+from torch import Tensor
 
 type TrainingBatch = tuple[Tensor, Tensor] | tuple[Tensor, Tensor, Tensor]
 type LossPolicy = Callable[[Tensor, Tensor, Tensor, Tensor], Tensor]

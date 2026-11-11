@@ -21,15 +21,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = [
-    "demucs>=4.0.1",
-    "ruff>=0.16.10",
-    "ty>=0.0.84",
-]
-
-[project.scripts]
-trainer = "src.cli:run_cli"
-
+dev = ["ruff>=0.16.10", "ty>=0.0.84"]
 
 [build-system]
 requires = ["hatchling"]
@@ -38,8 +30,5 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
 
-[tool.ruff]
-line-length = 80
-
-[tool.ruff.lint]
-ignore = ["B008", "BLE001"]
+[project.scripts]
+trainer = "src.cli:run_cli"

@@ -1,5 +1,4 @@
 import numpy as np
-
 from src.core.config import CONFIG
 from src.services.training.features import (
     _build_log_filterbank,

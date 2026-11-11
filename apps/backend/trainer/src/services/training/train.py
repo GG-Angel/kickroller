@@ -3,10 +3,6 @@ from pathlib import Path
 import numpy as np
 import torch
 from loguru import logger
-from torch import Tensor
-from torch.nn import functional as F
-from torch.utils.data import DataLoader
-
 from src.core.config import FeatureConfig, SynthConfig, TrainConfig
 from src.services.scoring import Evaluation, evaluate, predict
 from src.services.synthesis.bank import SampleBank, load_sample_bank_from_file
@@ -14,6 +10,9 @@ from src.services.synthesis.synth import generate_cropped_drop
 from src.services.training.dataset import DropStream, Example, make_example
 from src.services.training.loop import run_training_loop
 from src.services.training.network import KickNet
+from torch import Tensor
+from torch.nn import functional as F
+from torch.utils.data import DataLoader
 
 
 def _compute_synthetic_loss(

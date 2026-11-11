@@ -3,7 +3,6 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
-
 from src.core.config import CONFIG
 from src.models.audio import SampleKind
 from src.services.synthesis import bank

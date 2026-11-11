@@ -4,13 +4,12 @@ from typing import NamedTuple
 
 import numpy as np
 import torch
-from torch.utils.data import IterableDataset, get_worker_info
-
 from src.core.config import FeatureConfig, SynthConfig
 from src.models.audio import LabeledDrop
 from src.services.synthesis.bank import load_sample_bank_from_file
 from src.services.synthesis.synth import generate_cropped_drop
 from src.services.training.features import compute_features, make_targets
+from torch.utils.data import IterableDataset, get_worker_info
 
 
 class Example(NamedTuple):

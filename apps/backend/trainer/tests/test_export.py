@@ -3,7 +3,6 @@ from unittest.mock import patch
 
 import numpy as np
 from scipy.io import wavfile
-
 from src.core.config import CONFIG
 from src.models.audio import LabeledDrop
 from src.services.synthesis.bank import SampleBank

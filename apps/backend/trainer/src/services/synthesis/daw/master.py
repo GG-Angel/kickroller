@@ -1,5 +1,4 @@
 import numpy as np
-
 from src.core.config import MasterConfig
 from src.services.synthesis.daw.effects import (
     Clip,

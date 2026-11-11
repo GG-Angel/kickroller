@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 import numpy as np
 import pytest
-
 from src.core.config import CONFIG
 from src.models.audio import Signal
 from src.services.synthesis.daw import effects

@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import torch
-
 from src.core.config import CONFIG
 from src.services.training.features import count_bands
 from src.services.training.network import (

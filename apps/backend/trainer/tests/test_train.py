@@ -4,7 +4,6 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 import torch
-
 from src.core.config import CONFIG
 from src.models.audio import SampleKind
 from src.services.scoring import evaluate

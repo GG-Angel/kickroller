@@ -3,14 +3,13 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
-from typer.testing import CliRunner
-
 from src.cli.commands import app
 from src.core.config import CONFIG
 from src.models.audio import SampleKind
 from src.services.analyze import Analysis
 from src.services.scoring import score_onsets
 from src.services.synthesis.bank import Sample, SampleBank, is_held_out
+from typer.testing import CliRunner
 
 
 def test_synth_can_bypass_sample_bank_cache(tmp_path: Path) -> None:
