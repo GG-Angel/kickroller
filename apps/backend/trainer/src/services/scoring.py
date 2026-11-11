@@ -129,13 +129,11 @@ def _evaluate_thresholds(
             estimated = pick_onsets(
                 probability, threshold, config, feature_config, sr
             )
-            track_hits, track_detected, track_references = (
-                _count_onset_matches(
-                    estimated,
-                    reference,
-                    config.tolerance,
-                    labeled_spans_only=labeled_spans_only,
-                )
+            track_hits, track_detected, track_references = _count_onset_matches(
+                estimated,
+                reference,
+                config.tolerance,
+                labeled_spans_only=labeled_spans_only,
             )
             detected += track_detected
             hits += track_hits

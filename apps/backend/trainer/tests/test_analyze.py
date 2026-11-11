@@ -6,7 +6,7 @@ import torch
 
 from src.core.config import CONFIG
 from src.core.storage import load_onsets, save_onsets
-from src.services.analysis.analyze import (
+from src.services.analyze import (
     add_clicks,
     analyze_signal,
 )

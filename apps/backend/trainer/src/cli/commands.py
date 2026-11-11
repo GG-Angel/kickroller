@@ -6,7 +6,7 @@ from src.core.config import CONFIG, SynthConfig
 from src.core.logging import configure_logging
 from src.core.storage import load_audio, load_onsets, save_audio, save_onsets
 from src.models.audio import SampleKind
-from src.services.analysis.analyze import (
+from src.services.analyze import (
     add_clicks,
     analyze_signal,
 )

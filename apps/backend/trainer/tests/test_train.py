@@ -87,9 +87,7 @@ def test_train_saves_a_checkpoint(tmp_path: Path) -> None:
             "src.services.training.dataset.load_sample_bank_from_file",
             return_value=_make_bank(),
         ),
-        patch(
-            "src.services.training.train.evaluate", wraps=evaluate
-        ) as score,
+        patch("src.services.training.train.evaluate", wraps=evaluate) as score,
     ):
         best = train(
             Path("bank.yaml"),

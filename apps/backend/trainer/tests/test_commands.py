@@ -8,7 +8,7 @@ from typer.testing import CliRunner
 from src.cli.commands import app
 from src.core.config import CONFIG
 from src.models.audio import SampleKind
-from src.services.analysis.analyze import Analysis
+from src.services.analyze import Analysis
 from src.services.scoring import score_onsets
 from src.services.synthesis.bank import Sample, SampleBank, is_held_out
 
@@ -178,9 +178,7 @@ def test_analyze_writes_onsets_clicks_and_scores(
             return_value=np.zeros(CONFIG.sr, dtype=np.float32),
         ),
         patch("src.cli.commands.analyze_signal", return_value=analysis) as run,
-        patch(
-            "src.cli.commands.score_onsets", wraps=score_onsets
-        ) as score,
+        patch("src.cli.commands.score_onsets", wraps=score_onsets) as score,
     ):
         load_model.return_value.threshold = 0.85
         result = CliRunner().invoke(
