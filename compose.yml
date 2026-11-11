@@ -1,0 +1,41 @@
+name: kickroller
+
+services:
+  rustfs:
+    image: rustfs/rustfs:1.0.5
+    restart: unless-stopped
+    volumes:
+      - rustfs-data:/data
+      - rustfs-logs:/var/log/rustfs/
+    networks:
+      - internal
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_OBS_LOGGER_LEVEL: error
+      RUSTFS_OBS_LOG_DIRECTORY: "/var/log/rustfs/"
+    command: /data
+
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    networks:
+      - internal
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: kickroller
+
+volumes:
+  postgres_data:
+  rustfs-data:
+  rustfs-logs:
+
+networks:
+  external:
+  internal:
+    internal: true
