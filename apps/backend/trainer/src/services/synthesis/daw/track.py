@@ -3,8 +3,8 @@ from math import floor
 import numpy as np
 
 from src.models.audio import Signal
-from src.services.synthesis.effects import Cut, Effect
-from src.services.synthesis.grid import Grid
+from src.services.synthesis.daw.effects import Cut, Effect
+from src.services.synthesis.daw.grid import Grid
 
 
 class Track:

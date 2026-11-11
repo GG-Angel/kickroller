@@ -2,8 +2,8 @@ import librosa
 import numpy as np
 
 from src.models.audio import Signal
-from src.services.synthesis.effects import Effect
-from src.services.synthesis.track import Track
+from src.services.synthesis.daw.effects import Effect
+from src.services.synthesis.daw.track import Track
 
 
 class Mix:

@@ -7,15 +7,15 @@ from src.core.config import LayerConfig, SynthConfig
 from src.models.audio import LabeledDrop
 from src.services.synthesis.bank import SampleBank
 from src.services.synthesis.crop import crop_drop, draw_crop
+from src.services.synthesis.daw.effects import Filter, Sidechain
+from src.services.synthesis.daw.grid import Grid
+from src.services.synthesis.daw.master import draw_master_effects
+from src.services.synthesis.daw.mix import Mix
+from src.services.synthesis.daw.track import Track
 from src.services.synthesis.draws import draw_count, draw_log_uniform
-from src.services.synthesis.effects import Filter, Sidechain
-from src.services.synthesis.grid import Grid
-from src.services.synthesis.master import draw_master_effects
-from src.services.synthesis.mix import Mix
 from src.services.synthesis.patterns.kick import draw_kick_track
 from src.services.synthesis.patterns.loop import draw_loop_track
 from src.services.synthesis.patterns.one_shot import draw_one_shot_track
-from src.services.synthesis.track import Track
 
 
 def draw_grid(config: SynthConfig, rng: np.random.Generator, sr: int) -> Grid:

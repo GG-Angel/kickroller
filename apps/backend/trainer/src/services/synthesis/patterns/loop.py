@@ -6,9 +6,9 @@ from loguru import logger
 
 from src.core.config import LayerConfig
 from src.services.synthesis.bank import Sample, SampleBank
-from src.services.synthesis.effects import Level
-from src.services.synthesis.grid import Grid
-from src.services.synthesis.track import Track
+from src.services.synthesis.daw.effects import Level
+from src.services.synthesis.daw.grid import Grid
+from src.services.synthesis.daw.track import Track
 
 
 @dataclass

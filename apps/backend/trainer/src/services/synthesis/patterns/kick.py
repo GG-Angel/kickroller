@@ -7,15 +7,15 @@ from loguru import logger
 from src.core.config import KickFxConfig, KickRollConfig, SectionConfig
 from src.models.audio import SampleKind
 from src.services.synthesis.bank import SampleBank
-from src.services.synthesis.draws import draw_count, draw_log_uniform
-from src.services.synthesis.effects import (
+from src.services.synthesis.daw.effects import (
     Filter,
     Section,
     measure_loudest_rms,
     trim_to_attack,
 )
-from src.services.synthesis.grid import Grid
-from src.services.synthesis.track import Track
+from src.services.synthesis.daw.grid import Grid
+from src.services.synthesis.daw.track import Track
+from src.services.synthesis.draws import draw_count, draw_log_uniform
 
 
 @dataclass

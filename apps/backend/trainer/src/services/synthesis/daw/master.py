@@ -1,7 +1,7 @@
 import numpy as np
 
 from src.core.config import MasterConfig
-from src.services.synthesis.effects import (
+from src.services.synthesis.daw.effects import (
     Clip,
     Effect,
     Gain,

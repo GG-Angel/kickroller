@@ -16,7 +16,7 @@ from src.core.config import (
 )
 from src.models.audio import SampleKind
 from src.services.synthesis.bank import Sample, SampleBank
-from src.services.synthesis.effects import (
+from src.services.synthesis.daw.effects import (
     Clip,
     Filter,
     Gain,
@@ -29,8 +29,9 @@ from src.services.synthesis.effects import (
     measure_loudest_rms,
     trim_to_attack,
 )
-from src.services.synthesis.grid import Grid
-from src.services.synthesis.master import draw_master_effects
+from src.services.synthesis.daw.grid import Grid
+from src.services.synthesis.daw.master import draw_master_effects
+from src.services.synthesis.daw.track import Track
 from src.services.synthesis.patterns.kick import draw_kick_fx, draw_kick_track
 from src.services.synthesis.patterns.loop import draw_loop_track
 from src.services.synthesis.patterns.one_shot import (
@@ -42,7 +43,6 @@ from src.services.synthesis.synth import (
     draw_grid,
     generate_drop,
 )
-from src.services.synthesis.track import Track
 
 
 def test_draw_grid_is_one_bar_longer_than_the_crop() -> None:
