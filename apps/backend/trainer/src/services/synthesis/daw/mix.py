@@ -1,14 +1,13 @@
 import librosa
 import numpy as np
 
-from src.core.config import CONFIG
 from src.models.audio import Signal
-from src.services.synthesis.effects import Effect
-from src.services.synthesis.track import Track
+from src.services.synthesis.daw.effects import Effect
+from src.services.synthesis.daw.track import Track
 
 
 class Mix:
-    def __init__(self, sr: int = CONFIG.sr) -> None:
+    def __init__(self, sr: int) -> None:
         self.sr = sr
         self.tracks: list[Track] = []
         self.effects: list[Effect] = []

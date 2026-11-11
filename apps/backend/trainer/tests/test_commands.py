@@ -8,7 +8,8 @@ from typer.testing import CliRunner
 from src.cli.commands import app
 from src.core.config import CONFIG
 from src.models.audio import SampleKind
-from src.services.analysis.analyze import Analysis
+from src.services.analyze import Analysis
+from src.services.scoring import score_onsets
 from src.services.synthesis.bank import Sample, SampleBank, is_held_out
 
 
@@ -29,7 +30,7 @@ def test_synth_can_bypass_sample_bank_cache(tmp_path: Path) -> None:
         )
 
     assert result.exit_code == 0
-    load_bank.assert_called_once_with(bank_path, use_cache=False)
+    load_bank.assert_called_once_with(bank_path, CONFIG.sr, use_cache=False)
 
 
 def test_synth_writes_drops_to_output_folder(tmp_path: Path) -> None:
@@ -45,7 +46,9 @@ def test_synth_writes_drops_to_output_folder(tmp_path: Path) -> None:
         )
 
     assert result.exit_code == 0
-    export.assert_called_once_with(bank, output, 3, 5, CONFIG.synth)
+    export.assert_called_once_with(
+        bank, output, 3, 5, config=CONFIG.synth, sr=CONFIG.sr
+    )
 
 
 def _invoke_synth(*options: str) -> list:
@@ -59,7 +62,7 @@ def _invoke_synth(*options: str) -> list:
         result = CliRunner().invoke(app, ["synth", *options])
 
     assert result.exit_code == 0, result.output
-    return export.call_args.args[4].layers
+    return export.call_args.kwargs["config"].layers
 
 
 def test_synth_uses_all_layers_by_default() -> None:
@@ -126,7 +129,7 @@ def test_synth_can_turn_off_the_master_effects(options: list[str]) -> None:
         result = CliRunner().invoke(app, ["synth", "-k", "kick", *options])
 
     assert result.exit_code == 0, result.output
-    config = export.call_args.args[4]
+    config = export.call_args.kwargs["config"]
     assert config.layers == []
     if options:
         assert config.master is None
@@ -145,7 +148,8 @@ def test_train_passes_the_options(tmp_path: Path) -> None:
         )
 
     assert result.exit_code == 0, result.output
-    bank_file, saved, use_cache, seed, config = train.call_args.args
+    bank_file, saved, use_cache, seed = train.call_args.args
+    config = train.call_args.kwargs["config"]
     assert (bank_file, saved, use_cache, seed) == (
         Path("bank.yaml"),
         output,
@@ -174,6 +178,7 @@ def test_analyze_writes_onsets_clicks_and_scores(
             return_value=np.zeros(CONFIG.sr, dtype=np.float32),
         ),
         patch("src.cli.commands.analyze_signal", return_value=analysis) as run,
+        patch("src.cli.commands.score_onsets", wraps=score_onsets) as score,
     ):
         load_model.return_value.threshold = 0.85
         result = CliRunner().invoke(
@@ -193,6 +198,7 @@ def test_analyze_writes_onsets_clicks_and_scores(
 
     assert result.exit_code == 0, result.output
     assert run.call_args.args[2] == threshold
+    assert score.call_args.kwargs["labeled_spans_only"] is True
     assert (tmp_path / "track-onsets.csv").exists()
     assert (tmp_path / "track-onsets.clicks.wav").exists()
     assert "F-measure 1.000" in result.output

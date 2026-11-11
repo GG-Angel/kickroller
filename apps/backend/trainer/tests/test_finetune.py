@@ -6,9 +6,10 @@ import pytest
 import torch
 
 from src.core.config import CONFIG
+from src.services.scoring import evaluate
 from src.services.training.finetune import (
     RealTrack,
-    _real_crop,
+    _crop_real_track,
     evaluate_real,
     fine_tune,
     load_real_track,
@@ -23,7 +24,7 @@ def test_load_real_track_masks_unlabeled_gaps(tmp_path: Path) -> None:
         "src.services.training.finetune.load_audio",
         return_value=np.zeros(CONFIG.sr * 12, dtype=np.float32),
     ):
-        track = load_real_track(path)
+        track = load_real_track(path, CONFIG.features, CONFIG.train, CONFIG.sr)
 
     assert track.mask[100] == track.mask[150] == track.mask[1000] == 1
     assert track.mask[0] == track.mask[500] == track.mask[1190] == 0
@@ -43,10 +44,10 @@ def test_load_real_track_rejects_invalid_labels(
         ),
         pytest.raises(ValueError, match="Invalid or empty"),
     ):
-        load_real_track(path)
+        load_real_track(path, CONFIG.features, CONFIG.train, CONFIG.sr)
 
 
-def _track() -> RealTrack:
+def _make_real_track() -> RealTrack:
     features = torch.zeros(3, 109, 2000)
     mask = torch.zeros(2000)
     mask[500:700] = 1
@@ -55,24 +56,34 @@ def _track() -> RealTrack:
 
 def test_real_crops_keep_scored_frames() -> None:
     rng = np.random.default_rng(0)
-    track = _track()
+    track = _make_real_track()
     for _ in range(10):
-        features, targets, mask = _real_crop(track, 1201, rng)
+        features, targets, mask = _crop_real_track(track, 1201, rng)
         assert features.shape == (3, 109, 1201)
         assert targets.shape == mask.shape == (1201,)
         assert mask[41:-41].sum() > 0
 
 
 def test_real_validation_ignores_predictions_between_spans() -> None:
-    track = _track()
+    track = _make_real_track()
     track = RealTrack(
         track.features, track.targets, track.mask, np.array([1.0, 10.0])
     )
     probabilities = np.zeros(1201, dtype=np.float32)
     probabilities[[100, 500, 1000]] = 0.9
 
-    best = evaluate_real([probabilities], [track])
+    with patch(
+        "src.services.training.finetune.evaluate", wraps=evaluate
+    ) as score:
+        best = evaluate_real(
+            [probabilities],
+            [track],
+            CONFIG.train,
+            CONFIG.features,
+            CONFIG.sr,
+        )
 
+    assert score.call_args.kwargs["labeled_spans_only"] is True
     assert best.f_measure == best.precision == best.recall == 1.0
 
 
@@ -86,6 +97,9 @@ def test_fine_tune_rejects_overlapping_tracks(tmp_path: Path) -> None:
             [tmp_path / "track.mp3"],
             1,
             CONFIG.train,
+            CONFIG.synth,
+            CONFIG.features,
+            CONFIG.sr,
         )
 
 
@@ -93,10 +107,10 @@ def test_fine_tune_keeps_best_checkpoint_and_normalization(
     tmp_path: Path,
 ) -> None:
     initial, output = tmp_path / "base.pt", tmp_path / "out.pt"
-    model = KickNet()
+    model = KickNet(CONFIG.features)
     model.mean.fill_(3.0)
     save_checkpoint(initial, model, 0.8)
-    track = _track()
+    track = _make_real_track()
     config = CONFIG.train.model_copy(
         update={"steps": 1, "batch_size": 2, "workers": 0}
     )
@@ -111,7 +125,7 @@ def test_fine_tune_keeps_best_checkpoint_and_normalization(
             return_value=[batch],
         ),
         patch(
-            "src.services.training.finetune._pick_device",
+            "src.services.training.loop._pick_device",
             return_value=torch.device("cpu"),
         ),
     ):
@@ -123,6 +137,9 @@ def test_fine_tune_keeps_best_checkpoint_and_normalization(
             [tmp_path / "validate.mp3"],
             1,
             config,
+            CONFIG.synth,
+            CONFIG.features,
+            CONFIG.sr,
         )
     saved = torch.load(output, weights_only=True)
     assert saved["threshold"] == best.threshold

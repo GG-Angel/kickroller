@@ -16,7 +16,7 @@ from src.core.config import (
 )
 from src.models.audio import SampleKind
 from src.services.synthesis.bank import Sample, SampleBank
-from src.services.synthesis.effects import (
+from src.services.synthesis.daw.effects import (
     Clip,
     Filter,
     Gain,
@@ -26,11 +26,12 @@ from src.services.synthesis.effects import (
     Section,
     Sidechain,
     Tilt,
-    loudest_rms,
+    measure_loudest_rms,
     trim_to_attack,
 )
-from src.services.synthesis.grid import Grid
-from src.services.synthesis.master import draw_master_effects
+from src.services.synthesis.daw.grid import Grid
+from src.services.synthesis.daw.master import draw_master_effects
+from src.services.synthesis.daw.track import Track
 from src.services.synthesis.patterns.kick import draw_kick_fx, draw_kick_track
 from src.services.synthesis.patterns.loop import draw_loop_track
 from src.services.synthesis.patterns.one_shot import (
@@ -42,19 +43,18 @@ from src.services.synthesis.synth import (
     draw_grid,
     generate_drop,
 )
-from src.services.synthesis.track import Track
 
 
 def test_draw_grid_is_one_bar_longer_than_the_crop() -> None:
     rng = np.random.default_rng(0)
     for _ in range(100):
-        grid = draw_grid(CONFIG.synth, rng)
+        grid = draw_grid(CONFIG.synth, rng, CONFIG.sr)
         seconds = grid.bars * grid.bar / grid.sr
         assert seconds >= CONFIG.synth.drop_seconds + grid.bar / grid.sr
 
 
 def test_one_shot_pattern_uses_period_and_offset() -> None:
-    grid = Grid(bpm=160, bars=2)
+    grid = Grid(bpm=160, bars=2, sr=CONFIG.sr)
 
     beats = OneShotPatternGenerator(grid, period=2, offset=1).generate()
 
@@ -62,7 +62,7 @@ def test_one_shot_pattern_uses_period_and_offset() -> None:
 
 
 def test_one_shot_pattern_drops_positions_by_probability() -> None:
-    grid = Grid(bpm=160, bars=64)
+    grid = Grid(bpm=160, bars=64, sr=CONFIG.sr)
     rng = np.random.default_rng(0)
 
     beats = OneShotPatternGenerator(
@@ -80,7 +80,9 @@ def test_one_shot_pattern_rejects_invalid_settings(
     period: float, probability: float
 ) -> None:
     generator = OneShotPatternGenerator(
-        Grid(bpm=160, bars=1), period=period, probability=probability
+        Grid(bpm=160, bars=1, sr=CONFIG.sr),
+        period=period,
+        probability=probability,
     )
 
     with pytest.raises(ValueError):
@@ -97,7 +99,7 @@ def test_one_shot_layer_needs_placements() -> None:
         )
 
 
-def _sample(kind: SampleKind, is_loop: bool, seconds: float) -> Sample:
+def _make_sample(kind: SampleKind, is_loop: bool, seconds: float) -> Sample:
     rng = np.random.default_rng(len(kind))
     signal = rng.uniform(-0.5, 0.5, round(seconds * CONFIG.sr))
     return Sample(
@@ -110,17 +112,17 @@ def _sample(kind: SampleKind, is_loop: bool, seconds: float) -> Sample:
     )
 
 
-def _bank() -> SampleBank:
-    one_shots = [_sample(kind, False, 0.3) for kind in SampleKind]
+def _make_bank() -> SampleBank:
+    one_shots = [_make_sample(kind, False, 0.3) for kind in SampleKind]
     loops = [
-        _sample(kind, True, 6.0)  # 4 bars at 160 BPM
+        _make_sample(kind, True, 6.0)  # Four bars at 160 BPM.
         for kind in (SampleKind.MELODY, SampleKind.VOCAL, SampleKind.DRUM)
     ]
     return SampleBank(samples=one_shots + loops)
 
 
 def test_sample_bank_draws_only_loops_or_one_shots() -> None:
-    bank = _bank()
+    bank = _make_bank()
     rng = np.random.default_rng(0)
 
     assert bank.draw(SampleKind.DRUM, rng, is_loop=True).is_loop
@@ -135,17 +137,19 @@ def test_layers_do_not_change_kick_onsets() -> None:
         layer.model_copy(update={"track_count_weights": {1: 1.0}})
         for layer in config.layers
     ]
-    bank = _bank()
+    bank = _make_bank()
 
     kicks_only = generate_drop(
         bank,
         np.random.default_rng(3),
         config.model_copy(update={"layers": []}),
+        CONFIG.sr,
     )
     full = generate_drop(
         bank,
         np.random.default_rng(3),
         config.model_copy(update={"layers": every_layer}),
+        CONFIG.sr,
     )
 
     np.testing.assert_array_equal(full.onsets, kicks_only.onsets)
@@ -155,8 +159,8 @@ def test_layers_do_not_change_kick_onsets() -> None:
 
 @pytest.mark.parametrize("db", [0.0, -6.0])
 def test_layer_tracks_are_leveled_relative_to_the_kick(db: float) -> None:
-    grid = Grid(bpm=160, bars=4)
-    bank = _bank()
+    grid = Grid(bpm=160, bars=4, sr=CONFIG.sr)
+    bank = _make_bank()
     rng = np.random.default_rng(0)
     one_shot_layer = LayerConfig(
         kind=SampleKind.DRUM,
@@ -173,8 +177,12 @@ def test_layer_tracks_are_leveled_relative_to_the_kick(db: float) -> None:
     loop = draw_loop_track(grid, bank, loop_layer, 0.5, rng)
 
     expected = 0.5 * 10 ** (db / 20)
-    assert loudest_rms(one_shot.signal) == pytest.approx(expected, rel=1e-4)
-    assert loudest_rms(loop.signal) == pytest.approx(expected, rel=1e-4)
+    assert measure_loudest_rms(one_shot.signal, CONFIG.sr) == pytest.approx(
+        expected, rel=1e-4
+    )
+    assert measure_loudest_rms(loop.signal, CONFIG.sr) == pytest.approx(
+        expected, rel=1e-4
+    )
 
 
 def test_layer_high_pass_cutoff_is_drawn_from_its_range_or_off() -> None:
@@ -190,7 +198,7 @@ def test_layer_high_pass_cutoff_is_drawn_from_its_range_or_off() -> None:
 
     cutoffs = []
     for _ in range(50):
-        track = Track(Grid(bpm=160, bars=1))
+        track = Track(Grid(bpm=160, bars=1, sr=CONFIG.sr))
         _add_layer_effects(track, layer, sidechain, rng)
         (high_pass,) = track.effects
         assert isinstance(high_pass, Filter)
@@ -198,14 +206,14 @@ def test_layer_high_pass_cutoff_is_drawn_from_its_range_or_off() -> None:
         cutoffs.append(high_pass.cutoff)
     assert 60.0 <= min(cutoffs) < max(cutoffs) <= 200.0
 
-    track = Track(Grid(bpm=160, bars=1))
+    track = Track(Grid(bpm=160, bars=1, sr=CONFIG.sr))
     unfiltered = layer.model_copy(update={"high_pass_hz_range": None})
     _add_layer_effects(track, unfiltered, sidechain, rng)
     assert track.effects == []
 
 
 def test_kick_fx_sections_are_whole_beats_and_do_not_overlap() -> None:
-    grid = Grid(bpm=160, bars=2)
+    grid = Grid(bpm=160, bars=2, sr=CONFIG.sr)
     config = KickFxConfig(section_count_weights={4: 1.0})
     rng = np.random.default_rng(0)
 
@@ -222,7 +230,7 @@ def test_kick_fx_sections_are_whole_beats_and_do_not_overlap() -> None:
 
 
 def test_kick_fx_are_high_passes_inside_their_ranges() -> None:
-    grid = Grid(bpm=160, bars=8)
+    grid = Grid(bpm=160, bars=8, sr=CONFIG.sr)
     config = KickFxConfig(section_count_weights={2: 1.0})
     rng = np.random.default_rng(0)
 
@@ -247,7 +255,11 @@ def test_kick_fx_can_be_off() -> None:
     config = KickFxConfig(section_count_weights={0: 1.0})
 
     assert (
-        draw_kick_fx(Grid(bpm=160, bars=2), config, np.random.default_rng())
+        draw_kick_fx(
+            Grid(bpm=160, bars=2, sr=CONFIG.sr),
+            config,
+            np.random.default_rng(),
+        )
         == []
     )
 
@@ -258,13 +270,13 @@ _NO_OFF_BEATS = (0.0, 0.0)
 
 
 def test_kick_off_beat_chance_adds_off_beat_kicks_on_any_grid() -> None:
-    grid = Grid(bpm=160, bars=64, steps_per_beat=3)
+    grid = Grid(bpm=160, bars=64, sr=CONFIG.sr, steps_per_beat=3)
     no_sections = SectionConfig(section_count_weights={0: 1.0})
     no_fx = KickFxConfig(section_count_weights={0: 1.0})
 
     kick = draw_kick_track(
         grid,
-        _bank(),
+        _make_bank(),
         no_sections,
         _NO_ROLLS,
         no_fx,
@@ -278,14 +290,20 @@ def test_kick_off_beat_chance_adds_off_beat_kicks_on_any_grid() -> None:
 
 
 def test_kick_gaps_have_no_kicks_and_no_kick_fx() -> None:
-    grid = Grid(bpm=160, bars=4)
+    grid = Grid(bpm=160, bars=4, sr=CONFIG.sr)
     gap_config = SectionConfig(section_count_weights={2: 1.0})
     fx_config = KickFxConfig(section_count_weights={4: 1.0})
     rng = np.random.default_rng(0)
 
     for _ in range(50):
         kick = draw_kick_track(
-            grid, _bank(), gap_config, _ROLLS, fx_config, _NO_OFF_BEATS, rng
+            grid,
+            _make_bank(),
+            gap_config,
+            _ROLLS,
+            fx_config,
+            _NO_OFF_BEATS,
+            rng,
         )
 
         assert len(kick.gaps) == 2
@@ -304,14 +322,14 @@ def test_kick_gaps_have_no_kicks_and_no_kick_fx() -> None:
 
 
 def test_kick_gaps_keep_the_kicks_outside_the_gaps() -> None:
-    grid = Grid(bpm=160, bars=4)
+    grid = Grid(bpm=160, bars=4, sr=CONFIG.sr)
     fx_config = KickFxConfig(section_count_weights={0: 1.0})
     no_gaps = SectionConfig(section_count_weights={0: 1.0})
     gaps = SectionConfig(section_count_weights={2: 1.0})
 
     full = draw_kick_track(
         grid,
-        _bank(),
+        _make_bank(),
         no_gaps,
         _NO_ROLLS,
         fx_config,
@@ -320,7 +338,7 @@ def test_kick_gaps_keep_the_kicks_outside_the_gaps() -> None:
     )
     gapped = draw_kick_track(
         grid,
-        _bank(),
+        _make_bank(),
         gaps,
         _NO_ROLLS,
         fx_config,
@@ -335,7 +353,7 @@ def test_kick_gaps_keep_the_kicks_outside_the_gaps() -> None:
 
 
 def test_kick_rolls_play_every_roll_step_at_the_roll_level() -> None:
-    grid = Grid(bpm=160, bars=4)
+    grid = Grid(bpm=160, bars=4, sr=CONFIG.sr)
     no_gaps = SectionConfig(section_count_weights={0: 1.0})
     rolls = KickRollConfig(
         section_count_weights={1: 1.0},
@@ -347,7 +365,7 @@ def test_kick_rolls_play_every_roll_step_at_the_roll_level() -> None:
 
     kick = draw_kick_track(
         grid,
-        _bank(),
+        _make_bank(),
         no_gaps,
         rolls,
         no_fx,
@@ -424,15 +442,21 @@ def test_master_effects_can_skip_the_optional_effects() -> None:
 def test_generate_drop_without_master_peaks_at_peak_db() -> None:
     config = CONFIG.synth.model_copy(update={"master": None})
 
-    drop = generate_drop(_bank(), np.random.default_rng(0), config)
+    drop = generate_drop(
+        _make_bank(), np.random.default_rng(0), config, CONFIG.sr
+    )
 
     peak = 10 ** (config.peak_db / 20)
     assert np.abs(drop.signal).max() == pytest.approx(peak, rel=1e-5)
 
 
 def test_generate_drop_with_master_is_the_same_for_a_seed() -> None:
-    first = generate_drop(_bank(), np.random.default_rng(4))
-    second = generate_drop(_bank(), np.random.default_rng(4))
+    first = generate_drop(
+        _make_bank(), np.random.default_rng(4), CONFIG.synth, CONFIG.sr
+    )
+    second = generate_drop(
+        _make_bank(), np.random.default_rng(4), CONFIG.synth, CONFIG.sr
+    )
 
     np.testing.assert_array_equal(first.signal, second.signal)
     np.testing.assert_array_equal(first.onsets, second.onsets)
@@ -455,7 +479,9 @@ def test_sidechained_layers_of_a_drop_share_one_sidechain() -> None:
         with patch(
             "src.services.synthesis.synth.Sidechain", wraps=Sidechain
         ) as sidechain:
-            generate_drop(_bank(), np.random.default_rng(seed), config)
+            generate_drop(
+                _make_bank(), np.random.default_rng(seed), config, CONFIG.sr
+            )
         sidechain.assert_called_once()
         sidechains.append(sidechain.call_args.kwargs)
 
@@ -475,6 +501,6 @@ def test_drop_without_pumping_has_no_sidechain() -> None:
     with patch(
         "src.services.synthesis.synth.Sidechain", wraps=Sidechain
     ) as sidechain:
-        generate_drop(_bank(), np.random.default_rng(0), config)
+        generate_drop(_make_bank(), np.random.default_rng(0), config, CONFIG.sr)
 
     assert sidechain.call_args.kwargs["ratio"] == 0.0

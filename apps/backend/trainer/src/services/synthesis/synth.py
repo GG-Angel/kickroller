@@ -3,22 +3,22 @@ from math import ceil
 import librosa
 import numpy as np
 
-from src.core.config import CONFIG, LayerConfig, SynthConfig
+from src.core.config import LayerConfig, SynthConfig
 from src.models.audio import LabeledDrop
 from src.services.synthesis.bank import SampleBank
 from src.services.synthesis.crop import crop_drop, draw_crop
+from src.services.synthesis.daw.effects import Filter, Sidechain
+from src.services.synthesis.daw.grid import Grid
+from src.services.synthesis.daw.master import draw_master_effects
+from src.services.synthesis.daw.mix import Mix
+from src.services.synthesis.daw.track import Track
 from src.services.synthesis.draws import draw_count, draw_log_uniform
-from src.services.synthesis.effects import Filter, Sidechain
-from src.services.synthesis.grid import Grid
-from src.services.synthesis.master import draw_master_effects
-from src.services.synthesis.mix import Mix
 from src.services.synthesis.patterns.kick import draw_kick_track
 from src.services.synthesis.patterns.loop import draw_loop_track
 from src.services.synthesis.patterns.one_shot import draw_one_shot_track
-from src.services.synthesis.track import Track
 
 
-def draw_grid(config: SynthConfig, rng: np.random.Generator) -> Grid:
+def draw_grid(config: SynthConfig, rng: np.random.Generator, sr: int) -> Grid:
     bpm = int(rng.choice(config.bpms))
     bar_seconds = 60 * Grid.beats_per_bar / bpm
     # One extra bar leaves room for a random crop start.
@@ -26,6 +26,7 @@ def draw_grid(config: SynthConfig, rng: np.random.Generator) -> Grid:
     return Grid(
         bars=bars,
         bpm=bpm,
+        sr=sr,
         steps_per_beat=int(rng.choice(config.steps)),
     )
 
@@ -46,16 +47,16 @@ def _add_layer_effects(
 def generate_drop(
     bank: SampleBank,
     rng: np.random.Generator,
-    config: SynthConfig = CONFIG.synth,
+    config: SynthConfig,
+    sr: int,
 ) -> LabeledDrop:
     """Generate a random drop and the onset of each kick in it.
 
     The drop peaks at ``config.peak_db`` before the master effects.
     """
-    grid = draw_grid(config, rng)
+    grid = draw_grid(config, rng, sr)
     mix = Mix(sr=grid.sr)
 
-    # 1. Generate the kick track
     kick = draw_kick_track(
         grid,
         bank,
@@ -67,7 +68,6 @@ def generate_drop(
     )
     mix.add_tracks(kick.track)
 
-    # 2. Generate the tracks of each layer
     kick_starts = grid.to_samples(kick.beats)
     is_pumping = rng.random() < config.sidechain_probability
     sidechain = Sidechain(
@@ -85,7 +85,6 @@ def generate_drop(
             _add_layer_effects(track, layer, sidechain, rng)
             mix.add_tracks(track)
 
-    # 3. Normalize and augment the mix
     mix.add_effects(*draw_master_effects(config.master, config.peak_db, rng))
 
     onsets = librosa.samples_to_time(kick_starts, sr=grid.sr)
@@ -95,9 +94,10 @@ def generate_drop(
 def generate_cropped_drop(
     bank: SampleBank,
     rng: np.random.Generator,
-    config: SynthConfig = CONFIG.synth,
+    config: SynthConfig,
+    sr: int,
 ) -> LabeledDrop:
     """Generate a drop and crop a random window of ``drop_seconds`` from it."""
-    drop = generate_drop(bank, rng, config)
-    duration = len(drop.signal) / CONFIG.sr
-    return crop_drop(drop, draw_crop(rng, duration, config.drop_seconds))
+    drop = generate_drop(bank, rng, config, sr)
+    duration = len(drop.signal) / sr
+    return crop_drop(drop, draw_crop(rng, duration, config.drop_seconds), sr)

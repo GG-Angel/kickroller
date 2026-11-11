@@ -5,32 +5,31 @@ from src.models.audio import SampleKind
 
 
 class Placement(BaseModel):
-    """Where a one-shot can play: every ``period`` beats from ``offset``."""
+    """Where a one-shot can play."""
 
     period: float | None = None
-    """Beats between the allowed positions, or None for one grid step."""
+    """Beats between positions. None uses one grid step."""
     offset: float = 0.0
-    """Beat of the first allowed position."""
+    """Beat of the first position."""
     probability_range: tuple[float, float] = (1.0, 1.0)
-    """Range of the chance that each allowed position plays."""
+    """Chance range for each position."""
 
 
 class LayerConfig(BaseModel):
-    """The tracks of one sample kind, either loops or one-shots."""
+    """Settings for one sample layer."""
 
     kind: SampleKind
     is_loop: bool
     track_count_weights: dict[int, float]
-    """Weight of each number of tracks in a drop."""
+    """Weight for each track count."""
     level_db_range: tuple[float, float]
-    """Range of the level relative to the kick, in dB of ``loudest_rms``."""
+    """Level below the kick's loudest-window RMS, in dB."""
     high_pass_hz_range: tuple[float, float] | None = (200.0, 200.0)
-    """Range of the high-pass cutoff, drawn log-uniform for each track, or
-    None for no high-pass."""
+    """Cutoff range for each track. None disables the filter."""
     is_sidechained: bool = False
-    """Whether the tracks duck at each kick, with the sidechain of the drop."""
+    """Whether the layer ducks at each kick."""
     placements: list[Placement] = []
-    """Placements of a one-shot track, of which each track draws one."""
+    """Positions for one-shot tracks."""
 
     @model_validator(mode="after")
     def _check_placements(self) -> "LayerConfig":
@@ -106,16 +105,16 @@ DEFAULT_LAYERS = [
 
 
 class SectionConfig(BaseModel):
-    """Sections of whole beats, which start on any beat and do not overlap."""
+    """Settings for non-overlapping sections of whole beats."""
 
     section_count_weights: dict[int, float]
-    """Weight of each number of sections in a drop."""
+    """Weight for each section count."""
     section_beats: list[int] = [1, 2, 4]
-    """Lengths of a section in beats."""
+    """Section lengths in beats."""
 
 
 class KickFxConfig(SectionConfig):
-    """Sections of the kick track that go through a resonant high-pass."""
+    """Sections that use a resonant high-pass filter."""
 
     section_count_weights: dict[int, float] = {
         0: 0.15,
@@ -125,137 +124,131 @@ class KickFxConfig(SectionConfig):
         4: 0.15,
     }
     high_pass_hz_range: tuple[float, float] = (300.0, 1250.0)
-    """Range of the high-pass cutoff, drawn log-uniform."""
+    """Cutoff range, drawn on a log scale."""
     resonance_q_range: tuple[float, float] = (1.5, 10.0)
-    """Range of the filter Q (0.7 is no resonance), drawn log-uniform."""
+    """Q range. 0.7 gives no resonance. Drawn on a log scale."""
     filter_orders: list[int] = [2, 4, 6]
-    """Filter orders to draw from: each order adds 6 dB/oct of slope."""
+    """Filter orders. Each adds 6 dB/octave."""
 
 
 class KickRollConfig(SectionConfig):
-    """Sections where a kick plays on every step of a fast roll."""
+    """Sections where kicks play on every step."""
 
     section_count_weights: dict[int, float] = {0: 0.5, 1: 0.35, 2: 0.15}
     section_beats: list[int] = [1, 2]
     steps_per_beat: list[int] = [2, 3, 4]
-    """Roll rates to draw from: 1/8, 1/12 (triplet) and 1/16 notes."""
+    """Steps per beat: 2 gives 1/8, 3 gives triplets, and 4 gives 1/16 notes."""
     level_db_range: tuple[float, float] = (-3.0, 0.0)
-    """Range of the roll kick level relative to the other kicks."""
+    """Roll level relative to other kicks, in dB."""
 
 
 class MasterConfig(BaseModel):
-    """Random master effects on each drop, which make the drops more varied.
-
-    Each effect is used with its probability, in this order: tilt, clip,
-    limit, MP3. The gain is always used, as the last effect.
-    """
+    """Random master effects: tilt, clip, limit, then MP3. Gain is always last."""
 
     tilt_probability: float = Field(default=0.5, ge=0, le=1)
     tilt_db_range: tuple[float, float] = (-6.0, 6.0)
-    """Range of the gain of the highs relative to the lows."""
+    """Highs level relative to lows, in dB."""
     tilt_pivot_hz: float = 1000.0
 
     clip_probability: float = Field(default=0.5, ge=0, le=1)
     clip_drive_db_range: tuple[float, float] = (0.0, 12.0)
-    """Range of the gain into the soft clipper."""
+    """Clipper drive range, in dB."""
 
     limit_probability: float = Field(default=0.5, ge=0, le=1)
     limit_drive_db_range: tuple[float, float] = (0.0, 9.0)
-    """Range of the gain into the limiter."""
+    """Limiter drive range, in dB."""
     limit_ceiling_db: float = -0.3
 
     mp3_probability: float = Field(default=0.4, ge=0, le=1)
     mp3_compression_range: tuple[float, float] = (0.0, 0.75)
-    """Range of the MP3 compression level: 0 is about 320 kbps, 0.75 is about
-    96 kbps."""
+    """MP3 compression range: 0 is about 320 kbps; 0.75 is about 96 kbps."""
 
     gain_db_range: tuple[float, float] = (-6.0, 6.0)
-    """Range of the output gain."""
+    """Output gain range, in dB."""
 
 
 class SynthConfig(BaseModel):
     layers: list[LayerConfig] = DEFAULT_LAYERS
+
     kick_fx: KickFxConfig = KickFxConfig()
     kick_gaps: SectionConfig = SectionConfig(
         section_count_weights={0: 0.4, 1: 0.35, 2: 0.25}
     )
-    """Sections where the kick stops and the other layers continue."""
+    """Where kicks stop while other layers continue."""
     kick_rolls: KickRollConfig = KickRollConfig()
+
     kick_off_beat_range: tuple[float, float] = (0.0, 0.3)
-    """Range of the extra chance of a 1/8 off-beat kick on each beat, drawn
-    once per drop."""
+    """Extra 1/8 off-beat chance per beat, drawn once per drop."""
     sidechain_probability: float = Field(default=0.75, ge=0, le=1)
-    """Chance that the layers of a drop duck at each kick, so that the model
-    does not rely on the pumping to find kicks."""
+    """Chance that layers duck at each kick. Do not rely on ducking to find kicks."""
     sidechain_ratio_range: tuple[float, float] = (0.3, 0.95)
-    """Range of the duck depth at each kick."""
+    """Duck depth range at each kick."""
     sidechain_seconds_range: tuple[float, float] = (0.06, 0.25)
-    """Range of the duck length after each kick, attack and release."""
+    """Duck length range after each kick, including attack and release."""
 
     steps: list[int] = [3, 4, 6, 8]
+    """Allowed step values for the synthesizer."""
     bpms: list[int] = [140, 150, 155, 160, 165, 170, 180]
+    """Allowed BPM values for the synthesizer."""
 
     drop_seconds: float = 12.0
-
+    """Drop length in seconds."""
     peak_db: float = -1.0
-    """Peak of each drop before the master effects, in dBFS."""
+    """Peak before master effects, in dBFS."""
 
     master: MasterConfig | None = MasterConfig()
-    """Master effects for augmentation, or None for no augmentation."""
+    """Master effects for augmentation. None disables them."""
 
     held_out_kick_fraction: float = Field(default=0.2, ge=0, le=1)
-    """Part of the kicks that only validation drops use."""
+    """Fraction of kicks used only for validation."""
 
 
 class FeatureConfig(BaseModel):
-    """The model input: log spectrograms at several window lengths."""
+    """Log spectrogram input for the model."""
 
     hop: int = 441
-    """Samples between frames (10 ms at 44.1 kHz)."""
+    """Samples between frames."""
     windows: tuple[int, ...] = (1024, 2048, 4096)
-    """FFT window lengths in samples (23, 46 and 93 ms at 44.1 kHz). Each
-    window is one input channel of the model."""
+    """FFT window lengths in samples. Each is one model input channel."""
     fmin: float = 30.0
-    """Center of the lowest band, in Hz."""
+    """Center frequency of the lowest band, in Hz."""
     fmax: float = 16000.0
-    """Upper limit for the band centers, in Hz."""
+    """Highest band center, in Hz."""
     bands_per_octave: int = 12
-    """Number of log-spaced bands in each octave."""
+    """Log-spaced bands per octave."""
     neighbor_target: float = 0.5
-    """Target of the frames next to an onset frame (label widening)."""
+    """Target value for frames next to an onset."""
 
 
 class TrainConfig(BaseModel):
-    """The training loop, validation and peak picking."""
+    """Training and validation settings."""
 
     steps: int = 3000
-    """Number of optimizer steps (batches) in a run."""
+    """Optimizer steps per run."""
     batch_size: int = 16
-    """Drops in each batch, for training and for validation."""
+    """Examples per batch."""
     learning_rate: float = 1e-3
-    """Learning rate of the AdamW optimizer."""
+    """AdamW learning rate."""
     positive_weight: float = 5.0
-    """Loss weight of the positive targets, because kicks are rare frames."""
+    """Positive target weight. Kicks are rare frames."""
     validation_drops: int = 64
-    """Drops with held-out kicks in the fixed validation set."""
+    """Drops with held-out kicks in validation."""
     validation_seed: int = 0
-    """Fixed seed, so that runs with other seeds use the same validation."""
+    """Seed for the fixed validation set."""
     stats_drops: int = 32
-    """Training drops for the standardization statistics."""
+    """Training drops used for standardization."""
     validate_every: int = 250
-    """Steps between validations. A checkpoint is saved when the F-measure
-    improves."""
+    """Steps between validations. Save a checkpoint when F-measure improves."""
     log_every: int = 50
-    """Steps between log lines with the mean training loss."""
+    """Steps between training-loss log lines."""
     workers: int = 4
-    """DataLoader processes that make training drops; 0 makes them in the
-    main process."""
+    """DataLoader processes. 0 uses the main process."""
     thresholds: list[float] = [round(0.05 * i, 2) for i in range(2, 19)]
-    """Peak thresholds that validation tries; the best one is saved."""
+    """Peak thresholds to test. Save the best one."""
     tolerance: float = 0.02
-    """Largest onset error, in seconds, that counts as a hit."""
+    """Maximum onset error counted as a hit, in seconds."""
     min_onset_distance: float = 0.04
-    """Shortest time between two detected onsets, in seconds."""
+    """Minimum time between detected onsets, in seconds."""
 
 
 class Config(BaseSettings):

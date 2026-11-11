@@ -6,18 +6,14 @@ from loguru import logger
 
 from src.core.config import LayerConfig
 from src.services.synthesis.bank import SampleBank
-from src.services.synthesis.effects import level_signal, trim_signal
-from src.services.synthesis.grid import Grid
-from src.services.synthesis.patterns.pattern import PatternGenerator
-from src.services.synthesis.track import Track
+from src.services.synthesis.daw.effects import Level, Trim
+from src.services.synthesis.daw.grid import Grid
+from src.services.synthesis.daw.track import Track
 
 
 @dataclass
-class OneShotPatternGenerator(PatternGenerator):
-    """Allow a one-shot every ``period`` beats from ``offset``.
-
-    Each allowed position plays with ``probability``.
-    """
+class OneShotPatternGenerator:
+    """Draw one-shots at regular beat positions."""
 
     grid: Grid
     """Grid the pattern is generated for."""
@@ -31,12 +27,7 @@ class OneShotPatternGenerator(PatternGenerator):
     """Random number generator used to draw the pattern."""
 
     def generate(self) -> np.ndarray:
-        """Return the beat positions of the one-shots across the whole grid.
-
-        Raises:
-            ValueError: If ``period`` is not positive or ``probability`` is
-                outside [0, 1].
-        """
+        """Draw one-shot positions. Raise ValueError for invalid settings."""
         if self.period <= 0:
             raise ValueError("Period must be positive.")
         if not 0 <= self.probability <= 1:
@@ -52,11 +43,7 @@ def draw_one_shot_track(
     kick_level: float,
     rng: np.random.Generator,
 ) -> Track:
-    """One one-shot at the positions of a placement drawn from the layer.
-
-    Each one-shot cuts the tail of the one before it. The one-shot is leveled
-    to a random dB of the layer's range below the kick.
-    """
+    """Draw and level one-shots at a layer placement. Each cuts the prior tail."""
     track = Track(grid)
     sample = bank.draw(layer.kind, rng, is_loop=False)
     placement = layer.placements[rng.integers(len(layer.placements))]
@@ -71,7 +58,8 @@ def draw_one_shot_track(
     ).generate()
     db = rng.uniform(*layer.level_db_range)
     level = kick_level * float(librosa.db_to_amplitude(db))
-    signal = level_signal(trim_signal(sample.signal), level, grid.sr)
+    trimmed = Trim().process(sample.signal, grid.sr)
+    signal = Level(level).process(trimmed, grid.sr)
     logger.debug(
         f"{layer.kind} one-shot {sample.name} at {db:.1f} dB: {len(beats)} "
         f"hits, every {period:g} beats from {placement.offset:g}"

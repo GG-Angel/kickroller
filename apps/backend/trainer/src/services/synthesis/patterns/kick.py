@@ -7,26 +7,20 @@ from loguru import logger
 from src.core.config import KickFxConfig, KickRollConfig, SectionConfig
 from src.models.audio import SampleKind
 from src.services.synthesis.bank import SampleBank
-from src.services.synthesis.draws import draw_count, draw_log_uniform
-from src.services.synthesis.effects import (
+from src.services.synthesis.daw.effects import (
     Filter,
     Section,
-    loudest_rms,
+    measure_loudest_rms,
     trim_to_attack,
 )
-from src.services.synthesis.grid import Grid
-from src.services.synthesis.patterns.pattern import PatternGenerator
-from src.services.synthesis.track import Track
+from src.services.synthesis.daw.grid import Grid
+from src.services.synthesis.daw.track import Track
+from src.services.synthesis.draws import draw_count, draw_log_uniform
 
 
 @dataclass
-class KickPatternGenerator(PatternGenerator):
-    """Randomly place kicks on a grid, favoring steps on coarser subdivisions.
-
-    Each step in a beat fires with probability ``probability * weight ** depth``,
-    where ``depth`` is how many subdivision levels the step sits below the beat
-    (e.g. ``steps_per_beat=4`` gives ``p, p·w², p·w, p·w²``).
-    """
+class KickPatternGenerator:
+    """Draw kicks on a grid. Coarser subdivisions have a higher chance."""
 
     grid: Grid
     """Grid the pattern is generated for."""
@@ -41,13 +35,7 @@ class KickPatternGenerator(PatternGenerator):
     """Random number generator used to draw the pattern."""
 
     def generate(self) -> np.ndarray:
-        """Return the beat positions of the kicks drawn across the whole grid.
-
-        Raises:
-            ValueError: If ``probability``, ``weight`` or
-                ``off_beat_probability`` is outside [0, 1], or
-                ``steps_per_beat`` is not positive.
-        """
+        """Draw kick positions. Raise ValueError for invalid probabilities."""
         if not 0 <= self.probability <= 1:
             raise ValueError("Probability must be between 0 and 1.")
         if not 0 <= self.weight <= 1:
@@ -73,11 +61,7 @@ class KickPatternGenerator(PatternGenerator):
 
     @staticmethod
     def _calculate_depths(steps_per_beat: int) -> np.ndarray:
-        """Return the subdivision depth of each step within a beat.
-
-        The beat is split by its largest prime factors first and by smaller ones
-        at finer levels, e.g. ``4 -> [0, 2, 1, 2]`` and ``6 -> [0, 2, 1, 2, 1, 2]``.
-        """
+        """Return each step's subdivision depth."""
         if steps_per_beat == 1:
             return np.zeros(1, dtype=int)
 
@@ -100,22 +84,22 @@ class KickPatternGenerator(PatternGenerator):
 @dataclass(frozen=True)
 class BeatSpan:
     start: int
-    """First beat of the span."""
+    """First beat."""
     end: int
-    """Beat after the span."""
+    """Beat after the span (exclusive)."""
 
 
 @dataclass(frozen=True)
 class KickTrack:
     track: Track
     beats: np.ndarray
-    """Beat positions of the kicks."""
+    """Kick positions in beats."""
     level: float
-    """``loudest_rms`` of the kick, which the other layers are leveled to."""
+    """Loudest-window RMS used to level other layers."""
     gaps: list[BeatSpan]
-    """Spans where the kick stops."""
+    """Spans where kicks stop."""
     rolls: list[BeatSpan]
-    """Spans where a kick plays on every step of a roll."""
+    """Spans where kicks play on every roll step."""
 
 
 def _draw_spans(
@@ -124,10 +108,7 @@ def _draw_spans(
     taken: np.ndarray,
     rng: np.random.Generator,
 ) -> list[BeatSpan]:
-    """Spans of whole beats that start on any beat not in ``taken``.
-
-    The beats of each span are marked in ``taken``, so spans do not overlap.
-    """
+    """Draw spans on unused beats and mark them as taken."""
     spans = []
     for _ in range(draw_count(config.section_count_weights, rng)):
         beats = int(rng.choice(config.section_beats))
@@ -150,11 +131,7 @@ def draw_kick_fx(
     rng: np.random.Generator,
     taken: np.ndarray | None = None,
 ) -> list[Section]:
-    """Sections of whole beats that go through a resonant high-pass.
-
-    Hardstyle tracks filter the kick with a high-pass, almost never a low-pass.
-    The sections start on any beat not in ``taken`` and do not overlap.
-    """
+    """Draw non-overlapping high-pass sections on unused beats."""
     if taken is None:
         taken = np.zeros(grid.beats, dtype=bool)
     sections = []
@@ -190,10 +167,7 @@ def _add_rolls(
     config: KickRollConfig,
     rng: np.random.Generator,
 ) -> KickPattern:
-    """The kicks with each roll span replaced by a kick on every roll step.
-
-    Each roll draws one rate and one level for all of its kicks.
-    """
+    """Replace each roll span with kicks at one rate and level."""
     gains = np.ones(len(beats))
     for roll in rolls:
         steps = int(rng.choice(config.steps_per_beat))
@@ -226,13 +200,10 @@ def draw_kick_track(
     off_beat_range: tuple[float, float],
     rng: np.random.Generator,
 ) -> KickTrack:
-    """One kick at the positions of a random kick pattern, with gaps, rolls
-    and FX. The chance of an extra 1/8 off-beat kick is drawn once per drop
-    from ``off_beat_range``.
+    """Draw kicks with gaps, rolls, and effects.
 
-    Each kick cuts the tail of the one before it. There are no
-    kicks in a gap, but the tail of the kick before a gap continues. Gaps,
-    rolls and kick FX do not overlap.
+    Draw the extra off-beat chance once per drop. Each kick cuts the prior
+    tail. The tail continues into gaps, but gaps, rolls, and effects do not overlap.
     """
     kick = trim_to_attack(bank.draw(SampleKind.KICK, rng).signal)
     off_beat = rng.uniform(*off_beat_range)
@@ -254,7 +225,7 @@ def draw_kick_track(
     return KickTrack(
         track=track,
         beats=pattern.beats,
-        level=loudest_rms(kick),
+        level=measure_loudest_rms(kick, grid.sr),
         gaps=gaps,
         rolls=rolls,
     )

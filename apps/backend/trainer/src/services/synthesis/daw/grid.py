@@ -1,9 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import librosa
 import numpy as np
-
-from src.core.config import CONFIG
 
 
 @dataclass(frozen=True)
@@ -12,12 +10,12 @@ class Grid:
     """Beats per minute of the grid."""
     bars: int
     """Number of bars in the grid."""
+    sr: int = field(kw_only=True)
+    """Sampling rate of the grid."""
     steps_per_beat: int = 4
     """Number of steps each beat is divided into."""
     beats_per_bar: int = 4
     """Number of beats per bar."""
-    sr: int = CONFIG.sr
-    """Sampling rate of the grid."""
 
     @property
     def beat(self) -> float:

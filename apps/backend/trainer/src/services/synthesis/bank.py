@@ -10,10 +10,9 @@ import numpy as np
 from loguru import logger
 from pydantic import BaseModel
 
-from src.core.config import CONFIG
 from src.core.storage import load_audio, load_yaml
 from src.models.audio import SampleKind, Signal
-from src.services.synthesis.track import Track
+from src.services.synthesis.daw.track import Track
 
 AUDIO_EXTENSIONS = {
     ".aif",
@@ -65,7 +64,7 @@ class Sample:
 
 
 def is_held_out(name: str, fraction: float) -> bool:
-    """A fixed choice of about ``fraction`` of the names, from a hash of the name."""
+    """Select about ``fraction`` of names by hash."""
     return zlib.crc32(name.encode()) % HASH_BUCKETS < fraction * HASH_BUCKETS
 
 
@@ -74,11 +73,7 @@ class SampleBank:
     samples: list[Sample]
 
     def select_kicks(self, held_out: bool, fraction: float) -> "SampleBank":
-        """The bank with only the held-out kicks, or only the other kicks.
-
-        The kicks are held out by ``is_held_out`` of their name. The samples of
-        the other kinds do not change.
-        """
+        """Return held-out kicks or the remaining kicks. Keep other samples."""
         return SampleBank(
             samples=[
                 sample
@@ -94,7 +89,7 @@ class SampleBank:
         rng: np.random.Generator,
         is_loop: bool | None = None,
     ) -> Sample:
-        """Draw a sample of the kind at random (only loops or one-shots if set)."""
+        """Draw a random sample of this kind and loop type."""
         pool = [
             sample
             for sample in self.samples
@@ -120,7 +115,7 @@ class SampleBankConfig(BaseModel):
 
 
 class SampleFile(BaseModel):
-    """An audio file that matches the bank config, before it is decoded."""
+    """Metadata for a matched audio file before decoding."""
 
     kind: SampleKind
     path: Path
@@ -132,7 +127,7 @@ class SampleFile(BaseModel):
 
 
 class SampleBankCacheIndex(BaseModel):
-    """The cached files. File ``i`` is from ``offsets[i]`` to ``offsets[i + 1]``."""
+    """File offsets in the audio cache."""
 
     sr: int
     files: list[SampleFile]
@@ -175,7 +170,7 @@ def find_sample_files(config: SampleBankConfig) -> list[SampleFile]:
 
 
 def _name_sample(path: Path, workspace: Path | None) -> str:
-    """The path relative to the workspace, which is unique across packs."""
+    """Return a workspace-relative path, or the full path if unset."""
     return str(path.relative_to(workspace) if workspace else path)
 
 
@@ -196,21 +191,23 @@ def _log_bank(sample_bank: SampleBank) -> None:
     logger.info(f"Loaded sample bank: {summary}")
 
 
-def load_sample_bank(config: SampleBankConfig) -> SampleBank:
-    """Decode all of the samples into memory."""
+def load_sample_bank(config: SampleBankConfig, sr: int) -> SampleBank:
+    """Load and decode all samples."""
     files = find_sample_files(config)
     logger.info(f"Decoding {len(files)} samples")
     sample_bank = SampleBank(
-        samples=[_create_sample(file, load_audio(file.path)) for file in files]
+        samples=[
+            _create_sample(file, load_audio(file.path, sr)) for file in files
+        ]
     )
     _log_bank(sample_bank)
     return sample_bank
 
 
 def _open_sample_bank_cache(
-    folder: Path, files: list[SampleFile]
+    folder: Path, files: list[SampleFile], sr: int
 ) -> SampleBank | None:
-    """The cached bank, or None if the cache is missing or out of date."""
+    """Return the cached bank, or None if it is missing or stale."""
     try:
         index = SampleBankCacheIndex.model_validate_json(
             (folder / CACHE_INDEX_FILE).read_text()
@@ -220,7 +217,7 @@ def _open_sample_bank_cache(
         logger.debug(f"Could not open sample bank cache at {folder}: {error}")
         return None
 
-    if index.sr != CONFIG.sr or index.files != files:
+    if index.sr != sr or index.files != files:
         return None
     samples = [
         _create_sample(file, audio[start:end])
@@ -231,11 +228,10 @@ def _open_sample_bank_cache(
     return SampleBank(samples=samples)
 
 
-def _write_sample_bank_cache(folder: Path, files: list[SampleFile]) -> None:
-    """Decode each file into the cache, one file at a time.
-
-    The index is written last, so an interrupted write is not used.
-    """
+def _write_sample_bank_cache(
+    folder: Path, files: list[SampleFile], sr: int
+) -> None:
+    """Decode files into the cache. Write the index last to ignore incomplete data."""
     if folder.is_file():
         folder.unlink()  # cache file of an older format
     folder.mkdir(parents=True, exist_ok=True)
@@ -244,10 +240,10 @@ def _write_sample_bank_cache(folder: Path, files: list[SampleFile]) -> None:
     offsets = [0]
     with open(folder / CACHE_AUDIO_FILE, "wb") as audio_file:
         for file in files:
-            signal = np.asarray(load_audio(file.path), dtype=np.float32)
+            signal = np.asarray(load_audio(file.path, sr), dtype=np.float32)
             audio_file.write(signal.tobytes())
             offsets.append(offsets[-1] + len(signal))
-    index = SampleBankCacheIndex(sr=CONFIG.sr, files=files, offsets=offsets)
+    index = SampleBankCacheIndex(sr=sr, files=files, offsets=offsets)
     (folder / CACHE_INDEX_FILE).write_text(index.model_dump_json())
 
 
@@ -256,23 +252,19 @@ def load_sample_bank_config(path: Path) -> SampleBankConfig:
 
 
 def load_sample_bank_from_file(
-    path: Path, use_cache: bool = True
+    path: Path, sr: int, use_cache: bool = True
 ) -> SampleBank:
-    """Load the bank of a config file.
-
-    With ``use_cache``, the audio is read from a memory-mapped cache next to the
-    config. The cache is rebuilt when the matched files or their settings change.
-    """
+    """Load a sample bank from a config file. Rebuild a stale cache."""
     config = load_sample_bank_config(path)
     if not use_cache:
-        return load_sample_bank(config)
+        return load_sample_bank(config, sr)
 
     files = find_sample_files(config)
     cache_folder = path.with_suffix(f"{path.suffix}.cache")
-    sample_bank = _open_sample_bank_cache(cache_folder, files)
+    sample_bank = _open_sample_bank_cache(cache_folder, files, sr)
     if sample_bank is None:
-        _write_sample_bank_cache(cache_folder, files)
-        sample_bank = _open_sample_bank_cache(cache_folder, files)
+        _write_sample_bank_cache(cache_folder, files, sr)
+        sample_bank = _open_sample_bank_cache(cache_folder, files, sr)
         assert sample_bank is not None
     _log_bank(sample_bank)
     return sample_bank

@@ -1,5 +1,5 @@
 from .commands import app
 
 
-def main() -> None:
+def run_cli() -> None:
     app()
