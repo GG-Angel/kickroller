@@ -36,8 +36,11 @@ def test_crop_drop_rounds_times_to_samples() -> None:
 def test_crop_drop_rejects_windows_outside_the_drop(
     start: float, end: float
 ) -> None:
+    drop = _make_drop()
+    window = CropWindow(start=start, end=end)
+
     with pytest.raises(ValueError):
-        crop_drop(_make_drop(), CropWindow(start=start, end=end), sr=SR)
+        crop_drop(drop, window, sr=SR)
 
 
 def test_draw_crop_stays_inside_the_duration() -> None:
@@ -49,5 +52,7 @@ def test_draw_crop_stays_inside_the_duration() -> None:
 
 
 def test_draw_crop_rejects_short_drops() -> None:
+    rng = np.random.default_rng(0)
+
     with pytest.raises(ValueError):
-        draw_crop(np.random.default_rng(0), duration=11.0, seconds=12.0)
+        draw_crop(rng, duration=11.0, seconds=12.0)

@@ -40,7 +40,8 @@ def test_export_drops_writes_numbered_audio_and_onsets(tmp_path: Path) -> None:
     ]
     onsets = np.loadtxt(folder / "drop_000.csv")
     assert len(onsets) > 0
-    assert 0 <= onsets.min() and onsets.max() < CONFIG.synth.drop_seconds
+    assert 0 <= onsets.min()
+    assert onsets.max() < CONFIG.synth.drop_seconds
 
 
 def test_export_drops_keeps_the_level_of_the_drop(tmp_path: Path) -> None:

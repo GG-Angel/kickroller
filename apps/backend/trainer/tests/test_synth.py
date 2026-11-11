@@ -222,7 +222,8 @@ def test_kick_fx_sections_are_whole_beats_and_do_not_overlap() -> None:
         beat_starts = set(grid.to_samples(np.arange(grid.beats + 1)))
         covered = np.zeros(grid.to_sample(grid.beats), dtype=int)
         for section in sections:
-            assert section.start in beat_starts and section.end in beat_starts
+            assert section.start in beat_starts
+            assert section.end in beat_starts
             beats = round((section.end - section.start) / grid.beat)
             assert beats in config.section_beats
             covered[section.start : section.end] += 1
@@ -241,7 +242,8 @@ def test_kick_fx_are_high_passes_inside_their_ranges() -> None:
             assert section.effect.btype == "highpass"
             low, high = config.high_pass_hz_range
             cutoff = section.effect.cutoff
-            assert isinstance(cutoff, float) and low <= cutoff <= high
+            assert isinstance(cutoff, float)
+            assert low <= cutoff <= high
             q = section.effect.q
             assert q is not None
             assert (
@@ -419,11 +421,16 @@ def test_master_effects_are_drawn_in_order_inside_their_ranges() -> None:
         Gain,
     ]
     _, tilt, clip, limit, mp3, gain = effects
-    assert isinstance(tilt, Tilt) and -6 <= tilt.db <= 6
-    assert isinstance(clip, Clip) and 0 <= clip.drive_db <= 12
-    assert isinstance(limit, Limit) and limit.ceiling_db == -0.3
-    assert isinstance(mp3, Mp3) and 0 <= mp3.compression_level <= 0.75
-    assert isinstance(gain, Gain) and -6 <= gain.db <= 6
+    assert isinstance(tilt, Tilt)
+    assert -6 <= tilt.db <= 6
+    assert isinstance(clip, Clip)
+    assert 0 <= clip.drive_db <= 12
+    assert isinstance(limit, Limit)
+    assert limit.ceiling_db == -0.3
+    assert isinstance(mp3, Mp3)
+    assert 0 <= mp3.compression_level <= 0.75
+    assert isinstance(gain, Gain)
+    assert -6 <= gain.db <= 6
 
 
 def test_master_effects_can_skip_the_optional_effects() -> None:

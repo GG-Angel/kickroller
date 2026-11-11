@@ -251,16 +251,18 @@ def test_section_end_is_clipped_to_the_signal() -> None:
 @pytest.mark.parametrize(("start", "end"), [(-1, 50), (60, 50), (150, 200)])
 def test_section_rejects_invalid_bounds(start: int, end: int) -> None:
     signal = np.ones(100, dtype=np.float32)
+    section = Section(Gain(2.0), start, end)
 
     with pytest.raises(ValueError):
-        Section(Gain(2.0), start, end).process(signal, CONFIG.sr)
+        section.process(signal, CONFIG.sr)
 
 
 def test_section_rejects_effects_that_change_the_length() -> None:
     signal = np.ones(1000, dtype=np.float32)
+    section = Section(Cut(500), 100, 200)
 
     with pytest.raises(ValueError, match="length"):
-        Section(Cut(500), 100, 200).process(signal, CONFIG.sr)
+        section.process(signal, CONFIG.sr)
 
 
 def test_resonant_filter_without_resonance_is_butterworth() -> None:
@@ -330,10 +332,10 @@ def test_resonant_filter_slope_grows_with_order(
 def test_resonant_filter_rejects_invalid_settings(
     cutoff: float | tuple[float, float], btype: str, order: int, q: float
 ) -> None:
+    filter_effect = Filter(cutoff, btype, order, q)
+
     with pytest.raises(ValueError):
-        Filter(cutoff, btype, order, q).process(
-            np.ones(10, dtype=np.float32), 8000
-        )
+        filter_effect.process(np.ones(10, dtype=np.float32), 8000)
 
 
 def _make_click_train(seconds: float = 2.0) -> Signal:
