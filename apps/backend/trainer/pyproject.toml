@@ -9,7 +9,6 @@ dependencies = [
     "loguru>=0.7.3",
     "mir-eval>=0.8.2",
     "numpy>=2.5.3",
-    "pedalboard>=0.9.25",
     "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",
     "pytest>=9.1.1",
