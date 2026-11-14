@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]>=0.163.0",
+    "loguru>=0.7.3",
     "pydantic>=2.14.3",
     "pydantic-settings>=2.16.2",
 ]

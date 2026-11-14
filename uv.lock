@@ -60,6 +60,7 @@ version = "0.1.0"
 source = { editable = "apps/backend/api" }
 dependencies = [
     { name = "fastapi", extra = ["standard"] },
+    { name = "loguru" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
@@ -74,6 +75,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.163.0" },
+    { name = "loguru", specifier = ">=0.7.3" },
     { name = "pydantic", specifier = ">=2.14.3" },
     { name = "pydantic-settings", specifier = ">=2.16.2" },
 ]
