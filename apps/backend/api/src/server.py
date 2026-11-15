@@ -9,6 +9,7 @@ from src.core.db import open_db_pool
 from src.core.logging import configure_logging
 from src.core.state import AppState
 from src.core.storage import create_store
+from src.routes import router
 
 type StateFactory = Callable[[Config], AbstractAsyncContextManager[AppState]]
 
@@ -38,9 +39,5 @@ def create_app(
 
     app = FastAPI(lifespan=lifespan)
     Instrumentator().instrument(app)
-
-    @app.get("/health")
-    async def health() -> dict[str, str]:
-        return {"status": "ok"}
-
+    app.include_router(router)
     return app
