@@ -5,17 +5,12 @@ services:
       - "127.0.0.1:9001:9001"
     networks:
       - external
-    environment:
-      RUSTFS_ACCESS_KEY: mysecretaccesskey
-      RUSTFS_SECRET_KEY: mysecretkey
 
   db:
     ports:
       - "127.0.0.1:5432:5432"
     networks:
       - external
-    environment:
-      POSTGRES_PASSWORD: mysecretpassword
 
   api:
     build:
@@ -25,7 +20,3 @@ services:
       - "127.0.0.1:8000:8000"
     networks:
       - external
-    environment:
-      DATABASE_URL: postgresql://kickroller:mysecretpassword@db:5432/kickroller
-      STORAGE_ACCESS_KEY_ID: mysecretaccesskey
-      STORAGE_SECRET_ACCESS_KEY: mysecretkey

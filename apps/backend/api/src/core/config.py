@@ -12,7 +12,7 @@ class DatabaseConfig(BaseSettings):
     )
 
     url: PostgresDsn = PostgresDsn(
-        "postgresql://kickroller:mysecretpassword@localhost:5432/kickroller"
+        "postgresql://kickroller:kickroller@localhost:5432/kickroller"
     )
     """Connection string. Defaults to the local compose database."""
     pool_min_size: int = Field(default=1, ge=0)
@@ -35,8 +35,8 @@ class StorageConfig(BaseSettings):
     endpoint: str = "http://localhost:9000"
     """S3 endpoint. Defaults to the local compose RustFS."""
     bucket: str = "kickroller"
-    access_key_id: str = "mysecretaccesskey"
-    secret_access_key: SecretStr = SecretStr("mysecretkey")
+    access_key_id: str = "rustfsadmin"
+    secret_access_key: SecretStr = SecretStr("rustfsadmin")
     region: str = "us-east-1"
 
 
