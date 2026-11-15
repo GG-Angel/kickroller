@@ -3,10 +3,9 @@ from pathlib import Path
 
 import torch
 from loguru import logger
-from torch import nn
-
 from src.core.config import FeatureConfig
 from src.services.training.features import count_bands
+from torch import nn
 
 CONTEXT_FRAMES = 41
 """Frames visible on each side of an output frame (±410 ms)."""

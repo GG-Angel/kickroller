@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 import librosa
 import numpy as np
 from loguru import logger
-
 from src.core.config import LayerConfig
 from src.services.synthesis.bank import Sample, SampleBank
 from src.services.synthesis.daw.effects import Level

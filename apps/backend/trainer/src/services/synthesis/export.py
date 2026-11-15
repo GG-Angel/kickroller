@@ -2,7 +2,6 @@ from pathlib import Path
 
 import numpy as np
 from loguru import logger
-
 from src.core.config import SynthConfig
 from src.core.storage import save_audio, save_onsets
 from src.services.synthesis.bank import SampleBank

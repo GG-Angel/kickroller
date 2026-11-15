@@ -3,7 +3,6 @@ from dataclasses import dataclass
 import librosa
 import numpy as np
 import torch
-
 from src.core.config import TrainConfig
 from src.models.audio import Signal
 from src.services.scoring import pick_onsets, predict

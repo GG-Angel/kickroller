@@ -2,7 +2,6 @@ from math import ceil
 
 import librosa
 import numpy as np
-
 from src.core.config import LayerConfig, SynthConfig
 from src.models.audio import LabeledDrop
 from src.services.synthesis.bank import SampleBank

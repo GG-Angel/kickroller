@@ -5,9 +5,6 @@ from pathlib import Path
 import numpy as np
 import torch
 from loguru import logger
-from torch.nn import functional as F
-from torch.utils.data import DataLoader
-
 from src.core.config import FeatureConfig, SynthConfig, TrainConfig
 from src.core.storage import load_audio, load_onsets
 from src.services.scoring import (
@@ -20,6 +17,8 @@ from src.services.training.dataset import DropStream
 from src.services.training.features import compute_features, make_targets
 from src.services.training.loop import TrainingBatch, run_training_loop
 from src.services.training.network import CONTEXT_FRAMES, load_checkpoint
+from torch.nn import functional as F
+from torch.utils.data import DataLoader
 
 
 @dataclass(frozen=True)

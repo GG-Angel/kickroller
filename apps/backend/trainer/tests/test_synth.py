@@ -4,7 +4,6 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 from pydantic import ValidationError
-
 from src.core.config import (
     CONFIG,
     KickFxConfig,

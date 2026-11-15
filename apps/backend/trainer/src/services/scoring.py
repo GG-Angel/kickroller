@@ -6,7 +6,6 @@ import mir_eval
 import numpy as np
 import torch
 from scipy.signal import find_peaks
-
 from src.core.config import FeatureConfig, TrainConfig
 from src.services.training.network import KickNet
 

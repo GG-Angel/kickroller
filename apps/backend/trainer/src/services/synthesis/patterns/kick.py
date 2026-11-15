@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 import librosa
 import numpy as np
 from loguru import logger
-
 from src.core.config import KickFxConfig, KickRollConfig, SectionConfig
 from src.models.audio import SampleKind
 from src.services.synthesis.bank import SampleBank

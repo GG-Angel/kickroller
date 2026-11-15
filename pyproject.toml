@@ -1,2 +1,8 @@
 [tool.uv.workspace]
-members = ["apps/backend/*"]
+members = ["apps/backend/*", "libs/*"]
+
+[tool.ruff]
+line-length = 80
+
+[tool.ruff.lint]
+ignore = ["B008", "BLE001"]

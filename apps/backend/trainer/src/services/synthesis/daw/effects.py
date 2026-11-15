@@ -7,7 +7,6 @@ import numpy as np
 import soundfile
 from scipy.ndimage import maximum_filter1d, uniform_filter1d
 from scipy.signal import bilinear, butter, sosfilt, tf2sos
-
 from src.models.audio import Signal
 
 

@@ -2,7 +2,6 @@ from functools import cache
 
 import librosa
 import numpy as np
-
 from src.core.config import FeatureConfig
 from src.models.audio import Signal
 
