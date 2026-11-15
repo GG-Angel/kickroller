@@ -1,0 +1,11 @@
+@api = http://localhost:8000
+@metrics = http://localhost:9100
+
+### Health check
+GET {{api}}/health
+
+### Prometheus metrics
+GET {{metrics}}/metrics
+
+### OpenAPI schema
+GET {{api}}/openapi.json
