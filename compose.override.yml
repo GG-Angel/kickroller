@@ -16,3 +16,14 @@ services:
       - external
     environment:
       POSTGRES_PASSWORD: mysecretpassword
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/backend/api/Dockerfile
+    ports:
+      - "127.0.0.1:8000:8000"
+    networks:
+      - external
+    environment:
+      DATABASE_URL: postgresql://kickroller:mysecretpassword@db:5432/kickroller

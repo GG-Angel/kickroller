@@ -6,7 +6,9 @@ class DatabaseConfig(BaseSettings):
     """Postgres connection settings, read from `DATABASE_*` env vars."""
 
     model_config = SettingsConfigDict(
-        env_prefix="DATABASE_", env_file=".env", extra="ignore"
+        env_prefix="DATABASE_",
+        env_file=".env",
+        extra="ignore",
     )
 
     url: PostgresDsn = PostgresDsn(
@@ -21,9 +23,24 @@ class DatabaseConfig(BaseSettings):
     """Default query timeout, in seconds. None disables it."""
 
 
+class ServerConfig(BaseSettings):
+    """HTTP server settings, read from `SERVER_*` env vars."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="SERVER_",
+        env_file=".env",
+        extra="ignore",
+    )
+
+    host: str = "127.0.0.1"
+    """Interface to bind. Use 0.0.0.0 inside a container."""
+    port: int = Field(default=8000, ge=1, le=65535)
+
+
 class Config(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    server: ServerConfig = Field(default_factory=ServerConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
 
 

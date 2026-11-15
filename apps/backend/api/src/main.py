@@ -7,7 +7,13 @@ from src.server import create_app
 
 
 async def main() -> None:
-    server = uvicorn.Server(uvicorn.Config(app=create_app(CONFIG)))
+    server = uvicorn.Server(
+        uvicorn.Config(
+            app=create_app(CONFIG),
+            host=CONFIG.server.host,
+            port=CONFIG.server.port,
+        )
+    )
     await server.serve()
 
 
