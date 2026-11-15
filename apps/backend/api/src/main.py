@@ -12,6 +12,7 @@ async def main() -> None:
             app=create_app(CONFIG),
             host=CONFIG.server.host,
             port=CONFIG.server.port,
+            log_config=None,  # Handled by loguru
         )
     )
     await server.serve()
