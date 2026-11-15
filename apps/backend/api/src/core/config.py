@@ -11,7 +11,7 @@ class DatabaseConfig(BaseSettings):
         extra="ignore",
     )
 
-    url: PostgresDsn = Field(...)
+    url: PostgresDsn = Field(init=False)
     pool_min_size: int = Field(default=1, ge=0)
     """Connections the pool keeps open."""
     pool_max_size: int = Field(default=10, ge=1)
@@ -32,8 +32,8 @@ class StorageConfig(BaseSettings):
     endpoint: str = "http://localhost:9000"
     """S3 endpoint. Defaults to the local compose RustFS."""
     bucket: str = "kickroller"
-    access_key_id: str = Field(...)
-    secret_access_key: SecretStr = Field(...)
+    access_key_id: str = Field(init=False)
+    secret_access_key: SecretStr = Field(init=False)
     region: str = "us-east-1"
 
 
