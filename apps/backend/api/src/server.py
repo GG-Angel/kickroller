@@ -29,4 +29,9 @@ def create_app(config: Config | None = None) -> FastAPI:
             await close_pool(state.db_pool)
 
     app = FastAPI(lifespan=lifespan)
+
+    @app.get("/health")
+    async def health() -> dict[str, str]:
+        return {"status": "ok"}
+
     return app
