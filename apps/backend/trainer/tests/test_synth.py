@@ -4,7 +4,8 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 from pydantic import ValidationError
-from src.core.config import (
+
+from trainer.core.config import (
     CONFIG,
     KickFxConfig,
     KickRollConfig,
@@ -13,9 +14,9 @@ from src.core.config import (
     Placement,
     SectionConfig,
 )
-from src.models.audio import SampleKind
-from src.services.synthesis.bank import Sample, SampleBank
-from src.services.synthesis.daw.effects import (
+from trainer.models.audio import SampleKind
+from trainer.services.synthesis.bank import Sample, SampleBank
+from trainer.services.synthesis.daw.effects import (
     Clip,
     Filter,
     Gain,
@@ -28,16 +29,19 @@ from src.services.synthesis.daw.effects import (
     measure_loudest_rms,
     trim_to_attack,
 )
-from src.services.synthesis.daw.grid import Grid
-from src.services.synthesis.daw.master import draw_master_effects
-from src.services.synthesis.daw.track import Track
-from src.services.synthesis.patterns.kick import draw_kick_fx, draw_kick_track
-from src.services.synthesis.patterns.loop import draw_loop_track
-from src.services.synthesis.patterns.one_shot import (
+from trainer.services.synthesis.daw.grid import Grid
+from trainer.services.synthesis.daw.master import draw_master_effects
+from trainer.services.synthesis.daw.track import Track
+from trainer.services.synthesis.patterns.kick import (
+    draw_kick_fx,
+    draw_kick_track,
+)
+from trainer.services.synthesis.patterns.loop import draw_loop_track
+from trainer.services.synthesis.patterns.one_shot import (
     OneShotPatternGenerator,
     draw_one_shot_track,
 )
-from src.services.synthesis.synth import (
+from trainer.services.synthesis.synth import (
     _add_layer_effects,
     draw_grid,
     generate_drop,
@@ -483,7 +487,7 @@ def test_sidechained_layers_of_a_drop_share_one_sidechain() -> None:
     sidechains = []
     for seed in range(3):
         with patch(
-            "src.services.synthesis.synth.Sidechain", wraps=Sidechain
+            "trainer.services.synthesis.synth.Sidechain", wraps=Sidechain
         ) as sidechain:
             generate_drop(
                 _make_bank(), np.random.default_rng(seed), config, CONFIG.sr
@@ -505,7 +509,7 @@ def test_drop_without_pumping_has_no_sidechain() -> None:
         update={"master": None, "sidechain_probability": 0.0}
     )
     with patch(
-        "src.services.synthesis.synth.Sidechain", wraps=Sidechain
+        "trainer.services.synthesis.synth.Sidechain", wraps=Sidechain
     ) as sidechain:
         generate_drop(_make_bank(), np.random.default_rng(0), config, CONFIG.sr)
 

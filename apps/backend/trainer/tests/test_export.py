@@ -3,10 +3,11 @@ from unittest.mock import patch
 
 import numpy as np
 from scipy.io import wavfile
-from src.core.config import CONFIG
-from src.models.audio import LabeledDrop
-from src.services.synthesis.bank import SampleBank
-from src.services.synthesis.export import export_drops
+
+from trainer.core.config import CONFIG
+from trainer.models.audio import LabeledDrop
+from trainer.services.synthesis.bank import SampleBank
+from trainer.services.synthesis.export import export_drops
 
 
 def _make_drop() -> LabeledDrop:
@@ -20,7 +21,8 @@ def test_export_drops_writes_numbered_audio_and_onsets(tmp_path: Path) -> None:
     folder = tmp_path / "drops"
 
     with patch(
-        "src.services.synthesis.synth.generate_drop", return_value=_make_drop()
+        "trainer.services.synthesis.synth.generate_drop",
+        return_value=_make_drop(),
     ):
         export_drops(
             SampleBank(samples=[]),
@@ -50,7 +52,9 @@ def test_export_drops_keeps_the_level_of_the_drop(tmp_path: Path) -> None:
         onsets=np.arange(0.0, 13.0, 0.375),
     )
 
-    with patch("src.services.synthesis.synth.generate_drop", return_value=drop):
+    with patch(
+        "trainer.services.synthesis.synth.generate_drop", return_value=drop
+    ):
         export_drops(
             SampleBank(samples=[]),
             tmp_path,
@@ -69,7 +73,8 @@ def test_export_drops_uses_the_given_config(tmp_path: Path) -> None:
     config = CONFIG.synth.model_copy(update={"drop_seconds": 2.0})
 
     with patch(
-        "src.services.synthesis.synth.generate_drop", return_value=_make_drop()
+        "trainer.services.synthesis.synth.generate_drop",
+        return_value=_make_drop(),
     ) as generate:
         export_drops(
             SampleBank(samples=[]),

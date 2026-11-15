@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
-from src.core.config import CONFIG
-from src.services.scoring import evaluate, pick_onsets
+
+from trainer.core.config import CONFIG
+from trainer.services.scoring import evaluate, pick_onsets
 
 FPS = CONFIG.sr / CONFIG.features.hop
 

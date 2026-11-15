@@ -9,9 +9,10 @@ import asyncpg
 import pytest
 from fastapi.testclient import TestClient
 from obstore.store import S3Store
-from src.core.config import Config
-from src.core.state import AppState
-from src.server import create_app
+
+from api.core.config import Config
+from api.core.state import AppState
+from api.server import create_app
 
 
 @pytest.fixture

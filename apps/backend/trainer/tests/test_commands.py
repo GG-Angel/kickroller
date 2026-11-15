@@ -3,13 +3,14 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
-from src.cli.commands import app
-from src.core.config import CONFIG
-from src.models.audio import SampleKind
-from src.services.analyze import Analysis
-from src.services.scoring import score_onsets
-from src.services.synthesis.bank import Sample, SampleBank, is_held_out
 from typer.testing import CliRunner
+
+from trainer.cli.commands import app
+from trainer.core.config import CONFIG
+from trainer.models.audio import SampleKind
+from trainer.services.analyze import Analysis
+from trainer.services.scoring import score_onsets
+from trainer.services.synthesis.bank import Sample, SampleBank, is_held_out
 
 
 def test_synth_can_bypass_sample_bank_cache(tmp_path: Path) -> None:
@@ -18,10 +19,10 @@ def test_synth_can_bypass_sample_bank_cache(tmp_path: Path) -> None:
 
     with (
         patch(
-            "src.cli.commands.load_sample_bank_from_file",
+            "trainer.cli.commands.load_sample_bank_from_file",
             return_value=SampleBank(samples=[]),
         ) as load_bank,
-        patch("src.cli.commands.export_drops"),
+        patch("trainer.cli.commands.export_drops"),
     ):
         result = CliRunner().invoke(
             app,
@@ -37,8 +38,10 @@ def test_synth_writes_drops_to_output_folder(tmp_path: Path) -> None:
     output = tmp_path / "out"
 
     with (
-        patch("src.cli.commands.load_sample_bank_from_file", return_value=bank),
-        patch("src.cli.commands.export_drops") as export,
+        patch(
+            "trainer.cli.commands.load_sample_bank_from_file", return_value=bank
+        ),
+        patch("trainer.cli.commands.export_drops") as export,
     ):
         result = CliRunner().invoke(
             app, ["synth", "-o", str(output), "-n", "3", "--seed", "5"]
@@ -53,10 +56,10 @@ def test_synth_writes_drops_to_output_folder(tmp_path: Path) -> None:
 def _invoke_synth(*options: str) -> list:
     with (
         patch(
-            "src.cli.commands.load_sample_bank_from_file",
+            "trainer.cli.commands.load_sample_bank_from_file",
             return_value=SampleBank(samples=[]),
         ),
-        patch("src.cli.commands.export_drops") as export,
+        patch("trainer.cli.commands.export_drops") as export,
     ):
         result = CliRunner().invoke(app, ["synth", *options])
 
@@ -101,10 +104,10 @@ def test_synth_uses_only_the_kicks_of_the_split(held_out: bool) -> None:
 
     with (
         patch(
-            "src.cli.commands.load_sample_bank_from_file",
+            "trainer.cli.commands.load_sample_bank_from_file",
             return_value=SampleBank(samples=kicks),
         ),
-        patch("src.cli.commands.export_drops") as export,
+        patch("trainer.cli.commands.export_drops") as export,
     ):
         options = ["--held-out"] if held_out else []
         result = CliRunner().invoke(app, ["synth", *options])
@@ -120,10 +123,10 @@ def test_synth_uses_only_the_kicks_of_the_split(held_out: bool) -> None:
 def test_synth_can_turn_off_the_master_effects(options: list[str]) -> None:
     with (
         patch(
-            "src.cli.commands.load_sample_bank_from_file",
+            "trainer.cli.commands.load_sample_bank_from_file",
             return_value=SampleBank(samples=[]),
         ),
-        patch("src.cli.commands.export_drops") as export,
+        patch("trainer.cli.commands.export_drops") as export,
     ):
         result = CliRunner().invoke(app, ["synth", "-k", "kick", *options])
 
@@ -138,7 +141,7 @@ def test_synth_can_turn_off_the_master_effects(options: list[str]) -> None:
 
 def test_train_passes_the_options(tmp_path: Path) -> None:
     output = tmp_path / "model.pt"
-    with patch("src.cli.commands.train_model") as train:
+    with patch("trainer.cli.commands.train_model") as train:
         train.return_value.f_measure = 0.9
         train.return_value.threshold = 0.5
         result = CliRunner().invoke(
@@ -171,13 +174,15 @@ def test_analyze_writes_onsets_clicks_and_scores(
     analysis = Analysis(onsets=np.array([0.5, 1.0]), confidences=np.ones(2))
 
     with (
-        patch("src.cli.commands.load_checkpoint") as load_model,
+        patch("trainer.cli.commands.load_checkpoint") as load_model,
         patch(
-            "src.cli.commands.load_audio",
+            "trainer.cli.commands.load_audio",
             return_value=np.zeros(CONFIG.sr, dtype=np.float32),
         ),
-        patch("src.cli.commands.analyze_signal", return_value=analysis) as run,
-        patch("src.cli.commands.score_onsets", wraps=score_onsets) as score,
+        patch(
+            "trainer.cli.commands.analyze_signal", return_value=analysis
+        ) as run,
+        patch("trainer.cli.commands.score_onsets", wraps=score_onsets) as score,
     ):
         load_model.return_value.threshold = 0.85
         result = CliRunner().invoke(
@@ -218,12 +223,12 @@ def test_analyze_can_write_onsets_without_confidences(
     options = ["-o", str(output)] if custom_output else []
 
     with (
-        patch("src.cli.commands.load_checkpoint"),
+        patch("trainer.cli.commands.load_checkpoint"),
         patch(
-            "src.cli.commands.load_audio",
+            "trainer.cli.commands.load_audio",
             return_value=np.zeros(CONFIG.sr, dtype=np.float32),
         ),
-        patch("src.cli.commands.analyze_signal", return_value=analysis),
+        patch("trainer.cli.commands.analyze_signal", return_value=analysis),
     ):
         result = CliRunner().invoke(
             app,

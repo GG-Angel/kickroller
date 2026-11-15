@@ -3,9 +3,10 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
-from src.core.config import CONFIG
-from src.models.audio import SampleKind
-from src.services.synthesis import bank
+
+from trainer.core.config import CONFIG
+from trainer.models.audio import SampleKind
+from trainer.services.synthesis import bank
 
 
 def test_load_sample_bank_resolves_workspace_paths_and_globs(
@@ -29,7 +30,7 @@ def test_load_sample_bank_resolves_workspace_paths_and_globs(
     )
 
     with patch(
-        "src.services.synthesis.bank.load_audio", return_value=np.zeros(0)
+        "trainer.services.synthesis.bank.load_audio", return_value=np.zeros(0)
     ) as load_audio:
         sample_bank = bank.load_sample_bank(config, CONFIG.sr)
 
@@ -85,7 +86,7 @@ def test_load_sample_bank_from_file_reuses_cache(tmp_path: Path) -> None:
     _write_bank_config(bank_path, tmp_path)
 
     with patch(
-        "src.services.synthesis.bank.load_audio", side_effect=_decode
+        "trainer.services.synthesis.bank.load_audio", side_effect=_decode
     ) as load_audio:
         first_bank = bank.load_sample_bank_from_file(bank_path, CONFIG.sr)
         cached_bank = bank.load_sample_bank_from_file(bank_path, CONFIG.sr)
@@ -106,7 +107,7 @@ def test_load_sample_bank_from_file_refreshes_cache_for_new_sample_rate(
     _write_bank_config(bank_path, tmp_path)
 
     with patch(
-        "src.services.synthesis.bank.load_audio", side_effect=_decode
+        "trainer.services.synthesis.bank.load_audio", side_effect=_decode
     ) as load_audio:
         bank.load_sample_bank_from_file(bank_path, CONFIG.sr)
         bank.load_sample_bank_from_file(bank_path, CONFIG.sr // 2)
@@ -126,7 +127,9 @@ def test_load_sample_bank_from_file_refreshes_cache_for_new_files(
     bank_path = tmp_path / "bank.yaml"
     _write_bank_config(bank_path, tmp_path)
 
-    with patch("src.services.synthesis.bank.load_audio", side_effect=_decode):
+    with patch(
+        "trainer.services.synthesis.bank.load_audio", side_effect=_decode
+    ):
         bank.load_sample_bank_from_file(bank_path, CONFIG.sr)
         (tmp_path / "kicks" / "new_kick.wav").touch()
         refreshed_bank = bank.load_sample_bank_from_file(bank_path, CONFIG.sr)
@@ -147,7 +150,7 @@ def test_load_sample_bank_from_file_refreshes_cache_for_new_settings(
     _write_bank_config(bank_path, tmp_path)
 
     with patch(
-        "src.services.synthesis.bank.load_audio", side_effect=_decode
+        "trainer.services.synthesis.bank.load_audio", side_effect=_decode
     ) as load_audio:
         bank.load_sample_bank_from_file(bank_path, CONFIG.sr)
         _write_bank_config(bank_path, tmp_path, bpm=150)
@@ -166,7 +169,9 @@ def test_load_sample_bank_from_file_replaces_old_cache_file(
     _write_bank_config(bank_path, tmp_path)
     (tmp_path / "bank.yaml.cache").write_bytes(b"old pickle")
 
-    with patch("src.services.synthesis.bank.load_audio", side_effect=_decode):
+    with patch(
+        "trainer.services.synthesis.bank.load_audio", side_effect=_decode
+    ):
         sample_bank = bank.load_sample_bank_from_file(bank_path, CONFIG.sr)
 
     assert (tmp_path / "bank.yaml.cache").is_dir()
@@ -185,7 +190,7 @@ def test_load_sample_bank_from_file_can_bypass_cache(tmp_path: Path) -> None:
     )
 
     with patch(
-        "src.services.synthesis.bank.load_audio",
+        "trainer.services.synthesis.bank.load_audio",
         return_value=np.zeros(4, dtype=np.float32),
     ) as load_audio:
         bank.load_sample_bank_from_file(bank_path, CONFIG.sr)

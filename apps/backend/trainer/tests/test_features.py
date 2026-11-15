@@ -1,6 +1,7 @@
 import numpy as np
-from src.core.config import CONFIG
-from src.services.training.features import (
+
+from trainer.core.config import CONFIG
+from trainer.services.training.features import (
     _build_log_filterbank,
     compute_features,
     count_bands,

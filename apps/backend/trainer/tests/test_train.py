@@ -4,13 +4,17 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 import torch
-from src.core.config import CONFIG
-from src.models.audio import SampleKind
-from src.services.scoring import evaluate
-from src.services.synthesis.bank import Sample, SampleBank
-from src.services.training.loop import TrainingBatch, _prepare_training_batch
-from src.services.training.network import CONTEXT_FRAMES, load_checkpoint
-from src.services.training.train import train
+
+from trainer.core.config import CONFIG
+from trainer.models.audio import SampleKind
+from trainer.services.scoring import evaluate
+from trainer.services.synthesis.bank import Sample, SampleBank
+from trainer.services.training.loop import (
+    TrainingBatch,
+    _prepare_training_batch,
+)
+from trainer.services.training.network import CONTEXT_FRAMES, load_checkpoint
+from trainer.services.training.train import train
 
 
 def _make_bank() -> SampleBank:
@@ -79,14 +83,16 @@ def test_train_saves_a_checkpoint(tmp_path: Path) -> None:
 
     with (
         patch(
-            "src.services.training.train.load_sample_bank_from_file",
+            "trainer.services.training.train.load_sample_bank_from_file",
             return_value=_make_bank(),
         ),
         patch(
-            "src.services.training.dataset.load_sample_bank_from_file",
+            "trainer.services.training.dataset.load_sample_bank_from_file",
             return_value=_make_bank(),
         ),
-        patch("src.services.training.train.evaluate", wraps=evaluate) as score,
+        patch(
+            "trainer.services.training.train.evaluate", wraps=evaluate
+        ) as score,
     ):
         best = train(
             Path("bank.yaml"),
