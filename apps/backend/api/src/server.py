@@ -1,33 +1,40 @@
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from collections.abc import AsyncGenerator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from src.core.config import Config
-from src.core.db import close_pool, create_pool
+from src.core.db import open_db_pool
 from src.core.logging import configure_logging
 from src.core.state import AppState
 from src.core.storage import create_store
 
+type StateFactory = Callable[[Config], AbstractAsyncContextManager[AppState]]
 
-def create_app(config: Config | None = None) -> FastAPI:
-    """Build the API app. Reads settings from the environment if none are given."""
-    config = config or Config()
+
+@asynccontextmanager
+async def open_state(config: Config) -> AsyncGenerator[AppState]:
+    """Open the app's resources and release them on exit."""
+    async with open_db_pool(config.database) as db_pool:
+        yield AppState(
+            db_pool=db_pool,
+            store=await create_store(config.storage),
+        )
+
+
+def create_app(
+    config: Config,
+    state_factory: StateFactory = open_state,
+) -> FastAPI:
+    """Build the API app."""
     configure_logging()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-        state = AppState(
-            db_pool=await create_pool(config.database),
-            store=await create_store(config.storage),
-        )
-        app.state.app_state = state
-
-        try:
+        async with state_factory(config) as state:
+            app.state.app_state = state
             yield
-        finally:
-            await close_pool(state.db_pool)
 
     app = FastAPI(lifespan=lifespan)
     Instrumentator().instrument(app)
