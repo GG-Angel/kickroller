@@ -12,13 +12,11 @@ dependencies = [
     "pydantic-settings>=2.16.2",
 ]
 
+[project.scripts]
+api = "src.main:run"
+
 [dependency-groups]
-dev = [
-    "asyncpg-stubs>=0.32.0",
-    "pytest>=9.2.0",
-    "ruff>=0.16.10",
-    "ty>=0.0.84",
-]
+dev = ["asyncpg-stubs>=0.32.0", "pytest>=9.2.0", "ruff>=0.16.10", "ty>=0.0.84"]
 
 [build-system]
 requires = ["hatchling"]
