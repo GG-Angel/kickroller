@@ -4,23 +4,24 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 import torch
-from src.core.config import CONFIG
-from src.services.scoring import evaluate
-from src.services.training.finetune import (
+
+from trainer.core.config import CONFIG
+from trainer.services.scoring import evaluate
+from trainer.services.training.finetune import (
     RealTrack,
     _crop_real_track,
     evaluate_real,
     fine_tune,
     load_real_track,
 )
-from src.services.training.network import KickNet, save_checkpoint
+from trainer.services.training.network import KickNet, save_checkpoint
 
 
 def test_load_real_track_masks_unlabeled_gaps(tmp_path: Path) -> None:
     path = tmp_path / "track.mp3"
     path.with_suffix(".csv").write_text("1.0\n1.5\n10.0\n10.5\n")
     with patch(
-        "src.services.training.finetune.load_audio",
+        "trainer.services.training.finetune.load_audio",
         return_value=np.zeros(CONFIG.sr * 12, dtype=np.float32),
     ):
         track = load_real_track(path, CONFIG.features, CONFIG.train, CONFIG.sr)
@@ -38,7 +39,7 @@ def test_load_real_track_rejects_invalid_labels(
     path.with_suffix(".csv").write_text(labels)
     with (
         patch(
-            "src.services.training.finetune.load_audio",
+            "trainer.services.training.finetune.load_audio",
             return_value=np.zeros(CONFIG.sr * 12, dtype=np.float32),
         ),
         pytest.raises(ValueError, match="Invalid or empty"),
@@ -72,7 +73,7 @@ def test_real_validation_ignores_predictions_between_spans() -> None:
     probabilities[[100, 500, 1000]] = 0.9
 
     with patch(
-        "src.services.training.finetune.evaluate", wraps=evaluate
+        "trainer.services.training.finetune.evaluate", wraps=evaluate
     ) as score:
         best = evaluate_real(
             [probabilities],
@@ -116,15 +117,15 @@ def test_fine_tune_keeps_best_checkpoint_and_normalization(
     batch = (torch.zeros(1, 3, 109, 1201), torch.zeros(1, 1201))
     with (
         patch(
-            "src.services.training.finetune.load_real_track",
+            "trainer.services.training.finetune.load_real_track",
             return_value=track,
         ),
         patch(
-            "src.services.training.finetune.DataLoader",
+            "trainer.services.training.finetune.DataLoader",
             return_value=[batch],
         ),
         patch(
-            "src.services.training.loop._pick_device",
+            "trainer.services.training.loop._pick_device",
             return_value=torch.device("cpu"),
         ),
     ):

@@ -2,10 +2,11 @@ from dataclasses import dataclass
 
 import numpy as np
 import pytest
-from src.core.config import CONFIG
-from src.models.audio import Signal
-from src.services.synthesis.daw import effects
-from src.services.synthesis.daw.effects import (
+
+from trainer.core.config import CONFIG
+from trainer.models.audio import Signal
+from trainer.services.synthesis.daw import effects
+from trainer.services.synthesis.daw.effects import (
     Clip,
     Cut,
     Effect,
@@ -20,12 +21,12 @@ from src.services.synthesis.daw.effects import (
     Trim,
     measure_loudest_rms,
 )
-from src.services.synthesis.daw.effects import (
+from trainer.services.synthesis.daw.effects import (
     Gain as AudioGain,
 )
-from src.services.synthesis.daw.grid import Grid
-from src.services.synthesis.daw.mix import Mix
-from src.services.synthesis.daw.track import Track
+from trainer.services.synthesis.daw.grid import Grid
+from trainer.services.synthesis.daw.mix import Mix
+from trainer.services.synthesis.daw.track import Track
 
 
 def make_track(signal: np.ndarray) -> Track:

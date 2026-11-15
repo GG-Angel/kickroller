@@ -1,9 +1,10 @@
 from pathlib import Path
 
 import torch
-from src.core.config import CONFIG
-from src.services.training.features import count_bands
-from src.services.training.network import (
+
+from trainer.core.config import CONFIG
+from trainer.services.training.features import count_bands
+from trainer.services.training.network import (
     CONTEXT_FRAMES,
     KickNet,
     load_checkpoint,

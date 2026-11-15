@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
-from src.models.audio import LabeledDrop
-from src.services.synthesis.crop import CropWindow, crop_drop, draw_crop
+
+from trainer.models.audio import LabeledDrop
+from trainer.services.synthesis.crop import CropWindow, crop_drop, draw_crop
 
 SR = 100
 
