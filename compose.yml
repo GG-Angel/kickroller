@@ -18,6 +18,13 @@ services:
       RUSTFS_OBS_LOGGER_LEVEL: error
       RUSTFS_OBS_LOG_DIRECTORY: "/var/log/rustfs/"
     command: /data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+      start_interval: 5s
 
   db:
     image: postgres:18-alpine
@@ -41,10 +48,15 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      rustfs:
+        condition: service_healthy
     networks:
       - internal
     environment:
       DATABASE_URL: postgresql://kickroller:${POSTGRES_PASSWORD}@db:5432/kickroller
+      STORAGE_ENDPOINT: http://rustfs:9000
+      STORAGE_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY}
+      STORAGE_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY}
 
 volumes:
   postgres_data:

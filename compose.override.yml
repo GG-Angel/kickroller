@@ -27,3 +27,5 @@ services:
       - external
     environment:
       DATABASE_URL: postgresql://kickroller:mysecretpassword@db:5432/kickroller
+      STORAGE_ACCESS_KEY_ID: mysecretaccesskey
+      STORAGE_SECRET_ACCESS_KEY: mysecretkey

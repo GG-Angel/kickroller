@@ -1,4 +1,4 @@
-from pydantic import Field, PostgresDsn
+from pydantic import Field, PostgresDsn, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,6 +23,23 @@ class DatabaseConfig(BaseSettings):
     """Default query timeout, in seconds. None disables it."""
 
 
+class StorageConfig(BaseSettings):
+    """Object storage settings, read from `STORAGE_*` env vars."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="STORAGE_",
+        env_file=".env",
+        extra="ignore",
+    )
+
+    endpoint: str = "http://localhost:9000"
+    """S3 endpoint. Defaults to the local compose RustFS."""
+    bucket: str = "kickroller"
+    access_key_id: str = "mysecretaccesskey"
+    secret_access_key: SecretStr = SecretStr("mysecretkey")
+    region: str = "us-east-1"
+
+
 class ServerConfig(BaseSettings):
     """HTTP server settings, read from `SERVER_*` env vars."""
 
@@ -42,6 +59,7 @@ class Config(BaseSettings):
 
     server: ServerConfig = Field(default_factory=ServerConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    storage: StorageConfig = Field(default_factory=StorageConfig)
 
 
 CONFIG = Config()

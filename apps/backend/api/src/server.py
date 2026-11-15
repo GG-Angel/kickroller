@@ -7,6 +7,7 @@ from src.core.config import Config
 from src.core.db import close_pool, create_pool
 from src.core.logging import configure_logging
 from src.core.state import AppState
+from src.core.storage import create_store
 
 
 def create_app(config: Config | None = None) -> FastAPI:
@@ -16,7 +17,10 @@ def create_app(config: Config | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-        state = AppState(db_pool=await create_pool(config.database))
+        state = AppState(
+            db_pool=await create_pool(config.database),
+            store=await create_store(config.storage),
+        )
         app.state.app_state = state
 
         try:
