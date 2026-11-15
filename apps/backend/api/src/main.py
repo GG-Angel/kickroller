@@ -1,10 +1,14 @@
 import asyncio
 
-from src.core.logging import configure_logging
+import uvicorn
+
+from src.core.config import CONFIG
+from src.server import create_app
 
 
 async def main() -> None:
-    configure_logging()
+    server = uvicorn.Server(uvicorn.Config(app=create_app(CONFIG)))
+    await server.serve()
 
 
 if __name__ == "__main__":
