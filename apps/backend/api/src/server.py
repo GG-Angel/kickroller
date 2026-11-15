@@ -2,6 +2,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from src.core.config import Config
 from src.core.db import close_pool, create_pool
@@ -29,6 +30,7 @@ def create_app(config: Config | None = None) -> FastAPI:
             await close_pool(state.db_pool)
 
     app = FastAPI(lifespan=lifespan)
+    Instrumentator().instrument(app)
 
     @app.get("/health")
     async def health() -> dict[str, str]:

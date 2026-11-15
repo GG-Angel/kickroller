@@ -1,5 +1,9 @@
+from typing import Annotated
+
 from pydantic import Field, PostgresDsn, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+Port = Annotated[int, Field(ge=1, le=65535)]
 
 
 class DatabaseConfig(BaseSettings):
@@ -48,7 +52,9 @@ class ServerConfig(BaseSettings):
 
     host: str = "127.0.0.1"
     """Interface to bind. Use 0.0.0.0 inside a container."""
-    port: int = Field(default=8000, ge=1, le=65535)
+    port: Port = 8000
+    metrics_port: Port = 9100
+    """Prometheus metrics port. Keep it off the public network."""
 
 
 class Config(BaseSettings):
