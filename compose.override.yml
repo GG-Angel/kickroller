@@ -12,6 +12,11 @@ services:
     networks:
       - external
 
+  api-migrate:
+    build:
+      context: .
+      dockerfile: apps/backend/api/Dockerfile
+
   api:
     build:
       context: .

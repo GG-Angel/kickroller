@@ -42,10 +42,23 @@ services:
       timeout: 5s
       retries: 5
 
+  api-migrate:
+    image: kickroller-api
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+    environment:
+      DATABASE_URL: postgresql+asyncpg://kickroller:${POSTGRES_PASSWORD}@db:5432/kickroller
+
   api:
     image: kickroller-api
     restart: unless-stopped
     depends_on:
+      api-migrate:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       rustfs:
