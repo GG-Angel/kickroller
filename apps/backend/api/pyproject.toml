@@ -21,6 +21,7 @@ api = "api.main:run"
 
 [dependency-groups]
 dev = [
+ "poethepoet>=0.49.0",
  "pytest>=9.2.0",
  "ruff>=0.16.10",
  "ty>=0.0.84",
@@ -36,3 +37,18 @@ packages = ["src/api"]
 
 [tool.alembic]
 script_location = "%(here)s/alembic"
+
+[[tool.alembic.post_write_hooks]]
+name = "fix"
+type = "console_scripts"
+entrypoint = "poe"
+options = "fix REVISION_SCRIPT_FILENAME"
+
+[tool.poe.tasks]
+test = "pytest"
+migrate = "alembic upgrade head"
+revision = "alembic revision --autogenerate -m"
+fix = [
+    { cmd = "ruff check --fix $POE_EXTRA_ARGS" },
+    { cmd = "ruff format $POE_EXTRA_ARGS" },
+]
