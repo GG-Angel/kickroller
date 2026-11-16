@@ -73,6 +73,7 @@ name = "api"
 version = "0.1.0"
 source = { editable = "apps/backend/api" }
 dependencies = [
+    { name = "alembic" },
     { name = "asyncpg" },
     { name = "fastapi", extra = ["standard"] },
     { name = "loguru" },
@@ -85,7 +86,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "alembic" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "ty" },
@@ -93,6 +93,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "alembic", specifier = ">=1.20.1" },
     { name = "asyncpg", specifier = ">=0.32.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.163.0" },
     { name = "loguru", specifier = ">=0.7.3" },
@@ -105,7 +106,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "alembic", specifier = ">=1.20.1" },
     { name = "pytest", specifier = ">=9.2.0" },
     { name = "ruff", specifier = ">=0.16.10" },
     { name = "ty", specifier = ">=0.0.84" },

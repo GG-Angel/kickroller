@@ -4,4 +4,6 @@
 !apps/backend/api/pyproject.toml
 !apps/backend/api/README.md
 !apps/backend/api/src
+!apps/backend/api/alembic
+!apps/backend/api/alembic.ini
 **/__pycache__

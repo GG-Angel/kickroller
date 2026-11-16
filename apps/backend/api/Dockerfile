@@ -29,10 +29,15 @@ FROM python:3.13-slim-trixie
 COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
-# 5. Run as a non-root user (nobody:nogroup in the base image).
+# 5. Copy the migrations; `alembic upgrade head` reads its config from the cwd.
+WORKDIR /app
+COPY apps/backend/api/pyproject.toml apps/backend/api/alembic.ini ./
+COPY apps/backend/api/alembic alembic
+
+# 6. Run as a non-root user (nobody:nogroup in the base image).
 USER 65534:65534
 
-# 6. Start the app through main.
+# 7. Start the app through main.
 ENV SERVER_HOST=0.0.0.0
 # API
 EXPOSE 8000
