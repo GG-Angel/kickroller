@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from api.core.config import Config
-from api.core.db import open_db_pool
+from api.core.db import open_db
 from api.core.logging import configure_logging
 from api.core.state import AppState
 from api.core.storage import create_store
@@ -17,9 +17,9 @@ type StateFactory = Callable[[Config], AbstractAsyncContextManager[AppState]]
 @asynccontextmanager
 async def open_state(config: Config) -> AsyncGenerator[AppState]:
     """Open the app's resources and release them on exit."""
-    async with open_db_pool(config.database) as db_pool:
+    async with open_db(config.database) as db:
         yield AppState(
-            db_pool=db_pool,
+            db=db,
             store=await create_store(config.storage),
         )
 

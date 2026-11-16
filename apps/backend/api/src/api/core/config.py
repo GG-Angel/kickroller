@@ -16,10 +16,10 @@ class DatabaseConfig(BaseSettings):
     )
 
     url: PostgresDsn = Field(init=False)
-    pool_min_size: int = Field(default=1, ge=0)
+    pool_size: int = Field(default=5, ge=1)
     """Connections the pool keeps open."""
-    pool_max_size: int = Field(default=10, ge=1)
-    """Most connections the pool opens at once."""
+    max_overflow: int = Field(default=10, ge=0)
+    """Extra connections the pool opens under load and closes after."""
     command_timeout: float | None = 30.0
     """Default query timeout, in seconds. None disables it."""
 

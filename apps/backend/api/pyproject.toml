@@ -12,13 +12,18 @@ dependencies = [
     "prometheus-fastapi-instrumentator>=8.1.0",
     "pydantic>=2.14.3",
     "pydantic-settings>=2.16.2",
+    "sqlalchemy[asyncio]>=2.1.8",
 ]
 
 [project.scripts]
 api = "api.main:run"
 
 [dependency-groups]
-dev = ["asyncpg-stubs>=0.32.0", "pytest>=9.2.0", "ruff>=0.16.10", "ty>=0.0.84"]
+dev = [
+ "pytest>=9.2.0",
+ "ruff>=0.16.10",
+ "ty>=0.0.84",
+]
 
 [build-system]
 requires = ["hatchling"]

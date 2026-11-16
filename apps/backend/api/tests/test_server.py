@@ -5,10 +5,10 @@ The state factory is mocked, so these run without Postgres or RustFS.
 
 from unittest.mock import MagicMock, Mock
 
-import asyncpg
 import pytest
 from fastapi.testclient import TestClient
 from obstore.store import S3Store
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from api.core.config import Config
 from api.core.state import AppState
@@ -22,7 +22,7 @@ def config() -> Mock:
 
 @pytest.fixture
 def state() -> AppState:
-    return AppState(db_pool=Mock(spec=asyncpg.Pool), store=Mock(spec=S3Store))
+    return AppState(db=Mock(spec=AsyncEngine), store=Mock(spec=S3Store))
 
 
 @pytest.fixture

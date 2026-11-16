@@ -1,37 +1,44 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-import asyncpg
 from fastapi import Depends
 from loguru import logger
+from sqlalchemy import make_url, text
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    create_async_engine,
+)
 
 from api.core.config import DatabaseConfig
 from api.core.state import AppState, get_app_state
 
 
 @asynccontextmanager
-async def open_db_pool(
-    config: DatabaseConfig,
-) -> AsyncGenerator[asyncpg.Pool]:
-    """Open a connection pool, check that the database answers, close on exit."""
-    async with asyncpg.create_pool(
-        dsn=str(config.url),
-        min_size=config.pool_min_size,
-        max_size=config.pool_max_size,
-        command_timeout=config.command_timeout,
-    ) as pool:
-        await pool.execute("SELECT 1")
+async def open_db(config: DatabaseConfig) -> AsyncGenerator[AsyncEngine]:
+    """Open an engine, check that the database answers, dispose on exit."""
+    engine = create_async_engine(
+        make_url(str(config.url)).set(drivername="postgresql+asyncpg"),
+        pool_size=config.pool_size,
+        max_overflow=config.max_overflow,
+        connect_args={"command_timeout": config.command_timeout},
+    )
+    try:
+        async with engine.connect() as connection:
+            await connection.execute(text("SELECT 1"))  # Test the connection
         logger.info(
             f"Connected to Postgres at {config.url.hosts()[0]['host']} "
-            f"(pool {config.pool_min_size}-{config.pool_max_size})"
+            f"(pool {config.pool_size}+{config.max_overflow})"
         )
-        yield pool
-    logger.info("Closed Postgres pool")
+        yield engine
+    finally:
+        await engine.dispose()
+        logger.info("Closed Postgres engine")
 
 
-async def get_connection(
+async def get_session(
     state: AppState = Depends(get_app_state),
-) -> AsyncGenerator[asyncpg.pool.PoolConnectionProxy]:
-    """FastAPI dependency that borrows a connection for one request."""
-    async with state.db_pool.acquire() as connection:
-        yield connection
+) -> AsyncGenerator[AsyncSession]:
+    """FastAPI dependency that opens a session for one request."""
+    async with AsyncSession(state.db, expire_on_commit=False) as session:
+        yield session
