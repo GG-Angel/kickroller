@@ -20,12 +20,7 @@ dependencies = [
 api = "api.main:run"
 
 [dependency-groups]
-dev = [
- "poethepoet>=0.49.0",
- "pytest>=9.2.0",
- "ruff>=0.16.10",
- "ty>=0.0.84",
-]
+dev = ["poethepoet>=0.49.0", "pytest>=9.2.0", "ruff>=0.16.10", "ty>=0.0.84"]
 
 [build-system]
 requires = ["hatchling"]
@@ -45,10 +40,10 @@ entrypoint = "poe"
 options = "fix REVISION_SCRIPT_FILENAME"
 
 [tool.poe.tasks]
-test = "pytest"
-migrate = "alembic upgrade head"
-revision = "alembic revision --autogenerate -m"
-fix = [
+test = { cmd = "pytest", help = "Run the tests" }
+migrate = { cmd = "alembic upgrade head", help = "Apply migrations" }
+revision = { cmd = "alembic revision --autogenerate -m", help = "Autogenerate a migration from the models" }
+fix = { help = "Lint with fixes, then format", sequence = [
     { cmd = "ruff check --fix $POE_EXTRA_ARGS" },
     { cmd = "ruff format $POE_EXTRA_ARGS" },
-]
+] }
