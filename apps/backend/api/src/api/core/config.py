@@ -16,6 +16,7 @@ class DatabaseConfig(BaseSettings):
     )
 
     url: PostgresDsn = Field(init=False)
+    """Must use the postgresql+asyncpg:// scheme."""
     pool_size: int = Field(default=5, ge=1)
     """Connections the pool keeps open."""
     max_overflow: int = Field(default=10, ge=0)

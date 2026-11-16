@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends
 from loguru import logger
-from sqlalchemy import make_url, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -18,7 +18,7 @@ from api.core.state import AppState, get_app_state
 async def open_db(config: DatabaseConfig) -> AsyncGenerator[AsyncEngine]:
     """Open an engine, check that the database answers, dispose on exit."""
     engine = create_async_engine(
-        make_url(str(config.url)).set(drivername="postgresql+asyncpg"),
+        str(config.url),
         pool_size=config.pool_size,
         max_overflow=config.max_overflow,
         connect_args={"command_timeout": config.command_timeout},
