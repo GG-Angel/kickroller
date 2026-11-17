@@ -3,6 +3,7 @@ name: kickroller
 services:
   rustfs:
     image: rustfs/rustfs:1.0.5
+    profiles: [infra, api]
     restart: unless-stopped
     volumes:
       - rustfs-data:/data
@@ -28,6 +29,7 @@ services:
 
   rustfs-setup:
     image: amazon/aws-cli:2.39.3
+    profiles: [infra, api]
     depends_on:
       rustfs:
         condition: service_healthy
@@ -44,6 +46,7 @@ services:
 
   db:
     image: postgres:18-alpine
+    profiles: [infra, api]
     restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql
@@ -60,6 +63,7 @@ services:
 
   api-migration:
     image: kickroller-api
+    profiles: [api]
     command: ["alembic", "upgrade", "head"]
     depends_on:
       db:
@@ -71,6 +75,7 @@ services:
 
   api:
     image: kickroller-api
+    profiles: [api]
     restart: unless-stopped
     depends_on:
       api-migration:
