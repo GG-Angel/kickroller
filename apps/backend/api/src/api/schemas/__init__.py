@@ -1,3 +1,4 @@
+from api.schemas.storage import StorageEvent
 from api.schemas.track import (
     PlaybackUrlResponse,
     TrackListResponse,
@@ -13,6 +14,7 @@ __all__ = [
     "CreateUploadRequest",
     "CreateUploadResponse",
     "PlaybackUrlResponse",
+    "StorageEvent",
     "TrackListResponse",
     "TrackResponse",
     "UpdateTrackRequest",
