@@ -7,6 +7,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from api.models.base import Base
 
+TRACK_NAME_MAX_LENGTH = 300
+TRACK_ARTIST_MAX_LENGTH = 300
+TRACK_FILENAME_MAX_LENGTH = 500
+
 
 class TrackStatus(StrEnum):
     """Lifecycle state of a track upload."""
@@ -87,15 +91,15 @@ class Track(Base):
     __table_args__ = (
         Index("track_user_id_created_at_idx", user_id, created_at.desc()),
         CheckConstraint(
-            func.length(name).between(1, 300),
+            func.length(name).between(1, TRACK_NAME_MAX_LENGTH),
             name="track_name_check",
         ),
         CheckConstraint(
-            func.length(artist) <= 300,
+            func.length(artist) <= TRACK_ARTIST_MAX_LENGTH,
             name="track_artist_check",
         ),
         CheckConstraint(
-            func.length(original_filename) <= 500,
+            func.length(original_filename) <= TRACK_FILENAME_MAX_LENGTH,
             name="track_original_filename_check",
         ),
     )
