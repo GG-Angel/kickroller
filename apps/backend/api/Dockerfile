@@ -39,8 +39,10 @@ USER 65534:65534
 
 # 7. Start the app through main.
 ENV SERVER_HOST=0.0.0.0
-# API
+# Public API
 EXPOSE 8000
+# Service-to-service API
+EXPOSE 8001
 # Prometheus metrics
 EXPOSE 9100
 CMD ["api"]

@@ -1,18 +1,15 @@
-from collections.abc import AsyncGenerator, Callable
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from api.core.config import Config
 from api.core.db import open_db
-from api.core.logging import configure_logging
 from api.core.state import AppState
 from api.core.storage import build_store, create_store
-from api.routes import router
+from api.routes import router, webhooks
 from api.services.storage import ObjectStorage
-
-type StateFactory = Callable[[Config], AbstractAsyncContextManager[AppState]]
 
 
 @asynccontextmanager
@@ -32,20 +29,18 @@ async def open_state(config: Config) -> AsyncGenerator[AppState]:
         )
 
 
-def create_app(
-    config: Config,
-    state_factory: StateFactory = open_state,
-) -> FastAPI:
-    """Build the API app."""
-    configure_logging()
-
-    @asynccontextmanager
-    async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-        async with state_factory(config) as state:
-            app.state.app_state = state
-            yield
-
-    app = FastAPI(lifespan=lifespan)
+def create_app(state: AppState) -> FastAPI:
+    """Build the public API app."""
+    app = FastAPI()
+    app.state.app_state = state
     Instrumentator().instrument(app)
     app.include_router(router)
+    return app
+
+
+def create_internal_app(state: AppState) -> FastAPI:
+    """Build the app for calls from other services, like RustFS webhooks."""
+    app = FastAPI()
+    app.state.app_state = state
+    app.include_router(webhooks.router)
     return app
