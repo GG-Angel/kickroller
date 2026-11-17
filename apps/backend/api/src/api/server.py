@@ -10,6 +10,7 @@ from api.core.logging import configure_logging
 from api.core.state import AppState
 from api.core.storage import create_store
 from api.routes import router
+from api.services.storage import ObjectStorage
 
 type StateFactory = Callable[[Config], AbstractAsyncContextManager[AppState]]
 
@@ -20,7 +21,7 @@ async def open_state(config: Config) -> AsyncGenerator[AppState]:
     async with open_db(config.database) as db:
         yield AppState(
             db=db,
-            store=await create_store(config.storage),
+            storage=ObjectStorage(await create_store(config.storage)),
         )
 
 

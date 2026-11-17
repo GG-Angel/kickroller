@@ -1,8 +1,11 @@
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from fastapi import Request
-from obstore.store import S3Store
 from sqlalchemy.ext.asyncio import AsyncEngine
+
+if TYPE_CHECKING:
+    from api.services.storage import ObjectStorage
 
 
 @dataclass(frozen=True, slots=True)
@@ -10,7 +13,7 @@ class AppState:
     """Resources that live for the whole app, created in the lifespan."""
 
     db: AsyncEngine
-    store: S3Store
+    storage: "ObjectStorage"
 
 
 def get_app_state(request: Request) -> AppState:

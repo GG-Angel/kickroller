@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.models import TrackStatus
 from api.schemas import (
@@ -13,6 +13,7 @@ from api.schemas import (
     UpdateTrackRequest,
     UploadCompleteResponse,
 )
+from api.services.storage import ObjectStorage, get_object_storage
 
 router = APIRouter(prefix="/tracks", tags=["tracks"])
 
@@ -22,7 +23,10 @@ def not_implemented() -> HTTPException:
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_track(body: CreateTrackRequest) -> CreateTrackResponse:
+async def create_track(
+    body: CreateTrackRequest,
+    storage: ObjectStorage = Depends(get_object_storage),
+) -> CreateTrackResponse:
     """Make a pending track and sign a PUT URL for the upload."""
     raise not_implemented()
 
@@ -30,13 +34,17 @@ async def create_track(body: CreateTrackRequest) -> CreateTrackResponse:
 @router.post(
     "/{track_id}/upload-complete", status_code=status.HTTP_202_ACCEPTED
 )
-async def complete_upload(track_id: UUID) -> UploadCompleteResponse:
+async def complete_upload(
+    track_id: UUID, storage: ObjectStorage = Depends(get_object_storage)
+) -> UploadCompleteResponse:
     """Do the HEAD check, set the track uploaded, and queue validation."""
     raise not_implemented()
 
 
 @router.get("/{track_id}")
-async def get_track(track_id: UUID) -> TrackResponse:
+async def get_track(
+    track_id: UUID, storage: ObjectStorage = Depends(get_object_storage)
+) -> TrackResponse:
     """Get one track. The owner's view, so every status is visible."""
     raise not_implemented()
 
@@ -47,6 +55,7 @@ async def list_tracks(
     status: TrackStatus | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     cursor: str | None = None,
+    storage: ObjectStorage = Depends(get_object_storage),
 ) -> TrackListResponse:
     """List tracks, newest first."""
     raise not_implemented()
@@ -54,19 +63,25 @@ async def list_tracks(
 
 @router.patch("/{track_id}")
 async def update_track(
-    track_id: UUID, body: UpdateTrackRequest
+    track_id: UUID,
+    body: UpdateTrackRequest,
+    storage: ObjectStorage = Depends(get_object_storage),
 ) -> TrackResponse:
     """Change the title or artist."""
     raise not_implemented()
 
 
 @router.delete("/{track_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_track(track_id: UUID) -> None:
+async def delete_track(
+    track_id: UUID, storage: ObjectStorage = Depends(get_object_storage)
+) -> None:
     """Set the track removed and delete its objects under tracks/{id}/."""
     raise not_implemented()
 
 
 @router.post("/{track_id}/playback-url")
-async def create_playback_url(track_id: UUID) -> PlaybackUrlResponse:
+async def create_playback_url(
+    track_id: UUID, storage: ObjectStorage = Depends(get_object_storage)
+) -> PlaybackUrlResponse:
     """Check access and sign a GET URL for playback."""
     raise not_implemented()

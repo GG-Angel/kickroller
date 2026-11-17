@@ -7,12 +7,12 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 from fastapi.testclient import TestClient
-from obstore.store import S3Store
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from api.core.config import Config
 from api.core.state import AppState
 from api.server import create_app
+from api.services.storage import ObjectStorage
 
 
 @pytest.fixture
@@ -22,7 +22,7 @@ def config() -> Mock:
 
 @pytest.fixture
 def state() -> AppState:
-    return AppState(db=Mock(spec=AsyncEngine), store=Mock(spec=S3Store))
+    return AppState(db=Mock(spec=AsyncEngine), storage=Mock(spec=ObjectStorage))
 
 
 @pytest.fixture
