@@ -1,5 +1,7 @@
 @api = http://localhost:8000
 @metrics = http://localhost:9100
+# Stands in for the JWT subject until auth lands (see core/auth.py).
+@userId = 01900000-0000-7000-8000-0000000000aa
 
 ### Health check
 GET {{api}}/health
@@ -9,3 +11,50 @@ GET {{metrics}}/metrics
 
 ### OpenAPI schema
 GET {{api}}/openapi.json
+
+### Step 1: Create an upload and get a presigned PUT URL
+# Set size to the exact byte size of the file in step 2.
+# @name createUpload
+POST {{api}}/uploads
+Content-Type: application/json
+X-User-Id: {{userId}}
+
+{
+  "filename": "sample.wav",
+  "size": 1234
+}
+
+### Step 2: Upload the audio to the presigned URL
+# Goes straight to RustFS, not the API. Replace ./sample.wav with a real file.
+PUT {{createUpload.response.body.upload_url}}
+
+< ./sample.wav
+
+### Step 3: List your tracks to find the new one
+# The track appears once validation accepts the upload.
+# @name listTracks
+GET {{api}}/tracks?owner_id={{userId}}&limit=20
+
+@trackId = {{listTracks.response.body.$.items[0].id}}
+
+### Step 4: Get the track
+GET {{api}}/tracks/{{trackId}}
+
+### Step 5: Rename the track
+PATCH {{api}}/tracks/{{trackId}}
+Content-Type: application/json
+
+{
+  "title": "New title",
+  "artist": "New artist"
+}
+
+### Step 6: Get a presigned playback URL
+# @name playback
+POST {{api}}/tracks/{{trackId}}/playback-url
+
+### Step 7: Stream the audio from the playback URL
+GET {{playback.response.body.url}}
+
+### Step 8: Remove the track
+DELETE {{api}}/tracks/{{trackId}}
