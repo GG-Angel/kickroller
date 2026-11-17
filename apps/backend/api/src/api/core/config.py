@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Annotated
 
 from pydantic import Field, PostgresDsn, SecretStr
@@ -40,6 +41,11 @@ class StorageConfig(BaseSettings):
     access_key_id: str = Field(init=False)
     secret_access_key: SecretStr = Field(init=False)
     region: str = "us-east-1"
+
+    upload_url_ttl: timedelta = Field(
+        default=timedelta(minutes=15), gt=timedelta(0)
+    )
+    """How long a signed upload URL and its pending upload stay valid."""
 
 
 class ServerConfig(BaseSettings):

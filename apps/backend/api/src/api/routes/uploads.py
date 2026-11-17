@@ -1,11 +1,13 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, status
 
-from api.routes.tracks import not_implemented
+from api.core.auth import get_user_id
 from api.schemas import (
     CreateUploadRequest,
     CreateUploadResponse,
 )
-from api.services.storage import ObjectStorage, get_object_storage
+from api.services.upload import UploadService, get_upload_service
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 
@@ -13,7 +15,8 @@ router = APIRouter(prefix="/uploads", tags=["uploads"])
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_upload(
     body: CreateUploadRequest,
-    storage: ObjectStorage = Depends(get_object_storage),
+    user_id: UUID = Depends(get_user_id),
+    uploads: UploadService = Depends(get_upload_service),
 ) -> CreateUploadResponse:
     """Make a pending upload and sign a PUT URL for it."""
-    raise not_implemented()
+    return await uploads.create(user_id, body.filename, body.size)

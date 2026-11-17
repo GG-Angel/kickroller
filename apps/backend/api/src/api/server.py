@@ -21,7 +21,10 @@ async def open_state(config: Config) -> AsyncGenerator[AppState]:
     async with open_db(config.database) as db:
         yield AppState(
             db=db,
-            storage=ObjectStorage(await create_store(config.storage)),
+            storage=ObjectStorage(
+                await create_store(config.storage),
+                config.storage.upload_url_ttl,
+            ),
         )
 
 

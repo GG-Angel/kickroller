@@ -1,4 +1,7 @@
+from datetime import timedelta
+
 from fastapi import Depends
+from obstore import sign_async
 from obstore.store import S3Store
 
 from api.core.state import AppState, get_app_state
@@ -7,8 +10,13 @@ from api.core.state import AppState, get_app_state
 class ObjectStorage:
     """Track audio in the object store."""
 
-    def __init__(self, store: S3Store) -> None:
+    def __init__(self, store: S3Store, upload_url_ttl: timedelta) -> None:
         self._store = store
+        self.upload_url_ttl = upload_url_ttl
+
+    async def sign_put(self, key: str, expires_in: timedelta) -> str:
+        """Sign a URL the client can PUT the object to."""
+        return await sign_async(self._store, "PUT", key, expires_in)
 
 
 def get_object_storage(
