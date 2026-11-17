@@ -2,6 +2,8 @@
 @metrics = http://localhost:9100
 # Stands in for the JWT subject until auth lands (see core/auth.py).
 @userId = 01900000-0000-7000-8000-0000000000aa
+# Audio file for steps 1-2, relative to this file.
+@audioFile = sample.mp3
 
 ### Health check
 GET {{api}}/health
@@ -20,15 +22,15 @@ Content-Type: application/json
 X-User-Id: {{userId}}
 
 {
-  "filename": "sample.wav",
+  "filename": "{{audioFile}}",
   "size": 1234
 }
 
 ### Step 2: Upload the audio to the presigned URL
-# Goes straight to RustFS, not the API. Replace ./sample.wav with a real file.
+# Goes straight to RustFS, not the API.
 PUT {{createUpload.response.body.upload_url}}
 
-< ./sample.wav
+< ./{{audioFile}}
 
 ### Step 3: List your tracks to find the new one
 # The track appears once validation accepts the upload.

@@ -18,6 +18,7 @@ services:
       RUSTFS_CONSOLE_ENABLE: "true"
       RUSTFS_OBS_LOGGER_LEVEL: error
       RUSTFS_OBS_LOG_DIRECTORY: "/var/log/rustfs/"
+      RUSTFS_NOTIFY_ENABLE: "true"
     command: /data
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
