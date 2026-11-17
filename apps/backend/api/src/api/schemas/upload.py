@@ -11,11 +11,15 @@ class CreateUploadRequest(BaseModel):
     filename: Annotated[
         str, Field(min_length=1, max_length=UPLOAD_FILENAME_MAX_LENGTH)
     ]
+    """Original filename of the audio."""
     size: Annotated[int, Field(gt=0)]
     """Size of the audio in bytes."""
 
 
 class CreateUploadResponse(BaseModel):
     upload_id: UUID
+    """ID of the created upload."""
     upload_url: str
+    """Presigned URL to upload the audio."""
     expires_at: datetime
+    """Expiration time of the presigned URL."""
