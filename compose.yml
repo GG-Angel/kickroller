@@ -26,6 +26,22 @@ services:
       start_period: 40s
       start_interval: 5s
 
+  rustfs-setup:
+    image: amazon/aws-cli:2.39.3
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    networks:
+      - internal
+    environment:
+      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY}
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://rustfs:9000
+    entrypoint: ["sh", "-c"]
+    command:
+      - aws s3api head-bucket --bucket kickroller || aws s3api create-bucket --bucket kickroller
+
   db:
     image: postgres:18-alpine
     restart: unless-stopped
@@ -61,8 +77,8 @@ services:
         condition: service_completed_successfully
       db:
         condition: service_healthy
-      rustfs:
-        condition: service_healthy
+      rustfs-setup:
+        condition: service_completed_successfully
     networks:
       - internal
     environment:
