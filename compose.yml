@@ -58,7 +58,7 @@ services:
       timeout: 5s
       retries: 5
 
-  api-migrate:
+  api-migration:
     image: kickroller-api
     command: ["alembic", "upgrade", "head"]
     depends_on:
@@ -73,12 +73,12 @@ services:
     image: kickroller-api
     restart: unless-stopped
     depends_on:
-      api-migrate:
+      api-migration:
+        condition: service_completed_successfully
+      rustfs-setup:
         condition: service_completed_successfully
       db:
         condition: service_healthy
-      rustfs-setup:
-        condition: service_completed_successfully
     networks:
       - internal
     environment:
