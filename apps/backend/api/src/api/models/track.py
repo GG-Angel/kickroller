@@ -7,32 +7,21 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from api.models.base import Base
 
-TRACK_NAME_MAX_LENGTH = 300
+TRACK_TITLE_MAX_LENGTH = 300
 TRACK_ARTIST_MAX_LENGTH = 300
-TRACK_FILENAME_MAX_LENGTH = 500
 
 
 class TrackStatus(StrEnum):
-    """Lifecycle state of a track upload."""
+    """Lifecycle state of a validated track."""
 
-    PENDING = "pending"
-    """URL issued, upload not confirmed."""
-    UPLOADED = "uploaded"
-    """HEAD check passed, job queued."""
-    VALIDATING = "validating"
-    """Worker is examining the object."""
     READY = "ready"
     """Visible to users."""
-    REJECTED = "rejected"
-    """Failed validation."""
-    EXPIRED = "expired"
-    """Upload never arrived."""
     REMOVED = "removed"
     """Deleted by user or moderation."""
 
 
 class Track(Base):
-    """A track a user uploaded. The audio itself lives in the object store."""
+    """A track that passed validation. The audio lives in the object store."""
 
     __tablename__ = "track"
 
@@ -44,12 +33,15 @@ class Track(Base):
     user_id: Mapped[UUID] = mapped_column()
     """The ID of the uploader. Comes from the JWT subject claim."""
 
-    name: Mapped[str] = mapped_column(Text)
-    """The name of the track."""
+    title: Mapped[str] = mapped_column(Text)
+    """The title of the track."""
     artist: Mapped[str | None] = mapped_column(Text)
     """The name of the artist."""
-    original_filename: Mapped[str] = mapped_column(Text)
-    """The original filename of the uploaded audio."""
+
+    object_key: Mapped[str] = mapped_column(Text, unique=True)
+    """Where the audio lives in the object store."""
+    duration_ms: Mapped[int] = mapped_column()
+    """Length of the audio in milliseconds."""
 
     status: Mapped[TrackStatus] = mapped_column(
         Enum(
@@ -60,11 +52,9 @@ class Track(Base):
             length=None,
             values_callable=lambda e: [m.value for m in e],
         ),
-        server_default=TrackStatus.PENDING,
+        server_default=TrackStatus.READY,
     )
-    """Lifecycle state of the upload."""
-    rejection_reason: Mapped[str | None] = mapped_column()
-    """Why validation rejected the track."""
+    """Whether the track is visible or removed."""
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -77,29 +67,18 @@ class Track(Base):
         onupdate=func.now(),
     )
     """The timestamp of the last update."""
-    uploaded_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True)
-    )
-    """When audio is confirmed to be in the object store."""
-    validated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True)
-    )
-    """When validation finished, whether the track was accepted or rejected."""
     removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     """When the track was removed."""
 
     __table_args__ = (
         Index("track_user_id_created_at_idx", user_id, created_at.desc()),
         CheckConstraint(
-            func.length(name).between(1, TRACK_NAME_MAX_LENGTH),
-            name="track_name_check",
+            func.length(title).between(1, TRACK_TITLE_MAX_LENGTH),
+            name="track_title_check",
         ),
         CheckConstraint(
             func.length(artist) <= TRACK_ARTIST_MAX_LENGTH,
             name="track_artist_check",
         ),
-        CheckConstraint(
-            func.length(original_filename) <= TRACK_FILENAME_MAX_LENGTH,
-            name="track_original_filename_check",
-        ),
+        CheckConstraint(duration_ms > 0, name="track_duration_ms_check"),
     )

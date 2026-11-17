@@ -1,19 +1,19 @@
 from api.schemas.track import (
-    CreateTrackRequest,
-    CreateTrackResponse,
     PlaybackUrlResponse,
     TrackListResponse,
     TrackResponse,
     UpdateTrackRequest,
-    UploadCompleteResponse,
+)
+from api.schemas.upload import (
+    CreateUploadRequest,
+    CreateUploadResponse,
 )
 
 __all__ = [
-    "CreateTrackRequest",
-    "CreateTrackResponse",
+    "CreateUploadRequest",
+    "CreateUploadResponse",
     "PlaybackUrlResponse",
     "TrackListResponse",
     "TrackResponse",
     "UpdateTrackRequest",
-    "UploadCompleteResponse",
 ]

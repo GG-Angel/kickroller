@@ -5,13 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.models import TrackStatus
 from api.schemas import (
-    CreateTrackRequest,
-    CreateTrackResponse,
     PlaybackUrlResponse,
     TrackListResponse,
     TrackResponse,
     UpdateTrackRequest,
-    UploadCompleteResponse,
 )
 from api.services.storage import ObjectStorage, get_object_storage
 
@@ -22,30 +19,11 @@ def not_implemented() -> HTTPException:
     return HTTPException(status.HTTP_501_NOT_IMPLEMENTED)
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
-async def create_track(
-    body: CreateTrackRequest,
-    storage: ObjectStorage = Depends(get_object_storage),
-) -> CreateTrackResponse:
-    """Make a pending track and sign a PUT URL for the upload."""
-    raise not_implemented()
-
-
-@router.post(
-    "/{track_id}/upload-complete", status_code=status.HTTP_202_ACCEPTED
-)
-async def complete_upload(
-    track_id: UUID, storage: ObjectStorage = Depends(get_object_storage)
-) -> UploadCompleteResponse:
-    """Do the HEAD check, set the track uploaded, and queue validation."""
-    raise not_implemented()
-
-
 @router.get("/{track_id}")
 async def get_track(
     track_id: UUID, storage: ObjectStorage = Depends(get_object_storage)
 ) -> TrackResponse:
-    """Get one track. The owner's view, so every status is visible."""
+    """Get one track."""
     raise not_implemented()
 
 
