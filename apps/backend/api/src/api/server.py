@@ -8,7 +8,7 @@ from api.core.config import Config
 from api.core.db import open_db
 from api.core.logging import configure_logging
 from api.core.state import AppState
-from api.core.storage import create_store
+from api.core.storage import build_store, create_store
 from api.routes import router
 from api.services.storage import ObjectStorage
 
@@ -23,6 +23,10 @@ async def open_state(config: Config) -> AsyncGenerator[AppState]:
             db=db,
             storage=ObjectStorage(
                 await create_store(config.storage),
+                build_store(
+                    config.storage,
+                    config.storage.public_endpoint or config.storage.endpoint,
+                ),
                 config.storage.upload_url_ttl,
             ),
         )
