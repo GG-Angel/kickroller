@@ -1,7 +1,7 @@
 # Build context: repo root (needs the workspace uv.lock).
 
 # --- Build stage ---
-FROM python:3.13-slim-trixie AS builder
+FROM python:3.14-slim-trixie AS builder
 
 # 1. Install uv and configure it for an image build.
 COPY --from=ghcr.io/astral-sh/uv:0.13.8 /uv /uvx /bin/
@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --package api --no-editable
 
 # --- Runtime stage ---
-FROM python:3.13-slim-trixie
+FROM python:3.14-slim-trixie
 
 # 4. Copy only the venv; it holds the installed app, so no source is needed.
 COPY --from=builder /app/.venv /app/.venv

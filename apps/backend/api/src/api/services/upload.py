@@ -1,8 +1,7 @@
 from datetime import UTC, datetime
-from uuid import UUID
+from uuid import UUID, uuid7
 
 from fastapi import Depends
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.core.db import get_session
@@ -22,10 +21,7 @@ class UploadService:
         self, user_id: UUID, filename: str, size: int
     ) -> CreateUploadResponse:
         """Insert a pending upload, then sign a PUT URL for its object."""
-        upload_id: UUID = (
-            await self._session.execute(select(func.uuidv7()))
-        ).scalar_one()
-
+        upload_id = uuid7()
         upload = Upload(
             id=upload_id,
             user_id=user_id,
