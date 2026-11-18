@@ -67,8 +67,6 @@ class ServerConfig(BaseSettings):
     """Interface to bind. Use 0.0.0.0 inside a container."""
     port: Port = 8000
     """Port for the public API."""
-    internal_port: Port = 8001
-    """Port for calls from other services, Keep it off the public network."""
     metrics_port: Port = 9100
     """Prometheus metrics port. Keep it off the public network."""
 

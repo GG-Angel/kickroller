@@ -41,8 +41,6 @@ USER 65534:65534
 ENV SERVER_HOST=0.0.0.0
 # Public API
 EXPOSE 8000
-# Service-to-service API
-EXPOSE 8001
 # Prometheus metrics
 EXPOSE 9100
 CMD ["api"]

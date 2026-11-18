@@ -8,7 +8,7 @@ from api.core.config import Config
 from api.core.db import open_db
 from api.core.state import AppState
 from api.core.storage import build_store, create_store
-from api.routes import router, webhooks
+from api.routes import router
 from api.services.storage import ObjectStorage
 
 
@@ -36,12 +36,4 @@ def create_app(state: AppState) -> FastAPI:
     app.state.app_state = state
     Instrumentator().instrument(app)
     app.include_router(router)
-    return app
-
-
-def create_internal_app(state: AppState) -> FastAPI:
-    """Build the app for calls from other services, like RustFS webhooks."""
-    app = FastAPI()
-    app.state.app_state = state
-    app.include_router(webhooks.router)
     return app

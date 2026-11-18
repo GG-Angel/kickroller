@@ -22,7 +22,7 @@ class EventRecord(BaseModel):
 
 
 class StorageEvent(BaseModel):
-    """S3 event notification that RustFS posts to the webhook."""
+    """S3 event notification that RustFS publishes when an object changes."""
 
     event_name: str = Field(alias="EventName")
     records: list[EventRecord] = Field(alias="Records")
