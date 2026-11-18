@@ -25,6 +25,7 @@ async def open_state(config: Config) -> AsyncGenerator[AppState]:
                     config.storage.public_endpoint or config.storage.endpoint,
                 ),
                 config.storage.upload_url_ttl,
+                config.storage.playback_url_ttl,
             ),
         )
 

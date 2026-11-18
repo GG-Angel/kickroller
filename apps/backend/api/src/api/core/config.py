@@ -48,6 +48,10 @@ class StorageConfig(BaseSettings):
         default=timedelta(minutes=15), gt=timedelta(0)
     )
     """How long a signed upload URL and its pending upload stay valid."""
+    playback_url_ttl: timedelta = Field(
+        default=timedelta(hours=1), gt=timedelta(0)
+    )
+    """How long a signed playback URL stays valid. Seeking needs it unexpired."""
 
 
 class ServerConfig(BaseSettings):

@@ -7,7 +7,12 @@ from obstore.exceptions import BaseError
 
 from api.models import Track, TrackStatus
 from api.repositories.track import TrackRepository, get_track_repository
-from api.schemas import TrackListResponse, TrackResponse, UpdateTrackRequest
+from api.schemas import (
+    PlaybackUrlResponse,
+    TrackListResponse,
+    TrackResponse,
+    UpdateTrackRequest,
+)
 from api.services.storage import ObjectStorage, get_object_storage
 
 
@@ -66,6 +71,18 @@ class TrackService:
                 f"Failed to delete audio of removed track {track.id}"
             )
         return True
+
+    async def create_playback_url(
+        self, user_id: UUID, track_id: UUID
+    ) -> PlaybackUrlResponse | None:
+        """Sign a GET URL for the user's visible track. None if there is none."""
+        track = await self._get_own_visible_track(user_id, track_id)
+        if track is None:
+            return None
+        ttl = self._storage.playback_url_ttl
+        expires_at = datetime.now(UTC) + ttl
+        url = await self._storage.sign_get(key=track.object_key, expires_in=ttl)
+        return PlaybackUrlResponse(url=url, expires_at=expires_at)
 
     async def _get_own_visible_track(
         self, user_id: UUID, track_id: UUID

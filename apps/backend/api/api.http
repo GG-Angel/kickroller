@@ -44,6 +44,7 @@ GET {{api}}/tracks/{{trackId}}
 
 ### Step 5: Rename the track
 PATCH {{api}}/tracks/{{trackId}}
+X-User-Id: {{userId}}
 Content-Type: application/json
 
 {
@@ -54,9 +55,11 @@ Content-Type: application/json
 ### Step 6: Get a presigned playback URL
 # @name playback
 POST {{api}}/tracks/{{trackId}}/playback-url
+X-User-Id: {{userId}}
 
 ### Step 7: Stream the audio from the playback URL
 GET {{playback.response.body.url}}
 
 ### Step 8: Remove the track
 DELETE {{api}}/tracks/{{trackId}}
+X-User-Id: {{userId}}

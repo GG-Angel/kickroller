@@ -68,7 +68,12 @@ async def delete_track(
 
 @router.post("/{track_id}/playback-url")
 async def create_playback_url(
-    track_id: UUID, storage: ObjectStorage = Depends(get_object_storage)
+    track_id: UUID,
+    user_id: UUID = Depends(get_user_id),
+    tracks: TrackService = Depends(get_track_service),
 ) -> PlaybackUrlResponse:
-    """Check access and sign a GET URL for playback."""
-    raise not_implemented()
+    """Sign a GET URL to stream your own track's audio."""
+    playback = await tracks.create_playback_url(user_id, track_id)
+    if playback is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    return playback
