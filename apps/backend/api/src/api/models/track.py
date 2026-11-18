@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from types import MappingProxyType
 from uuid import UUID
 
 from sqlalchemy import CheckConstraint, DateTime, Enum, Index, Text, func
@@ -70,6 +71,9 @@ class Track(Base):
     removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     """When the track was removed."""
 
+    # Fetch updated_at via RETURNING; async sessions can't lazy-load it later.
+    __mapper_args__ = MappingProxyType({"eager_defaults": True})
+
     __table_args__ = (
         Index("track_user_id_created_at_idx", user_id, created_at.desc()),
         CheckConstraint(
@@ -77,7 +81,7 @@ class Track(Base):
             name="track_title_check",
         ),
         CheckConstraint(
-            func.length(artist) <= TRACK_ARTIST_MAX_LENGTH,
+            func.length(artist).between(1, TRACK_ARTIST_MAX_LENGTH),
             name="track_artist_check",
         ),
         CheckConstraint(duration_ms > 0, name="track_duration_ms_check"),

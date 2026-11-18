@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from api.core.auth import get_user_id
 from api.models import TrackStatus
 from api.schemas import (
     PlaybackUrlResponse,
@@ -44,10 +45,14 @@ async def list_tracks(
 async def update_track(
     track_id: UUID,
     body: UpdateTrackRequest,
-    storage: ObjectStorage = Depends(get_object_storage),
+    user_id: UUID = Depends(get_user_id),
+    tracks: TrackService = Depends(get_track_service),
 ) -> TrackResponse:
-    """Change the title or artist."""
-    raise not_implemented()
+    """Change the title or artist of your own track."""
+    track = await tracks.update(user_id, track_id, body)
+    if track is None:  # Same 404 for others' tracks, so ids don't leak.
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    return track
 
 
 @router.delete("/{track_id}", status_code=status.HTTP_204_NO_CONTENT)

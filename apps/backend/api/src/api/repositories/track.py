@@ -33,6 +33,14 @@ class TrackRepository:
             query = query.where(Track.id < before)
         return (await self._session.scalars(query)).all()
 
+    async def get(self, track_id: UUID) -> Track | None:
+        """Load one track, or None if it doesn't exist."""
+        return await self._session.get(Track, track_id)
+
+    async def save(self) -> None:
+        """Commit changes made to loaded tracks."""
+        await self._session.commit()
+
 
 def get_track_repository(
     session: AsyncSession = Depends(get_session),

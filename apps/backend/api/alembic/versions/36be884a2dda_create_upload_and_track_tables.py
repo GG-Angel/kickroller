@@ -58,7 +58,9 @@ def upgrade() -> None:
         ),
         sa.Column("removed_at", sa.DateTime(timezone=True), nullable=True),
         sa.CheckConstraint("duration_ms > 0", name="track_duration_ms_check"),
-        sa.CheckConstraint("length(artist) <= 300", name="track_artist_check"),
+        sa.CheckConstraint(
+            "length(artist) BETWEEN 1 AND 300", name="track_artist_check"
+        ),
         sa.CheckConstraint(
             "length(title) BETWEEN 1 AND 300", name="track_title_check"
         ),

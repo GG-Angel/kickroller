@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, StringConstraints, field_validator
 
 from api.models import (
     TRACK_ARTIST_MAX_LENGTH,
@@ -10,8 +10,22 @@ from api.models import (
     TrackStatus,
 )
 
-Title = Annotated[str, Field(min_length=1, max_length=TRACK_TITLE_MAX_LENGTH)]
-Artist = Annotated[str, Field(max_length=TRACK_ARTIST_MAX_LENGTH)]
+Title = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=TRACK_TITLE_MAX_LENGTH,
+    ),
+]
+Artist = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=TRACK_ARTIST_MAX_LENGTH,
+    ),
+]
 
 
 class TrackResponse(BaseModel):
@@ -45,6 +59,14 @@ class UpdateTrackRequest(BaseModel):
     """New title of the track, if updating."""
     artist: Artist | None = None
     """New artist of the track, if updating."""
+
+    @field_validator("title")
+    @classmethod
+    def title_not_null(cls, title: str | None) -> str | None:
+        # Omitting title is fine; an explicit null would break the NOT NULL column.
+        if title is None:
+            raise ValueError("title cannot be null")
+        return title
 
 
 class PlaybackUrlResponse(BaseModel):
