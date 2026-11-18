@@ -42,51 +42,7 @@ class TrackService:
             next_cursor=str(page[-1].id) if len(rows) > limit else None,
         )
 
-    async def update(
-        self, user_id: UUID, track_id: UUID, changes: UpdateTrackRequest
-    ) -> TrackResponse | None:
-        """Apply changes to the user's visible track. None if there is none."""
-        track = await self._get_own_visible_track(user_id, track_id)
-        if track is None:
-            return None
-        if changes.title is not None:
-            track.title = changes.title
-        if "artist" in changes.model_fields_set:  # Sent as null clears it.
-            track.artist = changes.artist
-        await self._tracks.save()
-        return TrackResponse.model_validate(track, from_attributes=True)
-
-    async def delete(self, user_id: UUID, track_id: UUID) -> bool:
-        """Remove the user's visible track and its audio. False if there is none."""
-        track = await self._get_own_visible_track(user_id, track_id)
-        if track is None:
-            return False
-        track.status = TrackStatus.REMOVED
-        track.removed_at = datetime.now(UTC)
-        await self._tracks.save()
-        try:
-            await self._storage.delete(track.object_key)
-        except BaseError:
-            logger.exception(
-                f"Failed to delete audio of removed track {track.id}"
-            )
-        return True
-
-    async def create_playback_url(
-        self, user_id: UUID, track_id: UUID
-    ) -> PlaybackUrlResponse | None:
-        """Sign a GET URL for the user's visible track. None if there is none."""
-        track = await self._get_own_visible_track(user_id, track_id)
-        if track is None:
-            return None
-        ttl = self._storage.playback_url_ttl
-        expires_at = datetime.now(UTC) + ttl
-        url = await self._storage.sign_get(key=track.object_key, expires_in=ttl)
-        return PlaybackUrlResponse(url=url, expires_at=expires_at)
-
-    async def _get_own_visible_track(
-        self, user_id: UUID, track_id: UUID
-    ) -> Track | None:
+    async def get_owned(self, user_id: UUID, track_id: UUID) -> Track | None:
         """The track if the user owns it and it isn't removed."""
         track = await self._tracks.get(track_id)
         if (
@@ -96,6 +52,36 @@ class TrackService:
         ):
             return None
         return track
+
+    async def update(
+        self, track: Track, changes: UpdateTrackRequest
+    ) -> TrackResponse:
+        """Apply changes to the track."""
+        if changes.title is not None:
+            track.title = changes.title
+        if "artist" in changes.model_fields_set:  # Sent as null clears it.
+            track.artist = changes.artist
+        await self._tracks.save()
+        return TrackResponse.model_validate(track, from_attributes=True)
+
+    async def delete(self, track: Track) -> None:
+        """Remove the track and delete its audio."""
+        track.status = TrackStatus.REMOVED
+        track.removed_at = datetime.now(UTC)
+        await self._tracks.save()
+        try:
+            await self._storage.delete(track.object_key)
+        except BaseError:
+            logger.exception(
+                f"Failed to delete audio of removed track {track.id}"
+            )
+
+    async def create_playback_url(self, track: Track) -> PlaybackUrlResponse:
+        """Sign a GET URL for the track's audio."""
+        ttl = self._storage.playback_url_ttl
+        expires_at = datetime.now(UTC) + ttl
+        url = await self._storage.sign_get(key=track.object_key, expires_in=ttl)
+        return PlaybackUrlResponse(url=url, expires_at=expires_at)
 
 
 def get_track_service(

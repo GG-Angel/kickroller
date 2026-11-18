@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.core.auth import get_user_id
-from api.models import TrackStatus
+from api.models import Track, TrackStatus
 from api.schemas import (
     PlaybackUrlResponse,
     TrackListResponse,
@@ -19,6 +19,18 @@ router = APIRouter(prefix="/tracks", tags=["tracks"])
 
 def not_implemented() -> HTTPException:
     return HTTPException(status.HTTP_501_NOT_IMPLEMENTED)
+
+
+async def get_own_track(
+    track_id: UUID,
+    user_id: UUID = Depends(get_user_id),
+    tracks: TrackService = Depends(get_track_service),
+) -> Track:
+    """The caller's visible track from the path, or 404."""
+    track = await tracks.get_owned(user_id, track_id)
+    if track is None:  # Same 404 for others' tracks, so ids don't leak.
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    return track
 
 
 @router.get("/{track_id}")
@@ -43,37 +55,27 @@ async def list_tracks(
 
 @router.patch("/{track_id}")
 async def update_track(
-    track_id: UUID,
     body: UpdateTrackRequest,
-    user_id: UUID = Depends(get_user_id),
+    track: Track = Depends(get_own_track),
     tracks: TrackService = Depends(get_track_service),
 ) -> TrackResponse:
     """Change the title or artist of your own track."""
-    track = await tracks.update(user_id, track_id, body)
-    if track is None:  # Same 404 for others' tracks, so ids don't leak.
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
-    return track
+    return await tracks.update(track, body)
 
 
 @router.delete("/{track_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_track(
-    track_id: UUID,
-    user_id: UUID = Depends(get_user_id),
+    track: Track = Depends(get_own_track),
     tracks: TrackService = Depends(get_track_service),
 ) -> None:
     """Remove your own track and delete its audio."""
-    if not await tracks.delete(user_id, track_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    await tracks.delete(track)
 
 
 @router.post("/{track_id}/playback-url")
 async def create_playback_url(
-    track_id: UUID,
-    user_id: UUID = Depends(get_user_id),
+    track: Track = Depends(get_own_track),
     tracks: TrackService = Depends(get_track_service),
 ) -> PlaybackUrlResponse:
     """Sign a GET URL to stream your own track's audio."""
-    playback = await tracks.create_playback_url(user_id, track_id)
-    if playback is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
-    return playback
+    return await tracks.create_playback_url(track)
