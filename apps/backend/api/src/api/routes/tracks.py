@@ -57,10 +57,13 @@ async def update_track(
 
 @router.delete("/{track_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_track(
-    track_id: UUID, storage: ObjectStorage = Depends(get_object_storage)
+    track_id: UUID,
+    user_id: UUID = Depends(get_user_id),
+    tracks: TrackService = Depends(get_track_service),
 ) -> None:
-    """Set the track removed and delete its objects under tracks/{id}/."""
-    raise not_implemented()
+    """Remove your own track and delete its audio."""
+    if not await tracks.delete(user_id, track_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
 
 
 @router.post("/{track_id}/playback-url")

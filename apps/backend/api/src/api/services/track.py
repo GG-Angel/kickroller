@@ -1,17 +1,22 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import Depends
+from loguru import logger
+from obstore.exceptions import BaseError
 
-from api.models import TrackStatus
+from api.models import Track, TrackStatus
 from api.repositories.track import TrackRepository, get_track_repository
 from api.schemas import TrackListResponse, TrackResponse, UpdateTrackRequest
+from api.services.storage import ObjectStorage, get_object_storage
 
 
 class TrackService:
     """Validated tracks."""
 
-    def __init__(self, tracks: TrackRepository) -> None:
+    def __init__(self, tracks: TrackRepository, storage: ObjectStorage) -> None:
         self._tracks = tracks
+        self._storage = storage
 
     async def list(
         self,
@@ -36,12 +41,8 @@ class TrackService:
         self, user_id: UUID, track_id: UUID, changes: UpdateTrackRequest
     ) -> TrackResponse | None:
         """Apply changes to the user's visible track. None if there is none."""
-        track = await self._tracks.get(track_id)
-        if (
-            track is None
-            or track.user_id != user_id
-            or track.status != TrackStatus.READY
-        ):
+        track = await self._get_own_visible_track(user_id, track_id)
+        if track is None:
             return None
         if changes.title is not None:
             track.title = changes.title
@@ -50,9 +51,39 @@ class TrackService:
         await self._tracks.save()
         return TrackResponse.model_validate(track, from_attributes=True)
 
+    async def delete(self, user_id: UUID, track_id: UUID) -> bool:
+        """Remove the user's visible track and its audio. False if there is none."""
+        track = await self._get_own_visible_track(user_id, track_id)
+        if track is None:
+            return False
+        track.status = TrackStatus.REMOVED
+        track.removed_at = datetime.now(UTC)
+        await self._tracks.save()
+        try:
+            await self._storage.delete(track.object_key)
+        except BaseError:
+            logger.exception(
+                f"Failed to delete audio of removed track {track.id}"
+            )
+        return True
+
+    async def _get_own_visible_track(
+        self, user_id: UUID, track_id: UUID
+    ) -> Track | None:
+        """The track if the user owns it and it isn't removed."""
+        track = await self._tracks.get(track_id)
+        if (
+            track is None
+            or track.user_id != user_id
+            or track.status != TrackStatus.READY
+        ):
+            return None
+        return track
+
 
 def get_track_service(
     tracks: TrackRepository = Depends(get_track_repository),
+    storage: ObjectStorage = Depends(get_object_storage),
 ) -> TrackService:
     """FastAPI dependency that returns a track service for one request."""
-    return TrackService(tracks)
+    return TrackService(tracks, storage)
