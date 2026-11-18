@@ -62,6 +62,26 @@ services:
       timeout: 5s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:4.4.1-management-alpine
+    profiles: [infra, api]
+    restart: unless-stopped
+    hostname: rabbitmq # Ensures the data directory is correctly keyed to the node name
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - internal
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "5672"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+      start_interval: 5s
+
   api-migration:
     image: kickroller-api
     profiles: [api]
@@ -85,10 +105,13 @@ services:
         condition: service_completed_successfully
       db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - internal
     environment:
       DATABASE_URL: postgresql+asyncpg://kickroller:${POSTGRES_PASSWORD}@db:5432/kickroller
+      BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
       STORAGE_ENDPOINT: http://rustfs:9000
       STORAGE_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY}
       STORAGE_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY}
@@ -110,6 +133,7 @@ volumes:
   postgres_data:
   rustfs-data:
   rustfs-logs:
+  rabbitmq-data:
 
 networks:
   external:

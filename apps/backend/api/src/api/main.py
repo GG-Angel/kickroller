@@ -21,7 +21,7 @@ async def serve(config: Config, state: AppState) -> None:
     api = uvicorn.Server(
         uvicorn.Config(
             app=create_app(state),
-            host=config.server.host,
+            host=str(config.server.host),
             port=config.server.port,
             log_config=None,  # Handled by loguru
         )
@@ -29,7 +29,7 @@ async def serve(config: Config, state: AppState) -> None:
     metrics = uvicorn.Server(
         uvicorn.Config(
             app=make_asgi_app(),
-            host=config.server.host,
+            host=str(config.server.host),
             port=config.server.metrics_port,
             log_config=None,  # Handled by loguru
             lifespan="off",  # Has no lifespan; avoids uvicorn's "unsupported" log

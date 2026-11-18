@@ -75,6 +75,7 @@ dependencies = [
     { name = "prometheus-fastapi-instrumentator" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "rabbitmq-amqp-python-client" },
     { name = "sqlalchemy", extra = ["asyncio"] },
 ]
 
@@ -96,6 +97,7 @@ requires-dist = [
     { name = "prometheus-fastapi-instrumentator", specifier = ">=8.1.0" },
     { name = "pydantic", specifier = ">=2.14.3" },
     { name = "pydantic-settings", specifier = ">=2.16.2" },
+    { name = "rabbitmq-amqp-python-client", specifier = ">=1.0.2" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.1.8" },
 ]
 
@@ -1783,6 +1785,15 @@ wheels = [
 ]
 
 [[package]]
+name = "python-qpid-proton"
+version = "0.40.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cffi" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d5/dd/e9e5066009517bdfee92374264a2b6794fa0987bfeddcbf4d2a08dccaf36/python_qpid_proton-0.40.0.tar.gz", hash = "sha256:7680d607cf6e9684f97bf5b2ba16cda7d8512aab9e4ff78f98d44a4644fc819a", size = 354215, upload-time = "2025-05-19T18:45:37.932Z" }
+
+[[package]]
 name = "pyyaml"
 version = "6.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1806,6 +1817,20 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/da/92/1446574745d74df0c92e6aa4a7b0b3130706a4142b2d1a5869f2eaa423c6/pyyaml-6.0.3-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:16249ee61e95f858e83976573de0f5b2893b3677ba71c9dd36b9cf8be9ac6d65", size = 829923, upload-time = "2025-09-25T21:32:54.537Z" },
     { url = "https://files.pythonhosted.org/packages/f0/7a/1c7270340330e575b92f397352af856a8c06f230aa3e76f86b39d01b416a/pyyaml-6.0.3-cp314-cp314t-win_amd64.whl", hash = "sha256:4ad1906908f2f5ae4e5a8ddfce73c320c2a1429ec52eafd27138b7f1cbe341c9", size = 174062, upload-time = "2025-09-25T21:32:55.767Z" },
     { url = "https://files.pythonhosted.org/packages/f1/12/de94a39c2ef588c7e6455cfbe7343d3b2dc9d6b6b2f40c4c6565744c873d/pyyaml-6.0.3-cp314-cp314t-win_arm64.whl", hash = "sha256:ebc55a14a21cb14062aa4162f906cd962b28e2e9ea38f9b4391244cd8de4ae0b", size = 149341, upload-time = "2025-09-25T21:32:56.828Z" },
+]
+
+[[package]]
+name = "rabbitmq-amqp-python-client"
+version = "1.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+    { name = "python-qpid-proton" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f2/7d/2b14e32f7826b7ac3bf45126e7c5570fe7c0c8a8d55443f4a5b29f967abc/rabbitmq_amqp_python_client-1.0.2.tar.gz", hash = "sha256:b01da0810d18519fe03d76c7468c6028338e6bedf139b16d73eb851b2e3a9458", size = 120295, upload-time = "2026-11-16T09:38:31.158Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d5/aa/695e98490c8256f1f8c43c84a37d3194eb231dbe362c97bc6e32bf9361c0/rabbitmq_amqp_python_client-1.0.2-py3-none-any.whl", hash = "sha256:9fa376acfb35fe839de7de8345adfdd806077696f2e37cec8a89d3f5d58480de", size = 149996, upload-time = "2026-11-16T09:38:30Z" },
 ]
 
 [[package]]

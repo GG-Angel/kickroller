@@ -1,7 +1,8 @@
 from datetime import timedelta
+from ipaddress import IPv4Address, IPv6Address
 from typing import Annotated
 
-from pydantic import Field, PostgresDsn, SecretStr
+from pydantic import AmqpDsn, Field, HttpUrl, PostgresDsn, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Port = Annotated[int, Field(ge=1, le=65535)]
@@ -35,9 +36,9 @@ class StorageConfig(BaseSettings):
         extra="ignore",
     )
 
-    endpoint: str = "http://localhost:9000"
+    endpoint: HttpUrl = HttpUrl("http://localhost:9000")
     """S3 endpoint. Defaults to the local compose RustFS."""
-    public_endpoint: str | None = None
+    public_endpoint: HttpUrl | None = None
     """Endpoint clients reach for signed URLs. Defaults to `endpoint`."""
     bucket: str = "kickroller"
     access_key_id: str = Field(init=False)
@@ -54,6 +55,19 @@ class StorageConfig(BaseSettings):
     """How long a signed playback URL stays valid. Seeking needs it unexpired."""
 
 
+class BrokerConfig(BaseSettings):
+    """RabbitMQ connection settings, read from `BROKER_*` env vars."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="BROKER_",
+        env_file=".env",
+        extra="ignore",
+    )
+
+    url: AmqpDsn = Field(init=False)
+    """AMQP URI with credentials, e.g. amqp://user:pass@localhost:5672/."""
+
+
 class ServerConfig(BaseSettings):
     """HTTP server settings, read from `SERVER_*` env vars."""
 
@@ -63,7 +77,7 @@ class ServerConfig(BaseSettings):
         extra="ignore",
     )
 
-    host: str = "127.0.0.1"
+    host: IPv4Address | IPv6Address = IPv4Address("127.0.0.1")
     """Interface to bind. Use 0.0.0.0 inside a container."""
     port: Port = 8000
     """Port for the public API."""
@@ -77,3 +91,4 @@ class Config(BaseSettings):
     server: ServerConfig = Field(default_factory=ServerConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
+    broker: BrokerConfig = Field(default_factory=BrokerConfig)

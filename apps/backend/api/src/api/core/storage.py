@@ -1,18 +1,19 @@
 from loguru import logger
 from obstore.store import S3Store
+from pydantic import HttpUrl
 
 from api.core.config import StorageConfig
 
 
-def build_store(config: StorageConfig, endpoint: str) -> S3Store:
+def build_store(config: StorageConfig, endpoint: HttpUrl) -> S3Store:
     """Build an S3 store for the bucket at `endpoint`. Does not connect."""
     return S3Store(
         config.bucket,
-        endpoint=endpoint,
+        endpoint=str(endpoint),
         access_key_id=config.access_key_id,
         secret_access_key=config.secret_access_key.get_secret_value(),
         region=config.region,
-        client_options={"allow_http": endpoint.startswith("http://")},
+        client_options={"allow_http": endpoint.scheme == "http"},
     )
 
 
