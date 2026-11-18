@@ -41,6 +41,7 @@ GET {{api}}/tracks?owner_id={{userId}}&limit=20
 
 ### Step 4: Get the track
 GET {{api}}/tracks/{{trackId}}
+X-User-Id: {{userId}}
 
 ### Step 5: Rename the track
 PATCH {{api}}/tracks/{{trackId}}

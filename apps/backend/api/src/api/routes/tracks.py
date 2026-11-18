@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.core.auth import get_user_id
+from api.mappers.track import to_track_response
 from api.models import Track, TrackStatus
 from api.schemas import (
     PlaybackUrlResponse,
@@ -11,14 +12,9 @@ from api.schemas import (
     TrackResponse,
     UpdateTrackRequest,
 )
-from api.services.storage import ObjectStorage, get_object_storage
 from api.services.track import TrackService, get_track_service
 
 router = APIRouter(prefix="/tracks", tags=["tracks"])
-
-
-def not_implemented() -> HTTPException:
-    return HTTPException(status.HTTP_501_NOT_IMPLEMENTED)
 
 
 async def get_own_track(
@@ -34,11 +30,9 @@ async def get_own_track(
 
 
 @router.get("/{track_id}")
-async def get_track(
-    track_id: UUID, storage: ObjectStorage = Depends(get_object_storage)
-) -> TrackResponse:
-    """Get one track."""
-    raise not_implemented()
+async def get_track(track: Track = Depends(get_own_track)) -> TrackResponse:
+    """Get one of your own tracks."""
+    return to_track_response(track)
 
 
 @router.get("")

@@ -5,6 +5,7 @@ from fastapi import Depends
 from loguru import logger
 from obstore.exceptions import BaseError
 
+from api.mappers.track import to_track_response
 from api.models import Track, TrackStatus
 from api.repositories.track import TrackRepository, get_track_repository
 from api.schemas import (
@@ -35,10 +36,7 @@ class TrackService:
         rows = await self._tracks.list(owner_id, status, limit + 1, cursor)
         page = rows[:limit]
         return TrackListResponse(
-            items=[
-                TrackResponse.model_validate(t, from_attributes=True)
-                for t in page
-            ],
+            items=[to_track_response(track) for track in page],
             next_cursor=str(page[-1].id) if len(rows) > limit else None,
         )
 
@@ -62,7 +60,7 @@ class TrackService:
         if "artist" in changes.model_fields_set:  # Sent as null clears it.
             track.artist = changes.artist
         await self._tracks.save()
-        return TrackResponse.model_validate(track, from_attributes=True)
+        return to_track_response(track)
 
     async def delete(self, track: Track) -> None:
         """Remove the track and delete its audio."""
