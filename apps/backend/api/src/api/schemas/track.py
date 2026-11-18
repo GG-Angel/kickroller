@@ -35,6 +35,7 @@ class TrackResponse(BaseModel):
 
 class TrackListResponse(BaseModel):
     items: list[TrackResponse]
+    """List of tracks in the current page."""
     next_cursor: str | None
     """Cursor for the next page of tracks, if applicable."""
 

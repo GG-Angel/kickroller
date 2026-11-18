@@ -22,9 +22,11 @@ class UploadService:
         self, user_id: UUID, filename: str, size: int
     ) -> CreateUploadResponse:
         """Insert a pending upload, then sign a PUT URL for its object."""
+        upload_id = uuid7()
         upload = Upload(
+            id=upload_id,
             user_id=user_id,
-            object_key=f"uploads/{uuid7()}",
+            object_key=f"uploads/{upload_id}",
             size=size,
             original_filename=filename,
             expires_at=datetime.now(UTC) + self._storage.upload_url_ttl,
