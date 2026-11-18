@@ -1,0 +1,41 @@
+from collections.abc import Sequence
+from uuid import UUID
+
+from fastapi import Depends
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from api.core.db import get_session
+from api.models import Track, TrackStatus
+
+
+class TrackRepository:
+    """Database operations for tracks."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list(
+        self,
+        owner_id: UUID | None,
+        status: TrackStatus | None,
+        limit: int,
+        before: UUID | None,
+    ) -> Sequence[Track]:
+        """Tracks newest first, optionally only those older than `before`."""
+        # uuidv7 ids are time-ordered, so id order is creation order.
+        query = select(Track).order_by(Track.id.desc()).limit(limit)
+        if owner_id is not None:
+            query = query.where(Track.user_id == owner_id)
+        if status is not None:
+            query = query.where(Track.status == status)
+        if before is not None:
+            query = query.where(Track.id < before)
+        return (await self._session.scalars(query)).all()
+
+
+def get_track_repository(
+    session: AsyncSession = Depends(get_session),
+) -> TrackRepository:
+    """FastAPI dependency that returns a track repository for one request."""
+    return TrackRepository(session)

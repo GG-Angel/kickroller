@@ -11,6 +11,7 @@ from api.schemas import (
     UpdateTrackRequest,
 )
 from api.services.storage import ObjectStorage, get_object_storage
+from api.services.track import TrackService, get_track_service
 
 router = APIRouter(prefix="/tracks", tags=["tracks"])
 
@@ -32,11 +33,11 @@ async def list_tracks(
     owner_id: UUID | None = None,
     status: TrackStatus | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
-    cursor: str | None = None,
-    storage: ObjectStorage = Depends(get_object_storage),
+    cursor: UUID | None = None,
+    tracks: TrackService = Depends(get_track_service),
 ) -> TrackListResponse:
     """List tracks, newest first."""
-    raise not_implemented()
+    return await tracks.list(owner_id, status, limit, cursor)
 
 
 @router.patch("/{track_id}")
