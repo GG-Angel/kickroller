@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from fastapi import Request
+from faststream.rabbit import RabbitBroker
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 if TYPE_CHECKING:
@@ -14,6 +15,7 @@ class AppState:
 
     db: AsyncEngine
     storage: "ObjectStorage"
+    broker: RabbitBroker
 
 
 def get_app_state(request: Request) -> AppState:

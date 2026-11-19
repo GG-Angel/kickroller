@@ -97,6 +97,7 @@ dependencies = [
     { name = "asyncpg" },
     { name = "fastapi", extra = ["standard"] },
     { name = "faststream", extra = ["rabbit"] },
+    { name = "faststream-fastapi" },
     { name = "loguru" },
     { name = "obstore" },
     { name = "prometheus-fastapi-instrumentator" },
@@ -119,6 +120,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.32.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.163.0" },
     { name = "faststream", extras = ["rabbit"], specifier = ">=0.7.8" },
+    { name = "faststream-fastapi", specifier = ">=1.4.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "obstore", specifier = ">=0.12.1" },
     { name = "prometheus-fastapi-instrumentator", specifier = ">=8.1.0" },
@@ -662,6 +664,19 @@ wheels = [
 [package.optional-dependencies]
 rabbit = [
     { name = "aio-pika" },
+]
+
+[[package]]
+name = "faststream-fastapi"
+version = "1.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "faststream" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0e/80/fc244a37a6d453d126862c58e2571bacb3b29b3cdaf2056bdcd89fb21d4d/faststream_fastapi-1.4.0.tar.gz", hash = "sha256:dd1fad0d8ce3846f1f26eb4e0fd2eed6d878d51d78b4112d6375402d24985599", size = 12446, upload-time = "2026-09-21T20:48:28.765Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/59/ea/379cbe571524bd2415e721c9b9bd0cb10a949a4be88b2862ce21c3255966/faststream_fastapi-1.4.0-py3-none-any.whl", hash = "sha256:825f3ac86217dfdeb603b68b513ac98b818e18efa5de63b73a902196c42ffbab", size = 20156, upload-time = "2026-09-21T20:48:27.56Z" },
 ]
 
 [[package]]

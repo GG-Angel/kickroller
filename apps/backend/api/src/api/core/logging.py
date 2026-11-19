@@ -40,4 +40,8 @@ def configure_logging() -> None:
     logger.add(sink=sys.stdout, format=LOG_FORMAT)
     logger.enable(name="api")
 
-    logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
+    logging.basicConfig(
+        handlers=[InterceptHandler()],
+        level=logging.INFO,
+        force=True,
+    )

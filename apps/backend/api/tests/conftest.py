@@ -4,7 +4,10 @@ from datetime import timedelta
 from unittest.mock import Mock
 
 import pytest
+from faststream.rabbit import RabbitBroker
+from sqlalchemy.ext.asyncio import AsyncEngine
 
+from api.core.state import AppState
 from api.services.storage import ObjectStorage
 
 
@@ -17,3 +20,13 @@ def storage() -> Mock:
     storage.sign_put.return_value = "http://rustfs/put"
     storage.sign_get.return_value = "http://rustfs/get"
     return storage
+
+
+@pytest.fixture
+def state(storage: Mock) -> AppState:
+    """App state with mocked resources. The broker never connects."""
+    return AppState(
+        db=Mock(spec=AsyncEngine),
+        storage=storage,
+        broker=Mock(spec=RabbitBroker),
+    )
