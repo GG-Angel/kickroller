@@ -3,6 +3,6 @@
 set -eu
 
 # Events from RustFS
-rabbitmqadmin declare queue --name storage.events --type quorum --durable true
+rabbitmqadmin declare queue --name uploads.created --type quorum --durable true
 rabbitmqadmin declare binding --source amq.direct --destination-type queue \
-  --destination storage.events --routing-key storage.events
+  --destination uploads.created --routing-key storage.events

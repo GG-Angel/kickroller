@@ -2,13 +2,16 @@ from fastapi import Depends
 from faststream.rabbit import RabbitBroker
 from loguru import logger
 
+from api.consumers import storage
 from api.core.config import BrokerConfig
 from api.core.state import AppState, get_app_state
 
 
 def build_broker(config: BrokerConfig) -> RabbitBroker:
     """Build the RabbitMQ broker. Connects when the app starts."""
-    return RabbitBroker(str(config.url))
+    broker = RabbitBroker(str(config.url))
+    broker.include_router(storage.router)
+    return broker
 
 
 async def start_broker(broker: RabbitBroker) -> None:
