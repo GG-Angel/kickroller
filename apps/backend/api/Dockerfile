@@ -1,7 +1,7 @@
 # Build context: repo root (needs the workspace uv.lock).
 
 # --- Build stage ---
-FROM python:3.14-trixie AS builder
+FROM python:3.14-slim-trixie AS builder
 
 # 1. Install uv and configure it for an image build.
 COPY --from=ghcr.io/astral-sh/uv:0.13.8 /uv /uvx /bin/
