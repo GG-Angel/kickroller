@@ -10,7 +10,7 @@ The api is the only service that writes to Postgres. The worker only reads audio
 
 ## Infra
 
-- [ ] Declare `uploads.validate` and `uploads.validated` in `infra/rabbitmq/setup.sh` (quorum, bound to `amq.direct` with the queue name as the routing key).
+- [x] Declare `uploads.validate` and `uploads.validated` in `infra/rabbitmq/setup.sh` (quorum, published through the default exchange).
 - [ ] Add a DLX policy so jobs that hit the delivery limit are kept instead of dropped.
 - [x] Add a bucket lifecycle rule that expires `uploads/` after a day (`infra/rustfs/lifecycle.json`).
 
