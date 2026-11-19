@@ -67,7 +67,7 @@ async def test_asyncapi_docs_list_subscribers_without_try_it_out(
     @broker.subscriber("uploads")
     async def handle(body: str) -> None: ...
 
-    app = create_asgi_app(replace(state, broker=broker))
+    app = create_asgi_app(replace(state, broker=broker), docs=True)
     async with TestRabbitBroker(broker, connect_only=True):
         with TestClient(app) as client:
             page = client.get("/asyncapi")
@@ -81,3 +81,21 @@ async def test_asyncapi_docs_list_subscribers_without_try_it_out(
     assert any("uploads" in name for name in spec.json()["channels"])
     assert yaml.status_code == 200
     assert try_it.status_code in (404, 405)  # Publishing is not exposed.
+
+
+DOC_PATHS = ["/docs", "/redoc", "/openapi.json", "/asyncapi", "/asyncapi.json"]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("docs", [False, True])
+async def test_docs_are_served_only_when_enabled(
+    state: AppState, docs: bool
+) -> None:
+    broker = RabbitBroker()
+    app = create_asgi_app(replace(state, broker=broker), docs=docs)
+
+    async with TestRabbitBroker(broker, connect_only=True):
+        with TestClient(app) as client:
+            codes = {path: client.get(path).status_code for path in DOC_PATHS}
+
+    assert codes == dict.fromkeys(DOC_PATHS, 200 if docs else 404)

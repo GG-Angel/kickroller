@@ -35,3 +35,4 @@ services:
       - external
     environment:
       STORAGE_PUBLIC_ENDPOINT: http://localhost:9000
+      SERVER_DOCS: "true"

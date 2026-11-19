@@ -24,6 +24,10 @@ def test_server_host_accepts_ipv4_and_ipv6(host: str, parsed: object) -> None:
     assert load_settings(ServerConfig, host=host).host == parsed
 
 
+def test_server_docs_are_off_by_default() -> None:
+    assert load_settings(ServerConfig).docs is False
+
+
 @pytest.mark.parametrize(
     "fields", [{"host": "localhost"}, {"port": 0}, {"metrics_port": 65536}]
 )

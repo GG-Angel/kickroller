@@ -83,6 +83,8 @@ class ServerConfig(BaseSettings):
     """Port for the public API."""
     metrics_port: Port = 9100
     """Prometheus metrics port. Keep it off the public network."""
+    docs: bool = False
+    """Serve the OpenAPI and AsyncAPI docs. Off so prod never exposes them."""
 
 
 class Config(BaseSettings):

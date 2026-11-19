@@ -20,7 +20,7 @@ async def serve(config: Config, state: AppState) -> None:
     """Run the API and metrics servers until shutdown."""
     api = uvicorn.Server(
         uvicorn.Config(
-            app=create_asgi_app(state),
+            app=create_asgi_app(state, docs=config.server.docs),
             host=str(config.server.host),
             port=config.server.port,
             log_config=None,  # Handled by loguru
