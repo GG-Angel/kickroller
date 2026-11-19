@@ -28,26 +28,30 @@ def compiled_query(session: Mock) -> tuple[str, dict[str, object]]:
     return str(compiled), dict(compiled.params)
 
 
-async def test_list_without_filters_orders_newest_first(
+async def test_list_returns_owners_ready_tracks_newest_first(
     session: Mock,
 ) -> None:
     rows = [make_track()]
     session.scalars.return_value.all.return_value = rows
 
-    assert await TrackRepository(session).list(None, None, 20, None) == rows
-
-    sql, params = compiled_query(session)
-    assert "WHERE" not in sql
-    assert "ORDER BY track.id DESC" in sql
-    assert params == {"param_1": 20}
-
-
-async def test_list_applies_owner_status_and_cursor(session: Mock) -> None:
-    await TrackRepository(session).list(USER_ID, TrackStatus.READY, 5, TRACK_ID)
+    assert await TrackRepository(session).list(USER_ID, 20, None) == rows
 
     sql, params = compiled_query(session)
     assert "track.user_id = " in sql
     assert "track.status = " in sql
+    assert "track.id < " not in sql
+    assert "ORDER BY track.id DESC" in sql
+    assert params == {
+        "user_id_1": USER_ID,
+        "status_1": TrackStatus.READY,
+        "param_1": 20,
+    }
+
+
+async def test_list_applies_the_cursor(session: Mock) -> None:
+    await TrackRepository(session).list(USER_ID, 5, TRACK_ID)
+
+    sql, params = compiled_query(session)
     assert "track.id < " in sql
     assert params == {
         "user_id_1": USER_ID,

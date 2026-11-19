@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.core.auth import get_user_id
 from api.mappers.track import to_track_response
-from api.models import Track, TrackStatus
+from api.models import Track
 from api.schemas import (
     PlaybackUrlResponse,
     TrackListResponse,
@@ -37,14 +37,13 @@ async def get_track(track: Track = Depends(get_own_track)) -> TrackResponse:
 
 @router.get("")
 async def list_tracks(
-    owner_id: UUID | None = None,
-    status: TrackStatus | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     cursor: UUID | None = None,
+    user_id: UUID = Depends(get_user_id),
     tracks: TrackService = Depends(get_track_service),
 ) -> TrackListResponse:
-    """List tracks, newest first."""
-    return await tracks.list(owner_id, status, limit, cursor)
+    """List your own visible tracks, newest first."""
+    return await tracks.list(user_id, limit, cursor)
 
 
 @router.patch("/{track_id}")

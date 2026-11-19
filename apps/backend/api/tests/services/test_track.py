@@ -32,9 +32,9 @@ async def test_list_fetches_one_extra_row_to_find_the_next_page(
     rows = [make_track(id=uuid7()) for _ in range(3)]
     repo.list.return_value = rows
 
-    page = await service.list(USER_ID, TrackStatus.READY, 2, TRACK_ID)
+    page = await service.list(USER_ID, 2, TRACK_ID)
 
-    repo.list.assert_awaited_once_with(USER_ID, TrackStatus.READY, 3, TRACK_ID)
+    repo.list.assert_awaited_once_with(USER_ID, 3, TRACK_ID)
     assert [item.id for item in page.items] == [rows[0].id, rows[1].id]
     assert page.next_cursor == str(rows[1].id)
 
@@ -45,7 +45,7 @@ async def test_list_last_page_has_no_cursor(
     rows = [make_track(id=uuid7()) for _ in range(2)]
     repo.list.return_value = rows
 
-    page = await service.list(None, None, 2, None)
+    page = await service.list(USER_ID, 2, None)
 
     assert [item.id for item in page.items] == [row.id for row in rows]
     assert page.next_cursor is None
@@ -54,7 +54,7 @@ async def test_list_last_page_has_no_cursor(
 async def test_list_empty(service: TrackService, repo: Mock) -> None:
     repo.list.return_value = []
 
-    page = await service.list(None, None, 20, None)
+    page = await service.list(USER_ID, 20, None)
 
     assert page.items == []
     assert page.next_cursor is None

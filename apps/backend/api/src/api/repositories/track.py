@@ -17,18 +17,18 @@ class TrackRepository:
 
     async def list(
         self,
-        owner_id: UUID | None,
-        status: TrackStatus | None,
+        owner_id: UUID,
         limit: int,
         before: UUID | None,
     ) -> Sequence[Track]:
-        """Tracks newest first, optionally only those older than `before`."""
+        """The owner's ready tracks newest first, older than `before` if set."""
         # uuidv7 ids are time-ordered, so id order is creation order.
-        query = select(Track).order_by(Track.id.desc()).limit(limit)
-        if owner_id is not None:
-            query = query.where(Track.user_id == owner_id)
-        if status is not None:
-            query = query.where(Track.status == status)
+        query = (
+            select(Track)
+            .where(Track.user_id == owner_id, Track.status == TrackStatus.READY)
+            .order_by(Track.id.desc())
+            .limit(limit)
+        )
         if before is not None:
             query = query.where(Track.id < before)
         return (await self._session.scalars(query)).all()

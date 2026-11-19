@@ -7,7 +7,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api.mappers.track import to_track_response
-from api.models import TrackStatus
 from api.schemas import PlaybackUrlResponse, TrackListResponse
 from api.services.track import TrackService, get_track_service
 from tests.fakes import NOW, OTHER_USER_ID, TRACK_ID, USER_ID, make_track
@@ -72,34 +71,47 @@ def test_list_tracks_passes_filters_and_cursor(
 
     response = client.get(
         "/tracks",
-        params={
-            "owner_id": str(OTHER_USER_ID),
-            "status": "ready",
-            "limit": 5,
-            "cursor": str(TRACK_ID),
-        },
+        params={"limit": 5, "cursor": str(TRACK_ID)},
     )
 
     assert response.status_code == 200
     assert response.json() == page.model_dump(mode="json")
-    tracks.list.assert_awaited_once_with(
-        OTHER_USER_ID, TrackStatus.READY, 5, TRACK_ID
-    )
+    tracks.list.assert_awaited_once_with(USER_ID, 5, TRACK_ID)
 
 
-def test_list_tracks_defaults_to_twenty_unfiltered(
+def test_list_tracks_defaults_to_twenty(
     client: TestClient, tracks: Mock
 ) -> None:
     tracks.list.return_value = TrackListResponse(items=[], next_cursor=None)
 
     assert client.get("/tracks").status_code == 200
-    tracks.list.assert_awaited_once_with(None, None, 20, None)
+    tracks.list.assert_awaited_once_with(USER_ID, 20, None)
+
+
+def test_list_tracks_lists_only_the_callers_tracks(
+    client: TestClient, tracks: Mock
+) -> None:
+    tracks.list.return_value = TrackListResponse(items=[], next_cursor=None)
+
+    # An owner_id from the client is ignored, not trusted.
+    client.get("/tracks", params={"owner_id": str(OTHER_USER_ID)})
+
+    assert tracks.list.call_args.args[0] == USER_ID
+
+
+def test_list_tracks_requires_a_user_id(
+    client: TestClient, tracks: Mock
+) -> None:
+    del client.headers["X-User-Id"]
+
+    assert client.get("/tracks").status_code == 422
+    tracks.list.assert_not_called()
 
 
 @pytest.mark.parametrize(
     "params",
-    [{"limit": 0}, {"limit": 101}, {"status": "deleted"}, {"cursor": "x"}],
-    ids=["limit-low", "limit-high", "bad-status", "bad-cursor"],
+    [{"limit": 0}, {"limit": 101}, {"cursor": "x"}],
+    ids=["limit-low", "limit-high", "bad-cursor"],
 )
 def test_list_tracks_rejects_invalid_params(
     client: TestClient, tracks: Mock, params: dict[str, str | int]

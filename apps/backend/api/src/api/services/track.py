@@ -26,14 +26,13 @@ class TrackService:
 
     async def list(
         self,
-        owner_id: UUID | None,
-        status: TrackStatus | None,
+        owner_id: UUID,
         limit: int,
         cursor: UUID | None,
     ) -> TrackListResponse:
-        """One page of tracks, newest first. The cursor is the last id seen."""
+        """A page of the owner's ready tracks, newest first. Cursor: last id."""
         # One extra row tells us whether another page exists.
-        rows = await self._tracks.list(owner_id, status, limit + 1, cursor)
+        rows = await self._tracks.list(owner_id, limit + 1, cursor)
         page = rows[:limit]
         return TrackListResponse(
             items=[to_track_response(track) for track in page],
