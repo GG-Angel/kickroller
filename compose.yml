@@ -46,6 +46,8 @@ services:
     depends_on:
       rustfs:
         condition: service_healthy
+    volumes:
+      - ./infra/rustfs:/config:ro
     networks:
       - internal
     environment:
@@ -53,17 +55,7 @@ services:
       AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY}
       AWS_DEFAULT_REGION: us-east-1
       AWS_ENDPOINT_URL: http://rustfs:9000
-    entrypoint: ["sh", "-c"]
-    command:
-      - >-
-        (aws s3api head-bucket --bucket kickroller
-        || aws s3api create-bucket --bucket kickroller)
-        && aws s3api put-bucket-notification-configuration --bucket kickroller
-        --notification-configuration '{"QueueConfigurations": [{
-        "Id": "uploads", "QueueArn": "arn:rustfs:sqs:us-east-1:primary:amqp",
-        "Events": ["s3:ObjectCreated:Put"],
-        "Filter": {"Key": {"FilterRules": [{"Name": "prefix", "Value": "uploads/"}]}}
-        }]}'
+    entrypoint: ["sh", "/config/setup.sh"]
 
   db:
     image: postgres:18-alpine
