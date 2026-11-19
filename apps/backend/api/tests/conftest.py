@@ -10,13 +10,13 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from api.core.state import AppState
-from api.services.storage import ObjectStorage
+from api.services.storage import StorageService
 
 
 @pytest.fixture
 def storage() -> Mock:
     """Object storage that signs fake URLs. Its async methods are AsyncMocks."""
-    storage = Mock(spec=ObjectStorage)
+    storage = Mock(spec=StorageService)
     storage.upload_url_ttl = timedelta(minutes=15)
     storage.playback_url_ttl = timedelta(hours=1)
     storage.sign_put.return_value = "http://rustfs/put"

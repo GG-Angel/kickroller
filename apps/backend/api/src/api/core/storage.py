@@ -3,7 +3,7 @@ from obstore.store import ObjectStore, S3Store
 from pydantic import HttpUrl
 
 from api.core.config import StorageConfig
-from api.services.storage import ObjectStorage
+from api.services.storage import StorageService
 
 
 def build_store(config: StorageConfig, endpoint: HttpUrl) -> S3Store:
@@ -26,12 +26,12 @@ async def create_store(config: StorageConfig) -> S3Store:
     return store
 
 
-def build_object_storage(
+def build_storage_service(
     config: StorageConfig, store: ObjectStore
-) -> ObjectStorage:
+) -> StorageService:
     """Wrap `store`, signing URLs against the endpoint clients can reach."""
     signer = build_store(config, config.public_endpoint or config.endpoint)
-    return ObjectStorage(
+    return StorageService(
         store,
         signer,
         config.upload_url_ttl,

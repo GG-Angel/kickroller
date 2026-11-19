@@ -1,4 +1,4 @@
-"""Unit tests for ObjectStorage against in-memory and offline S3 stores."""
+"""Unit tests for StorageService against in-memory and offline S3 stores."""
 
 from datetime import timedelta
 from urllib.parse import parse_qs, urlsplit
@@ -8,7 +8,7 @@ from obstore import list as list_objects
 from obstore import put_async
 from obstore.store import MemoryStore, S3Store
 
-from api.services.storage import ObjectStorage
+from api.services.storage import StorageService
 
 pytestmark = pytest.mark.anyio
 
@@ -29,15 +29,15 @@ def store() -> MemoryStore:
 
 
 @pytest.fixture
-def storage(store: MemoryStore) -> ObjectStorage:
-    return ObjectStorage(
+def storage(store: MemoryStore) -> StorageService:
+    return StorageService(
         store, SIGNER, timedelta(minutes=15), timedelta(hours=1)
     )
 
 
 @pytest.mark.parametrize("method", ["sign_put", "sign_get"])
 async def test_sign_returns_url_for_the_key_and_expiry(
-    storage: ObjectStorage, method: str
+    storage: StorageService, method: str
 ) -> None:
     url = await getattr(storage, method)("uploads/a", timedelta(minutes=5))
 
@@ -48,7 +48,7 @@ async def test_sign_returns_url_for_the_key_and_expiry(
     assert parse_qs(parts.query)["X-Amz-Expires"] == ["300"]
 
 
-async def test_put_and_get_signatures_differ(storage: ObjectStorage) -> None:
+async def test_put_and_get_signatures_differ(storage: StorageService) -> None:
     expires_in = timedelta(minutes=5)
 
     put = await storage.sign_put("uploads/a", expires_in)
@@ -58,7 +58,7 @@ async def test_put_and_get_signatures_differ(storage: ObjectStorage) -> None:
 
 
 async def test_delete_removes_the_object(
-    storage: ObjectStorage, store: MemoryStore
+    storage: StorageService, store: MemoryStore
 ) -> None:
     await put_async(store, "uploads/a", b"audio")
     await put_async(store, "uploads/b", b"audio")
@@ -70,6 +70,6 @@ async def test_delete_removes_the_object(
 
 
 async def test_delete_of_missing_object_is_not_an_error(
-    storage: ObjectStorage,
+    storage: StorageService,
 ) -> None:
     await storage.delete("uploads/missing")

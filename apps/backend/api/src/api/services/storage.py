@@ -7,7 +7,7 @@ from obstore.store import ObjectStore, S3Store
 from api.core.state import AppState, get_app_state
 
 
-class ObjectStorage:
+class StorageService:
     """Track audio in the object store."""
 
     def __init__(
@@ -35,8 +35,8 @@ class ObjectStorage:
         await delete_async(self._store, key)
 
 
-def get_object_storage(
+def get_storage_service(
     state: AppState = Depends(get_app_state),
-) -> ObjectStorage:
+) -> StorageService:
     """FastAPI dependency that returns the shared object storage."""
     return state.storage

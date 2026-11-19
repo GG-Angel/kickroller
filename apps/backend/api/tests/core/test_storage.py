@@ -7,7 +7,7 @@ from obstore.store import MemoryStore
 from pydantic import HttpUrl
 
 from api.core.config import StorageConfig
-from api.core.storage import build_object_storage, build_store
+from api.core.storage import build_storage_service, build_store
 from tests.fakes import load_settings
 
 pytestmark = pytest.mark.anyio
@@ -44,12 +44,12 @@ def test_build_store_allows_http_only_for_http_endpoints(
     [(None, "localhost:9000"), ("http://cdn.example.com", "cdn.example.com")],
     ids=["internal", "public"],
 )
-async def test_build_object_storage_signs_with_the_client_endpoint(
+async def test_build_storage_service_signs_with_the_client_endpoint(
     public_endpoint: str | None, signed_host: str
 ) -> None:
     config = storage_config(public_endpoint=public_endpoint)
 
-    storage = build_object_storage(config, MemoryStore())
+    storage = build_storage_service(config, MemoryStore())
     url = await storage.sign_get("tracks/a", config.playback_url_ttl)
 
     assert urlsplit(url).netloc == signed_host

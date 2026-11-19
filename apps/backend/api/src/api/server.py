@@ -9,7 +9,7 @@ from api.core.broker import build_broker, start_broker
 from api.core.config import Config
 from api.core.db import open_db
 from api.core.state import AppState
-from api.core.storage import build_object_storage, create_store
+from api.core.storage import build_storage_service, create_store
 from api.routes import router
 
 
@@ -20,7 +20,7 @@ async def open_state(config: Config) -> AsyncGenerator[AppState]:
         store = await create_store(config.storage)
         yield AppState(
             db=db,
-            storage=build_object_storage(config.storage, store),
+            storage=build_storage_service(config.storage, store),
             broker=build_broker(config.broker),
         )
 

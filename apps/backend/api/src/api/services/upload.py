@@ -6,14 +6,14 @@ from fastapi import Depends
 from api.models import Upload
 from api.repositories.upload import UploadRepository, get_upload_repository
 from api.schemas import CreateUploadResponse
-from api.services.storage import ObjectStorage, get_object_storage
+from api.services.storage import StorageService, get_storage_service
 
 
 class UploadService:
     """Upload attempts: their rows in the DB and their objects in storage."""
 
     def __init__(
-        self, uploads: UploadRepository, storage: ObjectStorage
+        self, uploads: UploadRepository, storage: StorageService
     ) -> None:
         self._uploads = uploads
         self._storage = storage
@@ -47,7 +47,7 @@ class UploadService:
 
 def get_upload_service(
     uploads: UploadRepository = Depends(get_upload_repository),
-    storage: ObjectStorage = Depends(get_object_storage),
+    storage: StorageService = Depends(get_storage_service),
 ) -> UploadService:
     """FastAPI dependency that returns an upload service for one request."""
     return UploadService(uploads, storage)

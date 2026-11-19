@@ -6,7 +6,7 @@ from faststream.rabbit import RabbitBroker
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 if TYPE_CHECKING:
-    from api.services.storage import ObjectStorage
+    from api.services.storage import StorageService
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,7 +14,7 @@ class AppState:
     """Resources that live for the whole app, created in the lifespan."""
 
     db: AsyncEngine
-    storage: "ObjectStorage"
+    storage: "StorageService"
     broker: RabbitBroker
 
 

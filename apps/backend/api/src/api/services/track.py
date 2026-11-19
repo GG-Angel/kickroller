@@ -14,13 +14,15 @@ from api.schemas import (
     TrackResponse,
     UpdateTrackRequest,
 )
-from api.services.storage import ObjectStorage, get_object_storage
+from api.services.storage import StorageService, get_storage_service
 
 
 class TrackService:
     """Validated tracks."""
 
-    def __init__(self, tracks: TrackRepository, storage: ObjectStorage) -> None:
+    def __init__(
+        self, tracks: TrackRepository, storage: StorageService
+    ) -> None:
         self._tracks = tracks
         self._storage = storage
 
@@ -83,7 +85,7 @@ class TrackService:
 
 def get_track_service(
     tracks: TrackRepository = Depends(get_track_repository),
-    storage: ObjectStorage = Depends(get_object_storage),
+    storage: StorageService = Depends(get_storage_service),
 ) -> TrackService:
     """FastAPI dependency that returns a track service for one request."""
     return TrackService(tracks, storage)
