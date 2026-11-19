@@ -11,7 +11,8 @@ from api.schemas import PlaybackUrlResponse, TrackListResponse
 from api.services.track import TrackService, get_track_service
 from tests.fakes import NOW, OTHER_USER_ID, TRACK_ID, USER_ID, make_track
 
-TRACK_URL = f"/tracks/{TRACK_ID}"
+TRACKS_URL = "/me/tracks"
+TRACK_URL = f"{TRACKS_URL}/{TRACK_ID}"
 
 
 @pytest.fixture
@@ -70,7 +71,7 @@ def test_list_tracks_passes_filters_and_cursor(
     tracks.list.return_value = page
 
     response = client.get(
-        "/tracks",
+        TRACKS_URL,
         params={"limit": 5, "cursor": str(TRACK_ID)},
     )
 
@@ -84,7 +85,7 @@ def test_list_tracks_defaults_to_twenty(
 ) -> None:
     tracks.list.return_value = TrackListResponse(items=[], next_cursor=None)
 
-    assert client.get("/tracks").status_code == 200
+    assert client.get(TRACKS_URL).status_code == 200
     tracks.list.assert_awaited_once_with(USER_ID, 20, None)
 
 
@@ -94,7 +95,7 @@ def test_list_tracks_lists_only_the_callers_tracks(
     tracks.list.return_value = TrackListResponse(items=[], next_cursor=None)
 
     # An owner_id from the client is ignored, not trusted.
-    client.get("/tracks", params={"owner_id": str(OTHER_USER_ID)})
+    client.get(TRACKS_URL, params={"owner_id": str(OTHER_USER_ID)})
 
     assert tracks.list.call_args.args[0] == USER_ID
 
@@ -104,7 +105,7 @@ def test_list_tracks_requires_a_user_id(
 ) -> None:
     del client.headers["X-User-Id"]
 
-    assert client.get("/tracks").status_code == 422
+    assert client.get(TRACKS_URL).status_code == 422
     tracks.list.assert_not_called()
 
 
@@ -116,7 +117,7 @@ def test_list_tracks_requires_a_user_id(
 def test_list_tracks_rejects_invalid_params(
     client: TestClient, tracks: Mock, params: dict[str, str | int]
 ) -> None:
-    assert client.get("/tracks", params=params).status_code == 422
+    assert client.get(TRACKS_URL, params=params).status_code == 422
     tracks.list.assert_not_called()
 
 

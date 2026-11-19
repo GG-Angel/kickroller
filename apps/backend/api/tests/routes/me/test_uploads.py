@@ -12,6 +12,8 @@ from api.schemas import CreateUploadResponse
 from api.services.upload import UploadService, get_upload_service
 from tests.fakes import NOW, USER_ID
 
+UPLOADS_URL = "/me/uploads"
+
 
 @pytest.fixture
 def uploads(app: FastAPI) -> Mock:
@@ -28,7 +30,9 @@ def test_create_upload_returns_the_signed_upload(
     )
     uploads.create.return_value = created
 
-    response = client.post("/uploads", json={"filename": "kick.wav", "size": 1})
+    response = client.post(
+        UPLOADS_URL, json={"filename": "kick.wav", "size": 1}
+    )
 
     assert response.status_code == 201
     assert CreateUploadResponse.model_validate(response.json()) == created
@@ -43,7 +47,7 @@ def test_create_upload_requires_a_user_id(
     headers = {} if user_id is None else {"X-User-Id": user_id}
 
     response = client.post(
-        "/uploads", json={"filename": "kick.wav", "size": 1}, headers=headers
+        UPLOADS_URL, json={"filename": "kick.wav", "size": 1}, headers=headers
     )
 
     assert response.status_code == 422
@@ -63,5 +67,5 @@ def test_create_upload_requires_a_user_id(
 def test_create_upload_rejects_invalid_bodies(
     client: TestClient, uploads: Mock, body: dict[str, Any]
 ) -> None:
-    assert client.post("/uploads", json=body).status_code == 422
+    assert client.post(UPLOADS_URL, json=body).status_code == 422
     uploads.create.assert_not_called()
