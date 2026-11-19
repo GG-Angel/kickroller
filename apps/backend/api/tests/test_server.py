@@ -56,3 +56,28 @@ def test_startup_fails_when_rabbitmq_is_unreachable(
 
     with pytest.raises(ConnectionError), TestClient(app):
         pass
+
+
+@pytest.mark.anyio
+async def test_asyncapi_docs_list_subscribers_without_try_it_out(
+    state: AppState,
+) -> None:
+    broker = RabbitBroker()
+
+    @broker.subscriber("uploads")
+    async def handle(body: str) -> None: ...
+
+    app = create_asgi_app(replace(state, broker=broker))
+    async with TestRabbitBroker(broker, connect_only=True):
+        with TestClient(app) as client:
+            page = client.get("/asyncapi")
+            spec = client.get("/asyncapi.json")
+            yaml = client.get("/asyncapi.yaml")
+            try_it = client.post("/asyncapi/try", json={})
+
+    assert page.status_code == 200
+    assert page.headers["content-type"].startswith("text/html")
+    assert spec.status_code == 200
+    assert any("uploads" in name for name in spec.json()["channels"])
+    assert yaml.status_code == 200
+    assert try_it.status_code in (404, 405)  # Publishing is not exposed.

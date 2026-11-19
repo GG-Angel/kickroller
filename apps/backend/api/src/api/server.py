@@ -2,10 +2,10 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from faststream_fastapi import FastStreamAPI
+from faststream_fastapi import AsyncAPIConfig, FastStreamAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from api.core.broker import build_broker
+from api.core.broker import build_broker, start_broker
 from api.core.config import Config
 from api.core.db import open_db
 from api.core.state import AppState
@@ -40,4 +40,6 @@ def create_asgi_app(state: AppState) -> FastStreamAPI:
         state.broker,
         application=create_app(state),
         safe_connection=True,  # Fail startup if RabbitMQ is down.
+        connection_hook=start_broker,
+        asyncapi_path=AsyncAPIConfig("/asyncapi", try_it_out_path=None),
     )

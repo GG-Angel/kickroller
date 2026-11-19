@@ -1,10 +1,12 @@
 """Fixtures shared across the API tests."""
 
+from collections.abc import Iterator
 from datetime import timedelta
 from unittest.mock import Mock
 
 import pytest
 from faststream.rabbit import RabbitBroker
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from api.core.state import AppState
@@ -30,3 +32,12 @@ def state(storage: Mock) -> AppState:
         storage=storage,
         broker=Mock(spec=RabbitBroker),
     )
+
+
+@pytest.fixture
+def logs() -> Iterator[list[str]]:
+    """Loguru output, as '<function> <level> <message>' lines."""
+    logs: list[str] = []
+    sink = logger.add(logs.append, format="{function} {level} {message}")
+    yield logs
+    logger.remove(sink)
