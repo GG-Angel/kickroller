@@ -19,7 +19,19 @@ services:
       RUSTFS_OBS_LOGGER_LEVEL: error
       RUSTFS_OBS_LOG_DIRECTORY: "/var/log/rustfs/"
       RUSTFS_NOTIFY_ENABLE: "true"
+      RUSTFS_NOTIFY_AMQP_ENABLE_PRIMARY: "on"
+      RUSTFS_NOTIFY_AMQP_URL_PRIMARY: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      RUSTFS_NOTIFY_AMQP_EXCHANGE_PRIMARY: amq.direct
+      RUSTFS_NOTIFY_AMQP_ROUTING_KEY_PRIMARY: storage.events
+      # Unroutable events are returned and retried instead of silently dropped.
+      RUSTFS_NOTIFY_AMQP_MANDATORY_PRIMARY: "true"
+      RUSTFS_NOTIFY_AMQP_PERSISTENT_PRIMARY: "true"
+      # Buffers events on the data volume while RabbitMQ is unreachable.
+      RUSTFS_NOTIFY_AMQP_QUEUE_DIR_PRIMARY: /data/.rustfs/events
     command: /data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
       interval: 30s
@@ -43,7 +55,15 @@ services:
       AWS_ENDPOINT_URL: http://rustfs:9000
     entrypoint: ["sh", "-c"]
     command:
-      - aws s3api head-bucket --bucket kickroller || aws s3api create-bucket --bucket kickroller
+      - >-
+        (aws s3api head-bucket --bucket kickroller
+        || aws s3api create-bucket --bucket kickroller)
+        && aws s3api put-bucket-notification-configuration --bucket kickroller
+        --notification-configuration '{"QueueConfigurations": [{
+        "Id": "uploads", "QueueArn": "arn:rustfs:sqs:us-east-1:primary:amqp",
+        "Events": ["s3:ObjectCreated:Put"],
+        "Filter": {"Key": {"FilterRules": [{"Name": "prefix", "Value": "uploads/"}]}}
+        }]}'
 
   db:
     image: postgres:18-alpine
