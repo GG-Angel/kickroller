@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from fastapi import Depends
 from obstore import delete_async, sign_async
-from obstore.store import S3Store
+from obstore.store import ObjectStore, S3Store
 
 from api.core.state import AppState, get_app_state
 
@@ -12,7 +12,7 @@ class ObjectStorage:
 
     def __init__(
         self,
-        store: S3Store,
+        store: ObjectStore,
         signer: S3Store,
         upload_url_ttl: timedelta,
         playback_url_ttl: timedelta,

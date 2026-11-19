@@ -1,8 +1,9 @@
 from loguru import logger
-from obstore.store import S3Store
+from obstore.store import ObjectStore, S3Store
 from pydantic import HttpUrl
 
 from api.core.config import StorageConfig
+from api.services.storage import ObjectStorage
 
 
 def build_store(config: StorageConfig, endpoint: HttpUrl) -> S3Store:
@@ -23,3 +24,16 @@ async def create_store(config: StorageConfig) -> S3Store:
     await store.list_with_delimiter_async()
     logger.info(f"Connected to bucket {config.bucket} at {config.endpoint}")
     return store
+
+
+def build_object_storage(
+    config: StorageConfig, store: ObjectStore
+) -> ObjectStorage:
+    """Wrap `store`, signing URLs against the endpoint clients can reach."""
+    signer = build_store(config, config.public_endpoint or config.endpoint)
+    return ObjectStorage(
+        store,
+        signer,
+        config.upload_url_ttl,
+        config.playback_url_ttl,
+    )
