@@ -32,6 +32,8 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      rabbitmq-setup: # Its queue must exist before events are published.
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
       interval: 30s
@@ -93,6 +95,23 @@ services:
       retries: 3
       start_period: 40s
       start_interval: 5s
+
+  rabbitmq-setup:
+    image: rabbitmq:4.4.1-management-alpine
+    profiles: [infra, api]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./infra/rabbitmq:/config:ro
+    networks:
+      - internal
+    environment:
+      RABBITMQADMIN_TARGET_HOST: rabbitmq
+      RABBITMQADMIN_USERNAME: ${RABBITMQ_USER}
+      RABBITMQADMIN_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQADMIN_NON_INTERACTIVE_MODE: "true"
+    entrypoint: ["sh", "/config/setup.sh"]
 
   api-migration:
     image: kickroller-api
