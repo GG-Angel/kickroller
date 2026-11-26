@@ -1,0 +1,27 @@
+[project]
+name = "ingester"
+version = "0.1.0"
+description = "Turns uploaded audio into tracks"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []
+
+[project.scripts]
+ingester = "ingester.main:run"
+
+[dependency-groups]
+dev = ["poethepoet>=0.49.0", "pytest>=9.2.0", "ruff>=0.16.10", "ty>=0.0.84"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ingester"]
+
+[tool.poe.tasks]
+test = { cmd = "pytest", help = "Run the tests" }
+fix = { help = "Lint with fixes, then format", sequence = [
+    { cmd = "ruff check --fix $POE_EXTRA_ARGS" },
+    { cmd = "ruff format $POE_EXTRA_ARGS" },
+] }
