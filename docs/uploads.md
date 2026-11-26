@@ -38,7 +38,7 @@ Upload status: `pending` → `validating` → a `Track`, `rejected`, or `expired
   - Pass: in one transaction, insert the `Track` (key `tracks/{id}`, `duration_ms`) and delete the upload row.
   - Fail: set `REJECTED` and `rejection_reason`, then delete `tracks/{id}`.
 - [ ] Give it credentials scoped to the `upload` and `track` tables and the `uploads/` and `tracks/` prefixes.
-- [ ] Add a service in `compose.yml` that depends on `rabbitmq-setup` and `api-migration`.
+- [x] Add a service in `compose.yml` that depends on `rabbitmq-setup` and `api-migration`.
 
 ## Decisions
 
