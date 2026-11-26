@@ -1,0 +1,10 @@
+*
+!pyproject.toml
+!uv.lock
+!apps/backend/ingester/pyproject.toml
+!apps/backend/ingester/README.md
+!apps/backend/ingester/src
+!libs/kickroller/pyproject.toml
+!libs/kickroller/README.md
+!libs/kickroller/src
+**/__pycache__
