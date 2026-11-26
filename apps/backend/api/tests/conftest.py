@@ -22,8 +22,8 @@ def storage() -> Mock:
     storage = Mock(spec=StorageService)
     storage.upload_url_ttl = timedelta(minutes=15)
     storage.playback_url_ttl = timedelta(hours=1)
-    storage.sign_put.return_value = "http://rustfs/put"
-    storage.sign_get.return_value = "http://rustfs/get"
+    storage.create_put_url.return_value = "http://rustfs/put"
+    storage.create_get_url.return_value = "http://rustfs/get"
     return storage
 
 

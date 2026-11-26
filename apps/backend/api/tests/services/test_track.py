@@ -151,6 +151,6 @@ async def test_create_playback_url_signs_get_for_the_ttl(
     assert response.url == "http://rustfs/get"
     ttl = storage.playback_url_ttl
     assert before + ttl <= response.expires_at <= datetime.now(UTC) + ttl
-    storage.sign_get.assert_awaited_once_with(
+    storage.create_get_url.assert_awaited_once_with(
         key=track.object_key, expires_in=ttl
     )

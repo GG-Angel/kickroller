@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, Enum, Text, func
+from sqlalchemy import CheckConstraint, DateTime, Enum, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from kickroller.models.base import Base
@@ -38,9 +38,7 @@ class Upload(Base):
 
     object_key: Mapped[str] = mapped_column(Text, unique=True)
     """Where the audio goes in the object store."""
-    size_bytes: Mapped[int] = mapped_column(BigInteger)
-    """Declared size of the audio in bytes."""
-    original_filename: Mapped[str] = mapped_column(Text)
+    filename: Mapped[str] = mapped_column(Text)
     """The original filename of the uploaded audio."""
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     """When the signed upload URL stops working."""
@@ -79,7 +77,6 @@ class Upload(Base):
     """The timestamp of the last update."""
 
     __table_args__ = (
-        CheckConstraint(size_bytes > 0, name="upload_size_bytes_check"),
         CheckConstraint(
             (status != UploadStatus.VALIDATING)
             | validation_started_at.is_not(None),
@@ -89,9 +86,7 @@ class Upload(Base):
             validation_attempts >= 0, name="upload_validation_attempts_check"
         ),
         CheckConstraint(
-            func.length(original_filename).between(
-                1, UPLOAD_FILENAME_MAX_LENGTH
-            ),
-            name="upload_original_filename_check",
+            func.length(filename).between(1, UPLOAD_FILENAME_MAX_LENGTH),
+            name="upload_filename_check",
         ),
     )

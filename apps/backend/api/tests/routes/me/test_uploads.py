@@ -36,7 +36,7 @@ def test_create_upload_returns_the_signed_upload(
 
     assert response.status_code == 201
     assert CreateUploadResponse.model_validate(response.json()) == created
-    uploads.create.assert_awaited_once_with(USER_ID, "kick.wav", 1)
+    uploads.create.assert_awaited_once_with(USER_ID, "kick.wav")
 
 
 @pytest.mark.parametrize("user_id", [None, "", "not-a-uuid"])

@@ -22,7 +22,7 @@ class UploadService:
         self._storage = storage
 
     async def create(
-        self, user_id: UUID, filename: str, size_bytes: int
+        self, user_id: UUID, filename: str
     ) -> CreateUploadResponse:
         """Insert a pending upload, then sign a PUT URL for its object."""
         upload_id = uuid7()
@@ -30,8 +30,7 @@ class UploadService:
             id=upload_id,
             user_id=user_id,
             object_key=f"{UPLOAD_OBJECT_KEY_PREFIX}{upload_id}",
-            size_bytes=size_bytes,
-            original_filename=filename,
+            filename=filename,
             expires_at=datetime.now(UTC) + self._storage.upload_url_ttl,
         )
         await self._uploads.add(upload)

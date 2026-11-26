@@ -17,8 +17,7 @@ async def test_add_inserts_then_commits() -> None:
     upload = Upload(
         user_id=USER_ID,
         object_key="uploads/a",
-        size_bytes=1,
-        original_filename="kick.wav",
+        filename="kick.wav",
         expires_at=NOW,
     )
 

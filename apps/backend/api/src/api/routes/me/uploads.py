@@ -19,4 +19,4 @@ async def create_upload(
     uploads: UploadService = Depends(get_upload_service),
 ) -> CreateUploadResponse:
     """Make a pending upload and sign a PUT URL for it."""
-    return await uploads.create(user_id, body.filename, body.size_bytes)
+    return await uploads.create(user_id, body.filename)

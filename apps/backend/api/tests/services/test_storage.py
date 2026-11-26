@@ -36,7 +36,7 @@ async def storage(store: Mock) -> AsyncIterator[StorageService]:
         )
 
 
-@pytest.mark.parametrize("method", ["sign_put", "sign_get"])
+@pytest.mark.parametrize("method", ["create_put_url", "create_get_url"])
 async def test_sign_returns_url_for_the_key_and_expiry(
     storage: StorageService, method: str
 ) -> None:
