@@ -38,5 +38,11 @@ class StorageService:
 def get_storage_service(
     state: AppState = Depends(get_app_state),
 ) -> StorageService:
-    """FastAPI dependency that returns the shared object storage."""
-    return state.storage
+    """FastAPI dependency that returns the object storage."""
+    config = state.config.storage
+    return StorageService(
+        state.store,
+        state.signer,
+        config.upload_url_ttl,
+        config.playback_url_ttl,
+    )

@@ -31,7 +31,6 @@ class StorageConfig(BaseSettings):
     )
 
     endpoint: HttpUrl = HttpUrl("http://localhost:9000")
-    """S3 endpoint. Defaults to the local compose RustFS."""
     bucket: str = "kickroller"
     access_key_id: str = Field(init=False)
     secret_access_key: SecretStr = Field(init=False)

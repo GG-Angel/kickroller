@@ -1,6 +1,6 @@
 from datetime import timedelta
 from ipaddress import IPv4Address, IPv6Address
-from typing import Annotated
+from typing import Annotated, Self
 
 from pydantic import Field, HttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,6 +24,11 @@ class StorageConfig(kickroller.config.StorageConfig):
         default=timedelta(hours=1), gt=timedelta(0)
     )
     """How long a signed playback URL stays valid. Seeking needs it unexpired."""
+
+    def for_signing(self) -> Self:
+        if self.public_endpoint is None:
+            return self
+        return self.model_copy(update={"endpoint": self.public_endpoint})
 
 
 class ServerConfig(BaseSettings):

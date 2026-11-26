@@ -8,7 +8,6 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from api.core.broker import start_broker
 from api.core.config import Config
 from api.core.state import AppState
-from api.core.storage import build_storage_service
 from api.routes import router
 from kickroller.broker import build_broker
 from kickroller.db import open_db
@@ -19,10 +18,14 @@ from kickroller.storage import create_store
 async def open_state(config: Config) -> AsyncGenerator[AppState]:
     """Open the app's resources and release them on exit."""
     async with open_db(config.database) as db:
-        store = await create_store(config.storage)
         yield AppState(
+            config=config,
             db=db,
-            storage=build_storage_service(config.storage, store),
+            store=await create_store(config.storage),
+            signer=await create_store(
+                config.storage.for_signing(),
+                verify=False,
+            ),
             broker=build_broker(config.broker),
         )
 

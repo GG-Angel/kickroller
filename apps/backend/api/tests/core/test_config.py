@@ -38,3 +38,18 @@ def test_server_rejects_invalid_bind(fields: dict[str, object]) -> None:
 def test_storage_ttls_must_be_positive(ttl: str) -> None:
     with pytest.raises(ValidationError):
         load_settings(StorageConfig, **STORAGE_KEYS, **{ttl: 0})
+
+
+@pytest.mark.parametrize(
+    ("public_endpoint", "endpoint"),
+    [(None, "http://localhost:9000/"), ("http://cdn.test", "http://cdn.test/")],
+    ids=["internal", "public"],
+)
+def test_storage_signs_against_the_client_endpoint(
+    public_endpoint: str | None, endpoint: str
+) -> None:
+    config = load_settings(
+        StorageConfig, **STORAGE_KEYS, public_endpoint=public_endpoint
+    )
+
+    assert str(config.for_signing().endpoint) == endpoint

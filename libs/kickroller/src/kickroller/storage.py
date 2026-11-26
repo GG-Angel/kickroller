@@ -5,7 +5,7 @@ from pydantic import HttpUrl
 from kickroller.config import StorageConfig
 
 
-def build_store(config: StorageConfig, endpoint: HttpUrl) -> S3Store:
+def _build_store(config: StorageConfig, endpoint: HttpUrl) -> S3Store:
     """Build an S3 store for the bucket at `endpoint`. Does not connect."""
     return S3Store(
         config.bucket,
@@ -17,9 +17,11 @@ def build_store(config: StorageConfig, endpoint: HttpUrl) -> S3Store:
     )
 
 
-async def create_store(config: StorageConfig) -> S3Store:
-    """Build the S3 store and check that the bucket answers."""
-    store = build_store(config, config.endpoint)
-    await store.list_with_delimiter_async()
-    logger.info(f"Connected to bucket {config.bucket} at {config.endpoint}")
+async def create_store(
+    config: StorageConfig, *, verify: bool = True
+) -> S3Store:
+    store = _build_store(config, config.endpoint)
+    if verify:
+        await store.list_with_delimiter_async()
+        logger.info(f"Connected to bucket {config.bucket} at {config.endpoint}")
     return store
