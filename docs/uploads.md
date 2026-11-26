@@ -13,7 +13,7 @@ Upload status: `pending` → `validating` → a `Track`, `rejected`, or `expired
 
 - [x] Add a DLX policy so jobs that hit the delivery limit are kept instead of dropped (`poison` queue).
 - [x] Add a bucket lifecycle rule that expires `uploads/` after a day (`infra/rustfs/lifecycle.json`).
-- [ ] Remove `uploads.validate` and `uploads.validated` from `infra/rabbitmq/setup.sh` and delete them from the live broker.
+- [x] Remove `uploads.validate` and `uploads.validated` from `infra/rabbitmq/setup.sh` and delete them from the live broker.
 
 ## Shared models (`libs/`)
 
