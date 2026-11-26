@@ -4,9 +4,11 @@ from obstore.store import S3Store
 from kickroller.config import StorageConfig
 
 
-def _build_store(config: StorageConfig) -> S3Store:
-    """Build an S3 store for the bucket at `config.endpoint`. Does not connect."""
-    return S3Store(
+async def create_store(
+    config: StorageConfig, *, check_bucket_access: bool = True
+) -> S3Store:
+    """Build the bucket's S3 store. Lists the bucket to fail fast if asked."""
+    store = S3Store(
         config.bucket,
         endpoint=str(config.endpoint),
         access_key_id=config.access_key_id,
@@ -14,13 +16,6 @@ def _build_store(config: StorageConfig) -> S3Store:
         region=config.region,
         client_options={"allow_http": config.endpoint.scheme == "http"},
     )
-
-
-async def create_store(
-    config: StorageConfig, *, check_bucket_access: bool = True
-) -> S3Store:
-    """Build the bucket's S3 store. Lists the bucket to fail fast if asked."""
-    store = _build_store(config)
     if check_bucket_access:
         await store.list_with_delimiter_async()
         logger.info(f"Connected to bucket {config.bucket} at {config.endpoint}")
