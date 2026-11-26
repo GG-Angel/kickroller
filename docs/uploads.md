@@ -23,7 +23,7 @@ Upload status: `pending` → `validating` → a `Track`, `rejected`, or `expired
 
 ## api
 
-- [ ] Remove `handle_upload_created` and its router. Two consumers on `uploads.created` would split the events between them.
+- [x] Remove `handle_upload_created` and its router. Two consumers on `uploads.created` would split the events between them.
 
 ## Worker (new app in `apps/backend/`)
 
