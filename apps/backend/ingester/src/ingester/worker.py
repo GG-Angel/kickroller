@@ -5,6 +5,7 @@ from faststream import FastStream
 
 from ingester.core.broker import build_broker
 from ingester.core.config import Config
+from ingester.core.db import open_db
 from ingester.core.state import AppState
 from ingester.core.storage import create_store
 
@@ -12,8 +13,9 @@ from ingester.core.storage import create_store
 @asynccontextmanager
 async def open_state(config: Config) -> AsyncGenerator[AppState]:
     """Open the app's resources and release them on exit."""
-    store = await create_store(config.storage)
-    yield AppState(store=store, broker=build_broker(config.broker))
+    async with open_db(config.database) as db:
+        store = await create_store(config.storage)
+        yield AppState(db=db, store=store, broker=build_broker(config.broker))
 
 
 def create_app(state: AppState) -> FastStream:

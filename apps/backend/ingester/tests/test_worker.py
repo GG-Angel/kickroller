@@ -6,6 +6,7 @@ import pytest
 from faststream import Depends
 from faststream.rabbit import RabbitBroker, TestRabbitBroker
 from obstore.store import S3Store
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from ingester.core.state import AppState, get_app_state
 from ingester.worker import create_app
@@ -15,7 +16,9 @@ pytestmark = pytest.mark.anyio
 
 async def test_handlers_get_the_app_state() -> None:
     broker = RabbitBroker()
-    state = AppState(store=Mock(spec=S3Store), broker=broker)
+    state = AppState(
+        db=Mock(spec=AsyncEngine), store=Mock(spec=S3Store), broker=broker
+    )
     seen: list[AppState] = []
 
     @broker.subscriber("test")

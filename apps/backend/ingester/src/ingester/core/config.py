@@ -1,5 +1,24 @@
-from pydantic import AmqpDsn, Field, HttpUrl, SecretStr
+from pydantic import AmqpDsn, Field, HttpUrl, PostgresDsn, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class DatabaseConfig(BaseSettings):
+    """Postgres connection settings, read from `DATABASE_*` env vars."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="DATABASE_",
+        env_file=".env",
+        extra="ignore",
+    )
+
+    url: PostgresDsn = Field(init=False)
+    """Must use the postgresql+asyncpg:// scheme."""
+    pool_size: int = Field(default=5, ge=1)
+    """Connections the pool keeps open."""
+    max_overflow: int = Field(default=10, ge=0)
+    """Extra connections the pool opens under load and closes after."""
+    command_timeout: float | None = 30.0
+    """Default query timeout, in seconds. None disables it."""
 
 
 class StorageConfig(BaseSettings):
@@ -35,5 +54,6 @@ class BrokerConfig(BaseSettings):
 class Config(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
     broker: BrokerConfig = Field(default_factory=BrokerConfig)

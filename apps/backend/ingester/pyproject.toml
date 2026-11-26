@@ -5,11 +5,13 @@ description = "Turns uploaded audio into tracks"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "asyncpg>=0.32.0",
     "faststream[rabbit]>=0.7.8",
     "loguru>=0.7.3",
     "obstore>=0.12.1",
     "pydantic>=2.14.3",
     "pydantic-settings>=2.16.2",
+    "sqlalchemy[asyncio]>=2.1.8",
 ]
 
 [project.scripts]

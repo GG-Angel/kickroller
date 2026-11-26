@@ -906,11 +906,13 @@ name = "ingester"
 version = "0.1.0"
 source = { editable = "apps/backend/ingester" }
 dependencies = [
+    { name = "asyncpg" },
     { name = "faststream", extra = ["rabbit"] },
     { name = "loguru" },
     { name = "obstore" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
 ]
 
 [package.dev-dependencies]
@@ -923,11 +925,13 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "asyncpg", specifier = ">=0.32.0" },
     { name = "faststream", extras = ["rabbit"], specifier = ">=0.7.8" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "obstore", specifier = ">=0.12.1" },
     { name = "pydantic", specifier = ">=2.14.3" },
     { name = "pydantic-settings", specifier = ">=2.16.2" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.1.8" },
 ]
 
 [package.metadata.requires-dev]
