@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from faststream import FastStream
 
+from ingester.consumers import uploads
 from ingester.core.config import Config
 from ingester.core.state import AppState
 from kickroller.broker import build_broker
@@ -23,6 +24,7 @@ async def open_state(config: Config) -> AsyncGenerator[AppState]:
 
 
 def create_app(state: AppState) -> FastStream:
+    state.broker.include_router(uploads.router)
     app = FastStream(state.broker)
     app.context.set_global("state", state)
     return app

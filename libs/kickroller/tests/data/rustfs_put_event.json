@@ -1,0 +1,45 @@
+{
+  "EventName": "s3:ObjectCreated:Put",
+  "Key": "kickroller/uploads/01a21980-f18e-7028-a754-892fa45facf3",
+  "Records": [
+    {
+      "eventVersion": "2.1",
+      "eventSource": "rustfs:s3",
+      "awsRegion": "",
+      "eventTime": "2026-11-26T20:16:55.364Z",
+      "eventName": "s3:ObjectCreated:Put",
+      "userIdentity": { "principalId": "rustfsadmin" },
+      "requestParameters": {
+        "host": "localhost:9000",
+        "connection": "close",
+        "content-length": "3390861",
+        "user-agent": "vscode-restclient",
+        "principalId": "rustfsadmin",
+        "x-request-id": "92a06738-d20d-48e5-aba5-ed6561fed00e",
+        "accept-encoding": "gzip, deflate"
+      },
+      "responseElements": {
+        "x-amz-request-id": "92a06738-d20d-48e5-aba5-ed6561fed00e",
+        "x-amz-id-2": ""
+      },
+      "s3": {
+        "s3SchemaVersion": "1.0",
+        "configurationId": "Config",
+        "bucket": {
+          "name": "kickroller",
+          "ownerIdentity": { "principalId": "rustfsadmin" },
+          "arn": "arn:aws:s3:::kickroller"
+        },
+        "object": {
+          "key": "uploads%2F01a21980-f18e-7028-a754-892fa45facf3",
+          "size": 3390861,
+          "eTag": "afbde1ad05b7288ff757731149e93749",
+          "contentType": "application/octet-stream",
+          "userMetadata": { "content-type": "application/octet-stream" },
+          "sequencer": "18EBB1A8E2B45529"
+        }
+      },
+      "source": { "host": "localhost:9000", "port": "9000", "userAgent": "vscode-restclient" }
+    }
+  ]
+}

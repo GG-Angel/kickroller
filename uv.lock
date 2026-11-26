@@ -911,6 +911,7 @@ source = { editable = "apps/backend/ingester" }
 dependencies = [
     { name = "faststream", extra = ["rabbit"] },
     { name = "kickroller" },
+    { name = "loguru" },
     { name = "obstore" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -929,6 +930,7 @@ dev = [
 requires-dist = [
     { name = "faststream", extras = ["rabbit"], specifier = ">=0.7.8" },
     { name = "kickroller", editable = "libs/kickroller" },
+    { name = "loguru", specifier = ">=0.7.3" },
     { name = "obstore", specifier = ">=0.12.1" },
     { name = "pydantic", specifier = ">=2.14.3" },
     { name = "pydantic-settings", specifier = ">=2.16.2" },

@@ -7,6 +7,7 @@ requires-python = ">=3.14"
 dependencies = [
     "faststream[rabbit]>=0.7.8",
     "kickroller",
+    "loguru>=0.7.3",
     "obstore>=0.12.1",
     "pydantic>=2.14.3",
     "pydantic-settings>=2.16.2",

@@ -27,7 +27,7 @@ Upload status: `pending` → `validating` → a `Track`, `rejected`, or `expired
 
 ## Ingester (new app in `apps/backend/ingester`)
 
-- [ ] FastStream consumer on `uploads.created`. Decode the event's URL-encoded keys.
+- [x] FastStream consumer on `uploads.created`. Decode the event's URL-encoded keys.
 - [ ] One `process(object_key)` runs the whole pipeline. The event handler and the sweep both call it.
 - [ ] Claim: `UPDATE upload SET status = 'validating', validation_started_at = now(), validation_attempts = validation_attempts + 1 WHERE object_key = ? AND (status = 'pending' OR (status = 'validating' AND validation_started_at < now() - <lease>)) RETURNING ...`. No row means someone else has it: ack and exit. The lease (10 min) only has to outlast a max-size copy and decode; it lets another instance take over from one that died.
 - [ ] If `validation_attempts` is over the cap (3), reject with "validation kept failing". This stops a file that crashes the ingester from looping forever.
