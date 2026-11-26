@@ -34,7 +34,10 @@ async def test_list_returns_owners_ready_tracks_newest_first(
     rows = [make_track()]
     session.scalars.return_value.all.return_value = rows
 
-    assert await TrackRepository(session).list(USER_ID, 20, None) == rows
+    assert (
+        await TrackRepository(session).list_ready_by_owner(USER_ID, 20, None)
+        == rows
+    )
 
     sql, params = compiled_query(session)
     assert "track.user_id = " in sql
@@ -49,7 +52,7 @@ async def test_list_returns_owners_ready_tracks_newest_first(
 
 
 async def test_list_applies_the_cursor(session: Mock) -> None:
-    await TrackRepository(session).list(USER_ID, 5, TRACK_ID)
+    await TrackRepository(session).list_ready_by_owner(USER_ID, 5, TRACK_ID)
 
     sql, params = compiled_query(session)
     assert "track.id < " in sql
@@ -69,7 +72,7 @@ async def test_get_loads_by_id(session: Mock) -> None:
     session.get.assert_awaited_once_with(Track, TRACK_ID)
 
 
-async def test_save_commits(session: Mock) -> None:
-    await TrackRepository(session).save()
+async def test_commit_commits(session: Mock) -> None:
+    await TrackRepository(session).commit()
 
     session.commit.assert_awaited_once()

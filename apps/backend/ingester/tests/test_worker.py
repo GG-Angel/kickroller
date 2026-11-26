@@ -17,7 +17,9 @@ pytestmark = pytest.mark.anyio
 async def test_handlers_get_the_app_state() -> None:
     broker = RabbitBroker()
     state = AppState(
-        db=Mock(spec=AsyncEngine), store=Mock(spec=S3Store), broker=broker
+        db_engine=Mock(spec=AsyncEngine),
+        store=Mock(spec=S3Store),
+        broker=broker,
     )
     seen: list[AppState] = []
 

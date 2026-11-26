@@ -23,7 +23,7 @@ def test_server_host_accepts_ipv4_and_ipv6(host: str, parsed: object) -> None:
 
 
 def test_server_docs_are_off_by_default() -> None:
-    assert load_settings(ServerConfig).docs is False
+    assert load_settings(ServerConfig).serve_docs is False
 
 
 @pytest.mark.parametrize(
@@ -52,4 +52,4 @@ def test_storage_signs_against_the_client_endpoint(
         StorageConfig, **STORAGE_KEYS, public_endpoint=public_endpoint
     )
 
-    assert str(config.for_signing().endpoint) == endpoint
+    assert str(config.with_public_endpoint().endpoint) == endpoint

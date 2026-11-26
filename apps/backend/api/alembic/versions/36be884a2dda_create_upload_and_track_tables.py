@@ -80,7 +80,7 @@ def upgrade() -> None:
         ),
         sa.Column("user_id", sa.Uuid(), nullable=False),
         sa.Column("object_key", sa.Text(), nullable=False),
-        sa.Column("size", sa.BigInteger(), nullable=False),
+        sa.Column("size_bytes", sa.BigInteger(), nullable=False),
         sa.Column("original_filename", sa.Text(), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column(
@@ -129,7 +129,7 @@ def upgrade() -> None:
             "length(original_filename) BETWEEN 1 AND 500",
             name="upload_original_filename_check",
         ),
-        sa.CheckConstraint("size > 0", name="upload_size_check"),
+        sa.CheckConstraint("size_bytes > 0", name="upload_size_bytes_check"),
         sa.CheckConstraint(
             "validation_attempts >= 0", name="upload_validation_attempts_check"
         ),

@@ -10,15 +10,15 @@ from fastapi.testclient import TestClient
 from faststream.rabbit import RabbitBroker, TestRabbitBroker
 
 from api.core.state import AppState
-from api.server import create_app, create_asgi_app
+from api.server import create_app_with_broker, create_http_app
 
 
 def test_app_holds_the_given_state(state: AppState) -> None:
-    assert create_app(state).state.app_state is state
+    assert create_http_app(state).state.app_state is state
 
 
 def test_metrics_are_not_served_on_the_api(state: AppState) -> None:
-    with TestClient(create_app(state)) as client:
+    with TestClient(create_http_app(state)) as client:
         assert client.get("/metrics").status_code == 404
 
 
@@ -35,7 +35,7 @@ async def test_lifespan_starts_broker_and_runs_handlers_with_fastapi_di(
     ) -> None:
         handled(body, dep)
 
-    app = create_asgi_app(replace(state, broker=broker))
+    app = create_app_with_broker(replace(state, broker=broker))
     # connect_only: the app's lifespan, not the test broker, starts it.
     async with TestRabbitBroker(broker, connect_only=True) as test_broker:
         with TestClient(app) as client:
@@ -52,7 +52,7 @@ def test_startup_fails_when_rabbitmq_is_unreachable(
     state: AppState,
 ) -> None:
     broker = RabbitBroker("amqp://guest:guest@127.0.0.1:1/")  # Nothing listens.
-    app = create_asgi_app(replace(state, broker=broker))
+    app = create_app_with_broker(replace(state, broker=broker))
 
     with pytest.raises(ConnectionError), TestClient(app):
         pass
@@ -67,7 +67,7 @@ async def test_asyncapi_docs_list_subscribers_without_try_it_out(
     @broker.subscriber("uploads")
     async def handle(body: str) -> None: ...
 
-    app = create_asgi_app(replace(state, broker=broker), docs=True)
+    app = create_app_with_broker(replace(state, broker=broker), serve_docs=True)
     async with TestRabbitBroker(broker, connect_only=True):
         with TestClient(app) as client:
             page = client.get("/asyncapi")
@@ -92,7 +92,7 @@ async def test_docs_are_served_only_when_enabled(
     state: AppState, docs: bool
 ) -> None:
     broker = RabbitBroker()
-    app = create_asgi_app(replace(state, broker=broker), docs=docs)
+    app = create_app_with_broker(replace(state, broker=broker), serve_docs=docs)
 
     async with TestRabbitBroker(broker, connect_only=True):
         with TestClient(app) as client:

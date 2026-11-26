@@ -1,27 +1,27 @@
 from loguru import logger
 from obstore.store import S3Store
-from pydantic import HttpUrl
 
 from kickroller.config import StorageConfig
 
 
-def _build_store(config: StorageConfig, endpoint: HttpUrl) -> S3Store:
-    """Build an S3 store for the bucket at `endpoint`. Does not connect."""
+def _build_store(config: StorageConfig) -> S3Store:
+    """Build an S3 store for the bucket at `config.endpoint`. Does not connect."""
     return S3Store(
         config.bucket,
-        endpoint=str(endpoint),
+        endpoint=str(config.endpoint),
         access_key_id=config.access_key_id,
         secret_access_key=config.secret_access_key.get_secret_value(),
         region=config.region,
-        client_options={"allow_http": endpoint.scheme == "http"},
+        client_options={"allow_http": config.endpoint.scheme == "http"},
     )
 
 
 async def create_store(
-    config: StorageConfig, *, verify: bool = True
+    config: StorageConfig, *, check_bucket_access: bool = True
 ) -> S3Store:
-    store = _build_store(config, config.endpoint)
-    if verify:
+    """Build the bucket's S3 store. Lists the bucket to fail fast if asked."""
+    store = _build_store(config)
+    if check_bucket_access:
         await store.list_with_delimiter_async()
         logger.info(f"Connected to bucket {config.bucket} at {config.endpoint}")
     return store

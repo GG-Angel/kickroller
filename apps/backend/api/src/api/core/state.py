@@ -13,9 +13,10 @@ class AppState:
     """Resources that live for the whole app, created in the lifespan."""
 
     config: Config
-    db: AsyncEngine
+    db_engine: AsyncEngine
     store: S3Store
-    signer: S3Store
+    url_signing_store: S3Store
+    """Points at the public endpoint, so signed URLs work for clients."""
     broker: RabbitBroker
 
 

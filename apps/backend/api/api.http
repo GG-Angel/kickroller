@@ -15,7 +15,7 @@ GET {{metrics}}/metrics
 GET {{api}}/openapi.json
 
 ### Step 1: Create an upload and get a presigned PUT URL
-# Set size to the exact byte size of the file in step 2.
+# Set size_bytes to the exact byte size of the file in step 2.
 # @name createUpload
 POST {{api}}/me/uploads
 Content-Type: application/json
@@ -23,7 +23,7 @@ X-User-Id: {{userId}}
 
 {
   "filename": "{{audioFile}}",
-  "size": 1234
+  "size_bytes": 1234
 }
 
 ### Step 2: Upload the audio to the presigned URL

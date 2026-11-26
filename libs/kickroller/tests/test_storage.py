@@ -23,7 +23,7 @@ async def test_store_allows_http_only_for_http_endpoints(
         secret_access_key="secret",
     )
 
-    store = await create_store(config, verify=False)
+    store = await create_store(config, check_bucket_access=False)
 
     assert store.client_options == {"allow_http": allow_http}
     assert store.config == {

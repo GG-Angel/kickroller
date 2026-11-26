@@ -25,7 +25,7 @@ async def test_create_adds_pending_upload_and_signs_put(storage: Mock) -> None:
     assert upload.id == response.upload_id
     assert upload.user_id == USER_ID
     assert upload.object_key == f"uploads/{upload.id}"
-    assert upload.size == 1234
+    assert upload.size_bytes == 1234
     assert upload.original_filename == "kick.wav"
     assert upload.expires_at == response.expires_at
     assert before + storage.upload_url_ttl <= upload.expires_at

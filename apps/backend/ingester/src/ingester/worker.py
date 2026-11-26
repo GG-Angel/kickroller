@@ -13,9 +13,13 @@ from kickroller.storage import create_store
 @asynccontextmanager
 async def open_state(config: Config) -> AsyncGenerator[AppState]:
     """Open the app's resources and release them on exit."""
-    async with open_db(config.database) as db:
+    async with open_db(config.database) as db_engine:
         store = await create_store(config.storage)
-        yield AppState(db=db, store=store, broker=build_broker(config.broker))
+        yield AppState(
+            db_engine=db_engine,
+            store=store,
+            broker=build_broker(config.broker),
+        )
 
 
 def create_app(state: AppState) -> FastStream:

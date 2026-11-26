@@ -10,7 +10,7 @@ from api.models import (
     TrackStatus,
 )
 
-Title = Annotated[
+TrackTitle = Annotated[
     str,
     StringConstraints(
         strip_whitespace=True,
@@ -18,7 +18,7 @@ Title = Annotated[
         max_length=TRACK_TITLE_MAX_LENGTH,
     ),
 ]
-Artist = Annotated[
+TrackArtist = Annotated[
     str,
     StringConstraints(
         strip_whitespace=True,
@@ -55,14 +55,14 @@ class TrackListResponse(BaseModel):
 
 
 class UpdateTrackRequest(BaseModel):
-    title: Title | None = None
+    title: TrackTitle | None = None
     """New title of the track, if updating."""
-    artist: Artist | None = None
+    artist: TrackArtist | None = None
     """New artist of the track, if updating."""
 
     @field_validator("title")
     @classmethod
-    def title_not_null(cls, title: str | None) -> str | None:
+    def reject_explicit_null_title(cls, title: str | None) -> str | None:
         # Omitting title is fine; an explicit null would break the NOT NULL column.
         if title is None:
             raise ValueError("title cannot be null")

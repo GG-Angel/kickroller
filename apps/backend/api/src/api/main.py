@@ -5,7 +5,7 @@ from prometheus_client import make_asgi_app
 
 from api.core.config import Config
 from api.core.state import AppState
-from api.server import create_asgi_app, open_state
+from api.server import create_app_with_broker, open_state
 from kickroller.logging import configure_logging
 
 
@@ -18,15 +18,17 @@ async def main() -> None:
 
 async def serve(config: Config, state: AppState) -> None:
     """Run the API and metrics servers until shutdown."""
-    api = uvicorn.Server(
+    api_server = uvicorn.Server(
         uvicorn.Config(
-            app=create_asgi_app(state, docs=config.server.docs),
+            app=create_app_with_broker(
+                state, serve_docs=config.server.serve_docs
+            ),
             host=str(config.server.host),
             port=config.server.port,
             log_config=None,  # Handled by loguru
         )
     )
-    metrics = uvicorn.Server(
+    metrics_server = uvicorn.Server(
         uvicorn.Config(
             app=make_asgi_app(),
             host=str(config.server.host),
@@ -36,7 +38,7 @@ async def serve(config: Config, state: AppState) -> None:
             access_log=False,  # Scrapes would flood the logs
         )
     )
-    await asyncio.gather(api.serve(), metrics.serve())
+    await asyncio.gather(api_server.serve(), metrics_server.serve())
 
 
 def run() -> None:

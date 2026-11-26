@@ -36,9 +36,9 @@ def state() -> AppState:
     )
     return AppState(
         config=config,
-        db=Mock(spec=AsyncEngine),
+        db_engine=Mock(spec=AsyncEngine),
         store=Mock(spec=S3Store),
-        signer=Mock(spec=S3Store),
+        url_signing_store=Mock(spec=S3Store),
         broker=Mock(spec=RabbitBroker),
     )
 

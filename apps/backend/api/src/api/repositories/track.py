@@ -15,13 +15,13 @@ class TrackRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def list(
+    async def list_ready_by_owner(
         self,
         owner_id: UUID,
         limit: int,
-        before: UUID | None,
+        before_track_id: UUID | None,
     ) -> Sequence[Track]:
-        """The owner's ready tracks newest first, older than `before` if set."""
+        """The owner's ready tracks newest first, older than `before_track_id`."""
         # uuidv7 ids are time-ordered, so id order is creation order.
         query = (
             select(Track)
@@ -29,16 +29,16 @@ class TrackRepository:
             .order_by(Track.id.desc())
             .limit(limit)
         )
-        if before is not None:
-            query = query.where(Track.id < before)
+        if before_track_id is not None:
+            query = query.where(Track.id < before_track_id)
         return (await self._session.scalars(query)).all()
 
     async def get(self, track_id: UUID) -> Track | None:
         """Load one track, or None if it doesn't exist."""
         return await self._session.get(Track, track_id)
 
-    async def save(self) -> None:
-        """Commit changes made to loaded tracks."""
+    async def commit(self) -> None:
+        """Commit the session, including changes to loaded tracks."""
         await self._session.commit()
 
 

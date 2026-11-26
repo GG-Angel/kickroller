@@ -25,7 +25,8 @@ class StorageConfig(kickroller.config.StorageConfig):
     )
     """How long a signed playback URL stays valid. Seeking needs it unexpired."""
 
-    def for_signing(self) -> Self:
+    def with_public_endpoint(self) -> Self:
+        """This config pointed at `public_endpoint`, for signing client URLs."""
         if self.public_endpoint is None:
             return self
         return self.model_copy(update={"endpoint": self.public_endpoint})
@@ -46,7 +47,7 @@ class ServerConfig(BaseSettings):
     """Port for the public API."""
     metrics_port: Port = 9100
     """Prometheus metrics port. Keep it off the public network."""
-    docs: bool = False
+    serve_docs: bool = False
     """Serve the OpenAPI and AsyncAPI docs. Off so prod never exposes them."""
 
 

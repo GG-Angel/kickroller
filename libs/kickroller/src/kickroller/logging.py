@@ -23,9 +23,11 @@ class InterceptHandler(logging.Handler):
         frame, depth = inspect.currentframe(), 0
         while frame:
             filename = frame.f_code.co_filename
-            is_logging = filename == logging.__file__
-            is_frozen = "importlib" in filename and "_bootstrap" in filename
-            if depth > 0 and not (is_logging or is_frozen):
+            is_logging_module = filename == logging.__file__
+            is_importlib_bootstrap = (
+                "importlib" in filename and "_bootstrap" in filename
+            )
+            if depth > 0 and not (is_logging_module or is_importlib_bootstrap):
                 break
             frame = frame.f_back
             depth += 1

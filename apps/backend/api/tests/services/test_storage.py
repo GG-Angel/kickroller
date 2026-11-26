@@ -13,7 +13,7 @@ from api.services.storage import StorageService
 pytestmark = pytest.mark.anyio
 
 # Signing is local, so this store never connects.
-SIGNER = S3Store(
+URL_SIGNING_STORE = S3Store(
     "bucket",
     endpoint="http://rustfs:9000",
     access_key_id="key",
@@ -31,7 +31,7 @@ def store() -> MemoryStore:
 @pytest.fixture
 def storage(store: MemoryStore) -> StorageService:
     return StorageService(
-        store, SIGNER, timedelta(minutes=15), timedelta(hours=1)
+        store, URL_SIGNING_STORE, timedelta(minutes=15), timedelta(hours=1)
     )
 
 

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 class AppState:
     """Resources that live for the whole app, created at startup."""
 
-    db: AsyncEngine
+    db_engine: AsyncEngine
     store: S3Store
     broker: RabbitBroker
 

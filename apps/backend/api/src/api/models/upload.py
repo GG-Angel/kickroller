@@ -40,7 +40,7 @@ class Upload(Base):
 
     object_key: Mapped[str] = mapped_column(Text, unique=True)
     """Where the audio goes in the object store."""
-    size: Mapped[int] = mapped_column(BigInteger)
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
     """Declared size of the audio in bytes."""
     original_filename: Mapped[str] = mapped_column(Text)
     """The original filename of the uploaded audio."""
@@ -81,7 +81,7 @@ class Upload(Base):
     """The timestamp of the last update."""
 
     __table_args__ = (
-        CheckConstraint(size > 0, name="upload_size_check"),
+        CheckConstraint(size_bytes > 0, name="upload_size_bytes_check"),
         CheckConstraint(
             (status != UploadStatus.VALIDATING)
             | validation_started_at.is_not(None),
