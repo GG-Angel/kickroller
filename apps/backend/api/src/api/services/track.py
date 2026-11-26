@@ -1,9 +1,9 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import Depends
 from loguru import logger
-from obstore.exceptions import BaseError
 
 from api.mappers.track import to_track_response
 from api.repositories.track import TrackRepository, get_track_repository
@@ -75,7 +75,7 @@ class TrackService:
         await self._tracks.commit()
         try:
             await self._storage.delete(track.object_key)
-        except BaseError:
+        except (BotoCoreError, ClientError):
             logger.exception(
                 f"Failed to delete audio of removed track {track.id}"
             )
@@ -84,7 +84,7 @@ class TrackService:
         """Sign a GET URL for the track's audio."""
         playback_url_ttl = self._storage.playback_url_ttl
         expires_at = datetime.now(UTC) + playback_url_ttl
-        playback_url = await self._storage.sign_get(
+        playback_url = await self._storage.create_get_url(
             key=track.object_key, expires_in=playback_url_ttl
         )
         return PlaybackUrlResponse(url=playback_url, expires_at=expires_at)

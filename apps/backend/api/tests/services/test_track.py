@@ -5,7 +5,7 @@ from unittest.mock import Mock, call
 from uuid import uuid7
 
 import pytest
-from obstore.exceptions import BaseError
+from botocore.exceptions import EndpointConnectionError
 
 from api.repositories.track import TrackRepository
 from api.schemas import UpdateTrackRequest
@@ -130,7 +130,9 @@ async def test_remove_keeps_track_removed_when_audio_delete_fails(
     service: TrackService, repo: Mock, storage: Mock
 ) -> None:
     track = make_track()
-    storage.delete.side_effect = BaseError("rustfs down")
+    storage.delete.side_effect = EndpointConnectionError(
+        endpoint_url="http://rustfs"
+    )
 
     await service.remove(track)
 

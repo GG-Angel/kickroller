@@ -8,14 +8,16 @@ from ingester.core.config import Config
 from ingester.core.state import AppState
 from kickroller.broker import build_broker
 from kickroller.db import open_db
-from kickroller.storage import create_store
+from kickroller.storage import open_store
 
 
 @asynccontextmanager
 async def open_state(config: Config) -> AsyncGenerator[AppState]:
     """Open the app's resources and release them on exit."""
-    async with open_db(config.database) as db_engine:
-        store = await create_store(config.storage)
+    async with (
+        open_db(config.database) as db_engine,
+        open_store(config.storage) as store,
+    ):
         yield AppState(
             db_engine=db_engine,
             store=store,

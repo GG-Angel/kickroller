@@ -1,38 +1,39 @@
-"""Unit tests for StorageService against in-memory and offline S3 stores."""
+"""Unit tests for StorageService. Signing is local, so nothing connects."""
 
+from collections.abc import AsyncIterator
 from datetime import timedelta
+from unittest.mock import Mock
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from obstore import list as list_objects
-from obstore import put_async
-from obstore.store import MemoryStore, S3Store
+from types_aiobotocore_s3 import S3Client
 
+from api.core.config import StorageConfig
 from api.services.storage import StorageService
+from kickroller.storage import open_store
+from tests.fakes import load_settings
 
 pytestmark = pytest.mark.anyio
 
-# Signing is local, so this store never connects.
-URL_SIGNING_STORE = S3Store(
-    "bucket",
-    endpoint="http://rustfs:9000",
-    access_key_id="key",
-    secret_access_key="secret",
-    region="us-east-1",
-    client_options={"allow_http": True},
-)
+
+@pytest.fixture
+def store() -> Mock:
+    return Mock(spec=S3Client)
 
 
 @pytest.fixture
-def store() -> MemoryStore:
-    return MemoryStore()
-
-
-@pytest.fixture
-def storage(store: MemoryStore) -> StorageService:
-    return StorageService(
-        store, URL_SIGNING_STORE, timedelta(minutes=15), timedelta(hours=1)
+async def storage(store: Mock) -> AsyncIterator[StorageService]:
+    config = load_settings(
+        StorageConfig,
+        endpoint="http://rustfs:9000",
+        bucket="bucket",
+        access_key_id="key",
+        secret_access_key="secret",
     )
+    async with open_store(config, check_bucket_access=False) as signer:
+        yield StorageService(
+            store, signer, "bucket", timedelta(minutes=15), timedelta(hours=1)
+        )
 
 
 @pytest.mark.parametrize("method", ["sign_put", "sign_get"])
@@ -51,25 +52,17 @@ async def test_sign_returns_url_for_the_key_and_expiry(
 async def test_put_and_get_signatures_differ(storage: StorageService) -> None:
     expires_in = timedelta(minutes=5)
 
-    put = await storage.sign_put("uploads/a", expires_in)
-    get = await storage.sign_get("uploads/a", expires_in)
+    put = await storage.create_put_url("uploads/a", expires_in)
+    get = await storage.create_get_url("uploads/a", expires_in)
 
     assert put != get
 
 
-async def test_delete_removes_the_object(
-    storage: StorageService, store: MemoryStore
+async def test_delete_removes_the_object_from_the_bucket(
+    storage: StorageService, store: Mock
 ) -> None:
-    await put_async(store, "uploads/a", b"audio")
-    await put_async(store, "uploads/b", b"audio")
-
     await storage.delete("uploads/a")
 
-    objects = await list_objects(store).collect_async()
-    assert [o["path"] for o in objects] == ["uploads/b"]
-
-
-async def test_delete_of_missing_object_is_not_an_error(
-    storage: StorageService,
-) -> None:
-    await storage.delete("uploads/missing")
+    store.delete_object.assert_awaited_once_with(
+        Bucket="bucket", Key="uploads/a"
+    )

@@ -36,7 +36,7 @@ class UploadService:
         )
         await self._uploads.add(upload)
 
-        upload_url = await self._storage.sign_put(
+        upload_url = await self._storage.create_put_url(
             key=upload.object_key,
             expires_in=self._storage.upload_url_ttl,
         )

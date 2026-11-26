@@ -10,7 +10,7 @@ uv run poe migrate
 uv run api                       # http://localhost:8000
 ```
 
-The API checks the `kickroller` bucket at startup. Create it once (obstore can't create buckets):
+The API checks the `kickroller` bucket at startup. Create it once:
 
 ```sh
 curl --aws-sigv4 "aws:amz:us-east-1:s3" --user rustfsadmin:rustfsadmin \

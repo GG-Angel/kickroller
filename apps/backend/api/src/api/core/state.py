@@ -2,8 +2,8 @@ from dataclasses import dataclass
 
 from fastapi import Request
 from faststream.rabbit import RabbitBroker
-from obstore.store import S3Store
 from sqlalchemy.ext.asyncio import AsyncEngine
+from types_aiobotocore_s3 import S3Client
 
 from api.core.config import Config
 
@@ -14,9 +14,8 @@ class AppState:
 
     config: Config
     db_engine: AsyncEngine
-    store: S3Store
-    url_signing_store: S3Store
-    """Points at the public endpoint, so signed URLs work for clients."""
+    store: S3Client
+    url_signing_store: S3Client
     broker: RabbitBroker
 
 

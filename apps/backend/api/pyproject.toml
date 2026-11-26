@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "aiobotocore>=3.10.0",
     "alembic>=1.20.1",
     "asyncpg>=0.32.0",
     "fastapi[standard]>=0.163.0",
@@ -12,11 +13,11 @@ dependencies = [
     "faststream[rabbit]>=0.7.8",
     "kickroller",
     "loguru>=0.7.3",
-    "obstore>=0.12.1",
     "prometheus-fastapi-instrumentator>=8.1.0",
     "pydantic>=2.14.3",
     "pydantic-settings>=2.16.2",
     "sqlalchemy[asyncio]>=2.1.8",
+    "types-aiobotocore[s3]>=3.10.0",
 ]
 
 [project.scripts]

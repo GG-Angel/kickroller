@@ -5,8 +5,8 @@ from unittest.mock import Mock
 
 import pytest
 from faststream.rabbit import RabbitBroker, TestRabbitBroker
-from obstore.store import S3Store
 from sqlalchemy.ext.asyncio import AsyncEngine
+from types_aiobotocore_s3 import S3Client
 
 from ingester.consumers.uploads import (
     UPLOADS_CREATED,
@@ -31,7 +31,7 @@ async def test_upload_events_reach_the_handler() -> None:
     create_app(
         AppState(
             db_engine=Mock(spec=AsyncEngine),
-            store=Mock(spec=S3Store),
+            store=Mock(spec=S3Client),
             broker=broker,
         )
     )

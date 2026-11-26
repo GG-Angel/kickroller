@@ -7,8 +7,8 @@ from unittest.mock import Mock
 import pytest
 from faststream.rabbit import RabbitBroker
 from loguru import logger
-from obstore.store import S3Store
 from sqlalchemy.ext.asyncio import AsyncEngine
+from types_aiobotocore_s3 import S3Client
 
 from api.core.config import Config, StorageConfig
 from api.core.state import AppState
@@ -37,8 +37,8 @@ def state() -> AppState:
     return AppState(
         config=config,
         db_engine=Mock(spec=AsyncEngine),
-        store=Mock(spec=S3Store),
-        url_signing_store=Mock(spec=S3Store),
+        store=Mock(spec=S3Client),
+        url_signing_store=Mock(spec=S3Client),
         broker=Mock(spec=RabbitBroker),
     )
 
