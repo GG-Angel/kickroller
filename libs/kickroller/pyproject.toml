@@ -1,7 +1,7 @@
 [project]
 name = "kickroller"
 version = "0.1.0"
-description = "Settings, connections and logging shared by the backend apps"
+description = "Models, settings, connections and logging shared by the backend apps"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [

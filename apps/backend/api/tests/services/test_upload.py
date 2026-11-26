@@ -5,9 +5,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from api.models import Upload
 from api.repositories.upload import UploadRepository
 from api.services.upload import UploadService
+from kickroller.models import Upload
 from tests.fakes import USER_ID
 
 pytestmark = pytest.mark.anyio

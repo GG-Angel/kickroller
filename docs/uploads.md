@@ -17,9 +17,9 @@ Upload status: `pending` → `validating` → a `Track`, `rejected`, or `expired
 
 ## Shared models (`libs/kickroller`)
 
-- [ ] Move the `Upload` and `Track` models (and `Base`) into `kickroller.models` and have the api import them.
-- [ ] Point the api's alembic env at the shared metadata.
-- [ ] Drop `UploadStatus.UPLOADED`, with a migration.
+- [x] Move the `Upload` and `Track` models (and `Base`) into `kickroller.models` and have the api import them.
+- [x] Point the api's alembic env at the shared metadata.
+- [x] Drop `UploadStatus.UPLOADED`, with a migration.
 
 ## api
 

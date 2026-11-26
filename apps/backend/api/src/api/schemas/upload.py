@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from api.models import UPLOAD_FILENAME_MAX_LENGTH
+from kickroller.models import UPLOAD_FILENAME_MAX_LENGTH
 
 
 class CreateUploadRequest(BaseModel):

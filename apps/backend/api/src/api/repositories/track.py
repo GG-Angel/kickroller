@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.core.db import get_session
-from api.models import Track, TrackStatus
+from kickroller.models import Track, TrackStatus
 
 
 class TrackRepository:

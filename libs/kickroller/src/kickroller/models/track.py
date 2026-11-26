@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import CheckConstraint, DateTime, Enum, Index, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from api.models.base import Base
+from kickroller.models.base import Base
 
 TRACK_TITLE_MAX_LENGTH = 300
 TRACK_ARTIST_MAX_LENGTH = 300

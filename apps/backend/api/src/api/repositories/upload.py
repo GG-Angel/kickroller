@@ -2,7 +2,7 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.core.db import get_session
-from api.models import Upload
+from kickroller.models import Upload
 
 
 class UploadRepository:

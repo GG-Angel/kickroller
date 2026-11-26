@@ -3,10 +3,10 @@ from uuid import UUID, uuid7
 
 from fastapi import Depends
 
-from api.models import Upload
 from api.repositories.upload import UploadRepository, get_upload_repository
 from api.schemas import CreateUploadResponse
 from api.services.storage import StorageService, get_storage_service
+from kickroller.models import Upload
 
 # The bucket's expiry and ingest-notification rules match on this prefix.
 UPLOAD_OBJECT_KEY_PREFIX = "uploads/"

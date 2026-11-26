@@ -87,7 +87,6 @@ def upgrade() -> None:
             "status",
             sa.Enum(
                 "pending",
-                "uploaded",
                 "validating",
                 "rejected",
                 "expired",

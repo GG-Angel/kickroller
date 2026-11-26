@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic_settings import BaseSettings
 
-from api.models import Track, TrackStatus
+from kickroller.models import Track, TrackStatus
 
 USER_ID = UUID("01900000-0000-7000-8000-0000000000aa")
 OTHER_USER_ID = UUID("01900000-0000-7000-8000-0000000000bb")

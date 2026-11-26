@@ -6,7 +6,6 @@ from loguru import logger
 from obstore.exceptions import BaseError
 
 from api.mappers.track import to_track_response
-from api.models import Track, TrackStatus
 from api.repositories.track import TrackRepository, get_track_repository
 from api.schemas import (
     PlaybackUrlResponse,
@@ -15,6 +14,7 @@ from api.schemas import (
     UpdateTrackRequest,
 )
 from api.services.storage import StorageService, get_storage_service
+from kickroller.models import Track, TrackStatus
 
 
 class TrackService:

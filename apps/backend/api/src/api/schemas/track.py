@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, StringConstraints, field_validator
 
-from api.models import (
+from kickroller.models import (
     TRACK_ARTIST_MAX_LENGTH,
     TRACK_TITLE_MAX_LENGTH,
     TrackStatus,

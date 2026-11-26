@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.core.auth import get_user_id
 from api.mappers.track import to_track_response
-from api.models import Track
 from api.schemas import (
     PlaybackUrlResponse,
     TrackListResponse,
@@ -13,6 +12,7 @@ from api.schemas import (
     UpdateTrackRequest,
 )
 from api.services.track import TrackService, get_track_service
+from kickroller.models import Track
 
 router = APIRouter(prefix="/tracks", tags=["tracks"])
 

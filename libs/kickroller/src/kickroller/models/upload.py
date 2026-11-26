@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import BigInteger, CheckConstraint, DateTime, Enum, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from api.models.base import Base
+from kickroller.models.base import Base
 
 UPLOAD_FILENAME_MAX_LENGTH = 500
 
@@ -15,8 +15,6 @@ class UploadStatus(StrEnum):
 
     PENDING = "pending"
     """URL issued, upload not confirmed."""
-    UPLOADED = "uploaded"
-    """HEAD check passed, job queued."""
     VALIDATING = "validating"
     """Worker is examining the object."""
     REJECTED = "rejected"

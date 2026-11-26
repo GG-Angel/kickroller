@@ -1,5 +1,5 @@
-from api.models import Track
 from api.schemas import TrackResponse
+from kickroller.models import Track
 
 
 def to_track_response(track: Track) -> TrackResponse:

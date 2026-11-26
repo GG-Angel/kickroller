@@ -7,8 +7,8 @@ from sqlalchemy import ScalarResult, Select
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.models import Track, TrackStatus
 from api.repositories.track import TrackRepository
+from kickroller.models import Track, TrackStatus
 from tests.fakes import TRACK_ID, USER_ID, make_track
 
 pytestmark = pytest.mark.anyio

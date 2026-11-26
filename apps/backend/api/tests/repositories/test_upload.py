@@ -5,8 +5,8 @@ from unittest.mock import Mock, call
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.models import Upload
 from api.repositories.upload import UploadRepository
+from kickroller.models import Upload
 from tests.fakes import NOW, USER_ID
 
 pytestmark = pytest.mark.anyio
