@@ -8,7 +8,7 @@ from faststream.rabbit import RabbitBroker, TestRabbitBroker
 from obstore.store import S3Store
 
 from ingester.core.state import AppState, get_app_state
-from ingester.main import create_app
+from ingester.worker import create_app
 
 pytestmark = pytest.mark.anyio
 
