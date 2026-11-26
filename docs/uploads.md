@@ -43,7 +43,7 @@ Upload status: `pending` → `validating` → a `Track`, `rejected`, or `expired
 ## Decisions
 
 - `title` is the original filename without its extension (truncated to `TRACK_TITLE_MAX_LENGTH`). `artist` starts as null. The user can edit both later.
-- Max size is 400 MiB. A 20-minute 24-bit/48 kHz stereo WAV is ~330 MiB, the largest common case at the max duration; FLAC and MP3 are far smaller. The api rejects a larger `size_bytes` at create time, and the ingester checks the real size again.
+- Max size is 400 MiB. A 20-minute 24-bit/48 kHz stereo WAV is ~330 MiB, the largest common case at the max duration; FLAC and MP3 are far smaller. A presigned POST will enforce it during the upload to RustFS (not yet: the signed PUT doesn't limit size), and the ingester checks the real size again.
 - Allowed containers: mp3, wav, flac, ogg and m4a (PyAV's mov/mp4 family). Clients play the stored file directly, so these are the formats an `<audio>` element plays everywhere. AIFF is out: only Safari plays it.
 - Duration is 5 s to 20 min. That is long enough for extended mixes of a single track, and DJ sets are out of scope.
 - The upload URL TTL stays at the current 15 minutes (`upload_url_ttl`). A signed PUT only has to *start* before it expires, so slow uploads of large files still finish.

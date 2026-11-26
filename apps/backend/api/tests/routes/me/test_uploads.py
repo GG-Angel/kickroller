@@ -30,9 +30,7 @@ def test_create_upload_returns_the_signed_upload(
     )
     uploads.create.return_value = created
 
-    response = client.post(
-        UPLOADS_URL, json={"filename": "kick.wav", "size_bytes": 1}
-    )
+    response = client.post(UPLOADS_URL, json={"filename": "kick.wav"})
 
     assert response.status_code == 201
     assert CreateUploadResponse.model_validate(response.json()) == created
@@ -48,7 +46,7 @@ def test_create_upload_requires_a_user_id(
 
     response = client.post(
         UPLOADS_URL,
-        json={"filename": "kick.wav", "size_bytes": 1},
+        json={"filename": "kick.wav"},
         headers=headers,
     )
 
@@ -59,12 +57,11 @@ def test_create_upload_requires_a_user_id(
 @pytest.mark.parametrize(
     "body",
     [
-        {"filename": "", "size_bytes": 1},
-        {"filename": "x" * 501, "size_bytes": 1},
-        {"filename": "kick.wav", "size_bytes": 0},
-        {"filename": "kick.wav"},
+        {"filename": ""},
+        {"filename": "x" * 501},
+        {},
     ],
-    ids=["empty-name", "long-name", "zero-size", "no-size"],
+    ids=["empty-name", "long-name", "no-name"],
 )
 def test_create_upload_rejects_invalid_bodies(
     client: TestClient, uploads: Mock, body: dict[str, Any]

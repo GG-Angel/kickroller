@@ -12,8 +12,6 @@ class CreateUploadRequest(BaseModel):
         str, Field(min_length=1, max_length=UPLOAD_FILENAME_MAX_LENGTH)
     ]
     """Original filename of the audio."""
-    size_bytes: Annotated[int, Field(gt=0)]
-    """Size of the audio in bytes."""
 
 
 class CreateUploadResponse(BaseModel):
