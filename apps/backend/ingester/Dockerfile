@@ -12,21 +12,15 @@ WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    --mount=type=bind,source=apps/backend/ingester/pyproject.toml,target=apps/backend/ingester/pyproject.toml \
-    --mount=type=bind,source=libs/kickroller/pyproject.toml,target=libs/kickroller/pyproject.toml \
     uv sync --frozen --package ingester --no-install-workspace --no-editable
 
 # 3. Copy the source and install the app into the venv.
-COPY pyproject.toml uv.lock ./
-COPY apps/backend/ingester/pyproject.toml apps/backend/ingester/README.md apps/backend/ingester/
-COPY apps/backend/ingester/src apps/backend/ingester/src
-COPY libs/kickroller/pyproject.toml libs/kickroller/README.md libs/kickroller/
-COPY libs/kickroller/src libs/kickroller/src
+COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --package ingester --no-editable
 
 # --- Runtime stage ---
-FROM python:3.14-slim-trixie
+FROM python:3.14-slim-trixie AS runner
 
 # 4. Copy only the venv; it holds the installed app, so no source is needed.
 COPY --from=builder /app/.venv /app/.venv
