@@ -4,9 +4,9 @@ import uvicorn
 from prometheus_client import make_asgi_app
 
 from api.core.config import Config
-from api.core.logging import configure_logging
 from api.core.state import AppState
 from api.server import create_asgi_app, open_state
+from kickroller.logging import configure_logging
 
 
 async def main() -> None:

@@ -5,9 +5,8 @@ description = "Turns uploaded audio into tracks"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "asyncpg>=0.32.0",
     "faststream[rabbit]>=0.7.8",
-    "loguru>=0.7.3",
+    "kickroller",
     "obstore>=0.12.1",
     "pydantic>=2.14.3",
     "pydantic-settings>=2.16.2",
@@ -33,3 +32,6 @@ fix = { help = "Lint with fixes, then format", sequence = [
     { cmd = "ruff check --fix $POE_EXTRA_ARGS" },
     { cmd = "ruff format $POE_EXTRA_ARGS" },
 ] }
+
+[tool.uv.sources]
+kickroller = { workspace = true }

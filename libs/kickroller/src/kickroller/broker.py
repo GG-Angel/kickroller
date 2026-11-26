@@ -1,6 +1,6 @@
 from faststream.rabbit import RabbitBroker
 
-from ingester.core.config import BrokerConfig
+from kickroller.config import BrokerConfig
 
 
 def build_broker(config: BrokerConfig) -> RabbitBroker:

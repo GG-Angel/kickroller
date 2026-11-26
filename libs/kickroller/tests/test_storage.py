@@ -1,9 +1,10 @@
 """Unit tests for building the store. Nothing here connects to RustFS."""
 
 import pytest
+from pydantic import HttpUrl
 
-from ingester.core.config import StorageConfig
-from ingester.core.storage import build_store
+from kickroller.config import StorageConfig
+from kickroller.storage import build_store
 from tests.fakes import load_settings
 
 
@@ -15,13 +16,10 @@ def test_build_store_allows_http_only_for_http_endpoints(
     endpoint: str, allow_http: str
 ) -> None:
     config = load_settings(
-        StorageConfig,
-        endpoint=endpoint,
-        access_key_id="key",
-        secret_access_key="secret",
+        StorageConfig, access_key_id="key", secret_access_key="secret"
     )
 
-    store = build_store(config)
+    store = build_store(config, HttpUrl(endpoint))
 
     assert store.client_options == {"allow_http": allow_http}
     assert store.config == {

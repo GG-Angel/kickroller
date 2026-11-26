@@ -3,7 +3,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from api.core.logging import InterceptHandler
+from kickroller.logging import InterceptHandler
 
 
 @pytest.fixture

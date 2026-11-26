@@ -4,10 +4,9 @@ from urllib.parse import urlsplit
 
 import pytest
 from obstore.store import MemoryStore
-from pydantic import HttpUrl
 
 from api.core.config import StorageConfig
-from api.core.storage import build_storage_service, build_store
+from api.core.storage import build_storage_service
 from tests.fakes import load_settings
 
 pytestmark = pytest.mark.anyio
@@ -18,25 +17,6 @@ def storage_config(**overrides: object) -> StorageConfig:
         StorageConfig,
         **{"access_key_id": "key", "secret_access_key": "secret"} | overrides,
     )
-
-
-@pytest.mark.parametrize(
-    ("endpoint", "allow_http"),
-    [("http://rustfs:9000", "true"), ("https://s3.example.com", "false")],
-)
-def test_build_store_allows_http_only_for_http_endpoints(
-    endpoint: str, allow_http: str
-) -> None:
-    store = build_store(storage_config(), HttpUrl(endpoint))
-
-    assert store.client_options == {"allow_http": allow_http}
-    assert store.config == {
-        "endpoint": f"{endpoint}/",
-        "bucket": "kickroller",
-        "region": "us-east-1",
-        "access_key_id": "key",
-        "secret_access_key": "secret",
-    }
 
 
 @pytest.mark.parametrize(

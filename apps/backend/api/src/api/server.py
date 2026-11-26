@@ -5,12 +5,14 @@ from fastapi import FastAPI
 from faststream_fastapi import AsyncAPIConfig, FastStreamAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from api.core.broker import build_broker, start_broker
+from api.core.broker import start_broker
 from api.core.config import Config
-from api.core.db import open_db
 from api.core.state import AppState
-from api.core.storage import build_storage_service, create_store
+from api.core.storage import build_storage_service
 from api.routes import router
+from kickroller.broker import build_broker
+from kickroller.db import open_db
+from kickroller.storage import create_store
 
 
 @asynccontextmanager

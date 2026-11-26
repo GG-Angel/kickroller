@@ -5,7 +5,7 @@ RustFS ─ uploads.created ─▶ ingester: claim, copy to tracks/{id}, ffprobe 
                                       then insert Track or reject
 ```
 
-The api issues upload URLs and serves reads; it never touches an upload after the PUT. The ingester owns everything from the PUT to the verdict. Both use the shared models in `libs/`, and the api keeps the migrations.
+The api issues upload URLs and serves reads; it never touches an upload after the PUT. The ingester owns everything from the PUT to the verdict. Both use the shared models in `kickroller.models`, and the api keeps the migrations.
 
 Upload status: `pending` → `validating` → a `Track`, `rejected`, or `expired` if the PUT never came.
 
@@ -15,9 +15,9 @@ Upload status: `pending` → `validating` → a `Track`, `rejected`, or `expired
 - [x] Add a bucket lifecycle rule that expires `uploads/` after a day (`infra/rustfs/lifecycle.json`).
 - [x] Remove `uploads.validate` and `uploads.validated` from `infra/rabbitmq/setup.sh` and delete them from the live broker.
 
-## Shared models (`libs/`)
+## Shared models (`libs/kickroller`)
 
-- [ ] Move the `Upload` and `Track` models (and `Base`) into a package in `libs/` and have the api import them.
+- [ ] Move the `Upload` and `Track` models (and `Base`) into `kickroller.models` and have the api import them.
 - [ ] Point the api's alembic env at the shared metadata.
 - [ ] Drop `UploadStatus.UPLOADED`, with a migration.
 

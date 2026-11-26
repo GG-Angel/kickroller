@@ -1,8 +1,8 @@
 import asyncio
 
 from ingester.core.config import Config
-from ingester.core.logging import configure_logging
 from ingester.worker import create_app, open_state
+from kickroller.logging import configure_logging
 
 
 async def main() -> None:

@@ -6,4 +6,7 @@
 !apps/backend/api/src
 !apps/backend/api/alembic
 !apps/backend/api/alembic.ini
+!libs/kickroller/pyproject.toml
+!libs/kickroller/README.md
+!libs/kickroller/src
 **/__pycache__

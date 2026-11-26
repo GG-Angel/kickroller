@@ -3,11 +3,11 @@ from contextlib import asynccontextmanager
 
 from faststream import FastStream
 
-from ingester.core.broker import build_broker
 from ingester.core.config import Config
-from ingester.core.db import open_db
 from ingester.core.state import AppState
-from ingester.core.storage import create_store
+from kickroller.broker import build_broker
+from kickroller.db import open_db
+from kickroller.storage import create_store
 
 
 @asynccontextmanager

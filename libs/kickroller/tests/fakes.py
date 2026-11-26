@@ -1,4 +1,4 @@
-"""Test data shared across the ingester tests."""
+"""Test helpers shared across the kickroller tests."""
 
 from typing import Any
 

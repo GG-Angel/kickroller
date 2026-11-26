@@ -10,6 +10,7 @@ dependencies = [
     "fastapi[standard]>=0.163.0",
     "faststream-fastapi>=1.4.0",
     "faststream[rabbit]>=0.7.8",
+    "kickroller",
     "loguru>=0.7.3",
     "obstore>=0.12.1",
     "prometheus-fastapi-instrumentator>=8.1.0",
@@ -49,3 +50,6 @@ fix = { help = "Lint with fixes, then format", sequence = [
     { cmd = "ruff check --fix $POE_EXTRA_ARGS" },
     { cmd = "ruff format $POE_EXTRA_ARGS" },
 ] }
+
+[tool.uv.sources]
+kickroller = { workspace = true }

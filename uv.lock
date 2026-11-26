@@ -6,6 +6,7 @@ requires-python = ">=3.14"
 members = [
     "api",
     "ingester",
+    "kickroller",
     "trainer",
 ]
 
@@ -99,6 +100,7 @@ dependencies = [
     { name = "fastapi", extra = ["standard"] },
     { name = "faststream", extra = ["rabbit"] },
     { name = "faststream-fastapi" },
+    { name = "kickroller" },
     { name = "loguru" },
     { name = "obstore" },
     { name = "prometheus-fastapi-instrumentator" },
@@ -122,6 +124,7 @@ requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.163.0" },
     { name = "faststream", extras = ["rabbit"], specifier = ">=0.7.8" },
     { name = "faststream-fastapi", specifier = ">=1.4.0" },
+    { name = "kickroller", editable = "libs/kickroller" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "obstore", specifier = ">=0.12.1" },
     { name = "prometheus-fastapi-instrumentator", specifier = ">=8.1.0" },
@@ -906,9 +909,8 @@ name = "ingester"
 version = "0.1.0"
 source = { editable = "apps/backend/ingester" }
 dependencies = [
-    { name = "asyncpg" },
     { name = "faststream", extra = ["rabbit"] },
-    { name = "loguru" },
+    { name = "kickroller" },
     { name = "obstore" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -925,9 +927,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "asyncpg", specifier = ">=0.32.0" },
     { name = "faststream", extras = ["rabbit"], specifier = ">=0.7.8" },
-    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "kickroller", editable = "libs/kickroller" },
     { name = "obstore", specifier = ">=0.12.1" },
     { name = "pydantic", specifier = ">=2.14.3" },
     { name = "pydantic-settings", specifier = ">=2.16.2" },
@@ -973,6 +974,47 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/d5/1d/537ab090f302b838943a1b56497dd53059b9a9b46a074936470173a2e207/joblib-1.6.0.tar.gz", hash = "sha256:2ccc96785b12046c08fd6d55839c12857831b54a3c1673ffadd2f04bfc4eda03", size = 327903, upload-time = "2026-08-31T09:39:04.122Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/18/53/84099323c2ec4be98d935f63c033ac4151ee83836ca1050ede3b3aadf155/joblib-1.6.0-py3-none-any.whl", hash = "sha256:3dbbf9f6e4b592a2357b854608e980fe6390d131d7a82f011a377ef2ebef7aba", size = 306115, upload-time = "2026-08-31T09:39:02.298Z" },
+]
+
+[[package]]
+name = "kickroller"
+version = "0.1.0"
+source = { editable = "libs/kickroller" }
+dependencies = [
+    { name = "asyncpg" },
+    { name = "faststream", extra = ["rabbit"] },
+    { name = "loguru" },
+    { name = "obstore" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "poethepoet" },
+    { name = "pytest" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "asyncpg", specifier = ">=0.32.0" },
+    { name = "faststream", extras = ["rabbit"], specifier = ">=0.7.8" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "obstore", specifier = ">=0.12.1" },
+    { name = "pydantic", specifier = ">=2.14.3" },
+    { name = "pydantic-settings", specifier = ">=2.16.2" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.1.8" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "poethepoet", specifier = ">=0.49.0" },
+    { name = "pytest", specifier = ">=9.2.0" },
+    { name = "ruff", specifier = ">=0.16.10" },
+    { name = "ty", specifier = ">=0.0.84" },
 ]
 
 [[package]]

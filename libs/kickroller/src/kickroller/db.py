@@ -3,12 +3,14 @@ from contextlib import asynccontextmanager
 
 from loguru import logger
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    create_async_engine,
+)
 
-from ingester.core.config import DatabaseConfig
+from kickroller.config import DatabaseConfig
 
 
-# shortcut: copied from api.core.db, move to libs/ with the shared models.
 @asynccontextmanager
 async def open_db(config: DatabaseConfig) -> AsyncGenerator[AsyncEngine]:
     """Open an engine, check that the database answers, dispose on exit."""
