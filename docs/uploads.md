@@ -43,11 +43,12 @@ Upload status: `pending` → `validating` → a `Track`, `rejected`, or `expired
 - [ ] Give it database credentials limited to `upload` and `track`, and RustFS credentials that can read `uploads/` and write `tracks/`.
 - [ ] Add a service in `compose.yml` that depends on `rabbitmq-setup` and `api-migration`.
 
-## Open questions
+## Decisions
 
-- Where do `title` and `artist` come from: the filename, ffprobe tags, or the user afterwards?
-- What are the size and duration limits?
-- What is the upload URL TTL?
+- `title` is the original filename without its extension (truncated to `TRACK_TITLE_MAX_LENGTH`). `artist` starts as null. The user can edit both later.
+- Max size is 400 MiB. A 20-minute 24-bit/48 kHz stereo WAV is ~330 MiB, the largest common case at the max duration; FLAC and MP3 are far smaller. The api rejects a larger `size_bytes` at create time, and the ingester checks the real size again.
+- Duration is 5 s to 20 min. That is long enough for extended mixes of a single track, and DJ sets are out of scope.
+- The upload URL TTL stays at the current 15 minutes (`upload_url_ttl`). A signed PUT only has to *start* before it expires, so slow uploads of large files still finish.
 
 ## Sweep (a periodic loop in the ingester, already in TODO.md)
 
