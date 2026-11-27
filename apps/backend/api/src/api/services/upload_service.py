@@ -1,11 +1,9 @@
 from datetime import UTC, datetime
 from uuid import UUID, uuid7
 
-from fastapi import Depends
-
-from api.repositories.upload import UploadRepository, get_upload_repository
+from api.db.upload_repository import UploadDbRepository
 from api.schemas import CreateUploadResponse
-from api.services.storage import StorageService, get_storage_service
+from api.services.storage_service import StorageService
 from kickroller.models import Upload
 
 # The bucket's expiry and ingest-notification rules match on this prefix.
@@ -16,7 +14,7 @@ class UploadService:
     """Upload attempts: their rows in the DB and their objects in storage."""
 
     def __init__(
-        self, uploads: UploadRepository, storage: StorageService
+        self, uploads: UploadDbRepository, storage: StorageService
     ) -> None:
         self._uploads = uploads
         self._storage = storage
@@ -46,11 +44,3 @@ class UploadService:
             upload_fields=form.fields,
             expires_at=upload.expires_at,
         )
-
-
-def get_upload_service(
-    uploads: UploadRepository = Depends(get_upload_repository),
-    storage: StorageService = Depends(get_storage_service),
-) -> UploadService:
-    """FastAPI dependency that returns an upload service for one request."""
-    return UploadService(uploads, storage)

@@ -1,10 +1,8 @@
 from dataclasses import dataclass
 from datetime import timedelta
 
-from fastapi import Depends
 from types_aiobotocore_s3 import S3Client
 
-from api.core.state import AppState, get_app_state
 from kickroller.models import UPLOAD_MAX_SIZE_BYTES
 
 
@@ -63,17 +61,3 @@ class StorageService:
     async def delete(self, key: str) -> None:
         """Delete an object. A missing object is not an error on S3."""
         await self._store.delete_object(Bucket=self._bucket, Key=key)
-
-
-def get_storage_service(
-    state: AppState = Depends(get_app_state),
-) -> StorageService:
-    """FastAPI dependency that returns the storage service."""
-    storage_config = state.config.storage
-    return StorageService(
-        state.store,
-        state.url_signing_store,
-        storage_config.bucket,
-        storage_config.upload_url_ttl,
-        storage_config.playback_url_ttl,
-    )

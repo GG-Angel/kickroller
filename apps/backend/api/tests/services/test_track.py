@@ -7,9 +7,9 @@ from uuid import uuid7
 import pytest
 from botocore.exceptions import EndpointConnectionError
 
-from api.repositories.track import TrackRepository
+from api.db.track_repository import TrackDbRepository
 from api.schemas import UpdateTrackRequest
-from api.services.track import TrackService
+from api.services.track_service import TrackService
 from kickroller.models import TrackStatus
 from tests.fakes import OTHER_USER_ID, TRACK_ID, USER_ID, make_track
 
@@ -18,7 +18,7 @@ pytestmark = pytest.mark.anyio
 
 @pytest.fixture
 def repo() -> Mock:
-    return Mock(spec=TrackRepository)
+    return Mock(spec=TrackDbRepository)
 
 
 @pytest.fixture

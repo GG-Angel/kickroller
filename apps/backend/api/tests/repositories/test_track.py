@@ -7,7 +7,7 @@ from sqlalchemy import ScalarResult, Select
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.repositories.track import TrackRepository
+from api.db.track_repository import TrackDbRepository
 from kickroller.models import Track, TrackStatus
 from tests.fakes import TRACK_ID, USER_ID, make_track
 
@@ -35,7 +35,7 @@ async def test_list_returns_owners_ready_tracks_newest_first(
     session.scalars.return_value.all.return_value = rows
 
     assert (
-        await TrackRepository(session).list_ready_by_owner(USER_ID, 20, None)
+        await TrackDbRepository(session).list_ready_by_owner(USER_ID, 20, None)
         == rows
     )
 
@@ -52,7 +52,7 @@ async def test_list_returns_owners_ready_tracks_newest_first(
 
 
 async def test_list_applies_the_cursor(session: Mock) -> None:
-    await TrackRepository(session).list_ready_by_owner(USER_ID, 5, TRACK_ID)
+    await TrackDbRepository(session).list_ready_by_owner(USER_ID, 5, TRACK_ID)
 
     sql, params = compiled_query(session)
     assert "track.id < " in sql
@@ -68,11 +68,11 @@ async def test_get_loads_by_id(session: Mock) -> None:
     track = make_track()
     session.get.return_value = track
 
-    assert await TrackRepository(session).get(TRACK_ID) is track
+    assert await TrackDbRepository(session).get(TRACK_ID) is track
     session.get.assert_awaited_once_with(Track, TRACK_ID)
 
 
 async def test_commit_commits(session: Mock) -> None:
-    await TrackRepository(session).commit()
+    await TrackDbRepository(session).commit()
 
     session.commit.assert_awaited_once()

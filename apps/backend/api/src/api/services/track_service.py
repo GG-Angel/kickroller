@@ -2,18 +2,17 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from botocore.exceptions import BotoCoreError, ClientError
-from fastapi import Depends
 from loguru import logger
 
-from api.mappers.track import to_track_response
-from api.repositories.track import TrackRepository, get_track_repository
+from api.db.track_repository import TrackDbRepository
 from api.schemas import (
     PlaybackUrlResponse,
     TrackListResponse,
     TrackResponse,
     UpdateTrackRequest,
+    to_track_response,
 )
-from api.services.storage import StorageService, get_storage_service
+from api.services.storage_service import StorageService
 from kickroller.models import Track, TrackStatus
 
 
@@ -21,7 +20,7 @@ class TrackService:
     """Validated tracks."""
 
     def __init__(
-        self, tracks: TrackRepository, storage: StorageService
+        self, tracks: TrackDbRepository, storage: StorageService
     ) -> None:
         self._tracks = tracks
         self._storage = storage
@@ -88,11 +87,3 @@ class TrackService:
             key=track.object_key, expires_in=playback_url_ttl
         )
         return PlaybackUrlResponse(url=playback_url, expires_at=expires_at)
-
-
-def get_track_service(
-    tracks: TrackRepository = Depends(get_track_repository),
-    storage: StorageService = Depends(get_storage_service),
-) -> TrackService:
-    """FastAPI dependency that returns a track service for one request."""
-    return TrackService(tracks, storage)

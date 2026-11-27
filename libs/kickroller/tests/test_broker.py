@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 from faststream.rabbit import RabbitBroker, TestRabbitBroker
 
-from api.core.broker import start_broker
+from kickroller.broker import start_broker
 
 pytestmark = pytest.mark.anyio
 

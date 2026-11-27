@@ -1,15 +1,13 @@
 from collections.abc import Sequence
 from uuid import UUID
 
-from fastapi import Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.core.db import get_session
 from kickroller.models import Track, TrackStatus
 
 
-class TrackRepository:
+class TrackDbRepository:
     """Database operations for tracks."""
 
     def __init__(self, session: AsyncSession) -> None:
@@ -40,10 +38,3 @@ class TrackRepository:
     async def commit(self) -> None:
         """Commit the session, including changes to loaded tracks."""
         await self._session.commit()
-
-
-def get_track_repository(
-    session: AsyncSession = Depends(get_session),
-) -> TrackRepository:
-    """FastAPI dependency that returns a track repository for one request."""
-    return TrackRepository(session)

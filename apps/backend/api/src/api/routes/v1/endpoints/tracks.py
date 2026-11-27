@@ -1,32 +1,24 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
-from api.core.auth import get_user_id
-from api.mappers.track import to_track_response
+from api.routes.dependencies import (
+    get_track_service,
+    get_user_id,
+    get_user_track,
+)
 from api.schemas import (
     PlaybackUrlResponse,
     TrackListResponse,
     TrackResponse,
     UpdateTrackRequest,
+    to_track_response,
 )
-from api.services.track import TrackService, get_track_service
+from api.services.track_service import TrackService
 from kickroller.models import Track
 
 router = APIRouter(prefix="/tracks", tags=["tracks"])
-
-
-async def get_user_track(
-    track_id: UUID,
-    user_id: UUID = Depends(get_user_id),
-    tracks: TrackService = Depends(get_track_service),
-) -> Track:
-    """The caller's visible track from the path, or 404."""
-    track = await tracks.get_owned_ready_track(user_id, track_id)
-    if track is None:  # Same 404 for others' tracks, so ids don't leak.
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
-    return track
 
 
 @router.get("/{track_id}")

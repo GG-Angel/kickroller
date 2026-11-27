@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 
-from fastapi import Request
 from faststream.rabbit import RabbitBroker
 from sqlalchemy.ext.asyncio import AsyncEngine
 from types_aiobotocore_s3 import S3Client
@@ -17,8 +16,3 @@ class AppState:
     store: S3Client
     url_signing_store: S3Client
     broker: RabbitBroker
-
-
-def get_app_state(request: Request) -> AppState:
-    """FastAPI dependency that returns the typed app state."""
-    return request.app.state.app_state

@@ -8,11 +8,12 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from api.routes.dependencies import get_upload_service
 from api.schemas import CreateUploadResponse
-from api.services.upload import UploadService, get_upload_service
+from api.services.upload_service import UploadService
 from tests.fakes import NOW, USER_ID
 
-UPLOADS_URL = "/me/uploads"
+UPLOADS_URL = "/v1/me/uploads"
 
 
 @pytest.fixture

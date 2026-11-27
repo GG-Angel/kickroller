@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api.core.state import AppState
-from api.server import create_http_app
+from api.main import create_http_app
 from tests.fakes import USER_ID
 
 

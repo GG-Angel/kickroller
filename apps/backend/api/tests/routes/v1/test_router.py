@@ -1,4 +1,4 @@
-"""Guards that hold for every route under /me, including future ones."""
+"""Guards that hold for every route under /v1/me, including future ones."""
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -14,7 +14,7 @@ def test_every_me_route_requires_a_user_id(
     paths = {
         path: methods
         for path, methods in app.openapi()["paths"].items()
-        if path.startswith("/me/")
+        if path.startswith("/v1/me/")
     }
     assert paths
 

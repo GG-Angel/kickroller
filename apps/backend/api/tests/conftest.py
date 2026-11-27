@@ -12,7 +12,7 @@ from types_aiobotocore_s3 import S3Client
 
 from api.core.config import Config, StorageConfig
 from api.core.state import AppState
-from api.services.storage import PostForm, StorageService
+from api.services.storage_service import PostForm, StorageService
 from tests.fakes import load_settings
 
 

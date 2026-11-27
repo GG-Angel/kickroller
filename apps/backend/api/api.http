@@ -1,6 +1,6 @@
 @api = http://localhost:8000
 @metrics = http://localhost:9100
-# Stands in for the JWT subject until auth lands (see core/auth.py).
+# Stands in for the JWT subject until auth lands (see routes/deps.py).
 @userId = 01900000-0000-7000-8000-0000000000aa
 # Audio file for steps 1-2, relative to this file.
 @audioFile = sample.mp3
@@ -16,7 +16,7 @@ GET {{api}}/openapi.json
 
 ### Step 1: Create an upload and get a signed POST form
 # @name createUpload
-POST {{api}}/me/uploads
+POST {{api}}/v1/me/uploads
 Content-Type: application/json
 X-User-Id: {{userId}}
 
@@ -66,17 +66,17 @@ Content-Type: audio/mpeg
 ### Step 3: List your tracks to find the new one
 # The track appears once validation accepts the upload.
 # @name listTracks
-GET {{api}}/me/tracks?limit=20
+GET {{api}}/v1/me/tracks?limit=20
 X-User-Id: {{userId}}
 
 @trackId = {{listTracks.response.body.$.items[0].id}}
 
 ### Step 4: Get the track
-GET {{api}}/me/tracks/{{trackId}}
+GET {{api}}/v1/me/tracks/{{trackId}}
 X-User-Id: {{userId}}
 
 ### Step 5: Rename the track
-PATCH {{api}}/me/tracks/{{trackId}}
+PATCH {{api}}/v1/me/tracks/{{trackId}}
 X-User-Id: {{userId}}
 Content-Type: application/json
 
@@ -87,12 +87,12 @@ Content-Type: application/json
 
 ### Step 6: Get a presigned playback URL
 # @name playback
-POST {{api}}/me/tracks/{{trackId}}/playback-url
+POST {{api}}/v1/me/tracks/{{trackId}}/playback-url
 X-User-Id: {{userId}}
 
 ### Step 7: Stream the audio from the playback URL
 GET {{playback.response.body.url}}
 
 ### Step 8: Remove the track
-DELETE {{api}}/me/tracks/{{trackId}}
+DELETE {{api}}/v1/me/tracks/{{trackId}}
 X-User-Id: {{userId}}

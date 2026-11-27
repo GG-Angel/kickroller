@@ -5,8 +5,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from api.repositories.upload import UploadRepository
-from api.services.upload import UploadService
+from api.db.upload_repository import UploadDbRepository
+from api.services.upload_service import UploadService
 from kickroller.models import Upload
 from tests.fakes import USER_ID
 
@@ -16,7 +16,7 @@ pytestmark = pytest.mark.anyio
 async def test_create_adds_pending_upload_and_signs_post_form(
     storage: Mock,
 ) -> None:
-    repo = Mock(spec=UploadRepository)
+    repo = Mock(spec=UploadDbRepository)
     before = datetime.now(UTC)
 
     response = await UploadService(repo, storage).create(USER_ID, "kick.wav")

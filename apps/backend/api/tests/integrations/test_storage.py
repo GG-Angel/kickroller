@@ -11,7 +11,7 @@ import pytest
 from types_aiobotocore_s3 import S3Client
 
 from api.core.config import StorageConfig
-from api.services.storage import StorageService
+from api.services.storage_service import StorageService
 from kickroller.models import UPLOAD_MAX_SIZE_BYTES
 from kickroller.storage import open_store
 from tests.fakes import load_settings

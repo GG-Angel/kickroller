@@ -5,7 +5,7 @@ from unittest.mock import Mock, call
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.repositories.upload import UploadRepository
+from api.db.upload_repository import UploadDbRepository
 from kickroller.models import Upload
 from tests.fakes import NOW, USER_ID
 
@@ -21,6 +21,6 @@ async def test_add_inserts_then_commits() -> None:
         expires_at=NOW,
     )
 
-    await UploadRepository(session).add(upload)
+    await UploadDbRepository(session).add(upload)
 
     assert session.mock_calls == [call.add(upload), call.commit()]

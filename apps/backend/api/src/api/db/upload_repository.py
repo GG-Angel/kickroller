@@ -1,11 +1,9 @@
-from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.core.db import get_session
 from kickroller.models import Upload
 
 
-class UploadRepository:
+class UploadDbRepository:
     """Database operations for uploads."""
 
     def __init__(self, session: AsyncSession) -> None:
@@ -15,10 +13,3 @@ class UploadRepository:
         """Insert an upload and commit."""
         self._session.add(upload)
         await self._session.commit()
-
-
-def get_upload_repository(
-    session: AsyncSession = Depends(get_session),
-) -> UploadRepository:
-    """FastAPI dependency that returns an upload repository for one request."""
-    return UploadRepository(session)

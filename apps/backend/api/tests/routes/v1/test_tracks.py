@@ -6,12 +6,16 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from api.mappers.track import to_track_response
-from api.schemas import PlaybackUrlResponse, TrackListResponse
-from api.services.track import TrackService, get_track_service
+from api.routes.dependencies import get_track_service
+from api.schemas import (
+    PlaybackUrlResponse,
+    TrackListResponse,
+    to_track_response,
+)
+from api.services.track_service import TrackService
 from tests.fakes import NOW, OTHER_USER_ID, TRACK_ID, USER_ID, make_track
 
-TRACKS_URL = "/me/tracks"
+TRACKS_URL = "/v1/me/tracks"
 TRACK_URL = f"{TRACKS_URL}/{TRACK_ID}"
 
 

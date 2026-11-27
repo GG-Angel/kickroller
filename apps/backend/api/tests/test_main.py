@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from faststream.rabbit import RabbitBroker, TestRabbitBroker
 
 from api.core.state import AppState
-from api.server import create_app_with_broker, create_http_app
+from api.main import create_app_with_broker, create_http_app
 
 
 def test_app_holds_the_given_state(state: AppState) -> None:
