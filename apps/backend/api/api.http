@@ -14,7 +14,7 @@ GET {{metrics}}/metrics
 ### OpenAPI schema
 GET {{api}}/openapi.json
 
-### Step 1: Create an upload and get a presigned PUT URL
+### Step 1: Create an upload and get a signed POST form
 # @name createUpload
 POST {{api}}/me/uploads
 Content-Type: application/json
@@ -24,11 +24,44 @@ X-User-Id: {{userId}}
   "filename": "{{audioFile}}"
 }
 
-### Step 2: Upload the audio to the presigned URL
-# Goes straight to RustFS, not the API.
-PUT {{createUpload.response.body.upload_url}}
+### Step 2: POST the audio with the signed form fields
+POST {{createUpload.response.body.upload_url}}
+Content-Type: multipart/form-data; boundary=form
+
+--form
+Content-Disposition: form-data; name="key"
+
+{{createUpload.response.body.$.upload_fields['key']}}
+--form
+Content-Disposition: form-data; name="x-amz-algorithm"
+
+{{createUpload.response.body.$.upload_fields['x-amz-algorithm']}}
+--form
+Content-Disposition: form-data; name="x-amz-credential"
+
+{{createUpload.response.body.$.upload_fields['x-amz-credential']}}
+--form
+Content-Disposition: form-data; name="x-amz-date"
+
+{{createUpload.response.body.$.upload_fields['x-amz-date']}}
+--form
+Content-Disposition: form-data; name="policy"
+
+{{createUpload.response.body.$.upload_fields['policy']}}
+--form
+Content-Disposition: form-data; name="x-amz-signature"
+
+{{createUpload.response.body.$.upload_fields['x-amz-signature']}}
+--form
+Content-Disposition: form-data; name="Content-Type"
+
+audio/mpeg
+--form
+Content-Disposition: form-data; name="file"; filename="{{audioFile}}"
+Content-Type: audio/mpeg
 
 < ./{{audioFile}}
+--form--
 
 ### Step 3: List your tracks to find the new one
 # The track appears once validation accepts the upload.

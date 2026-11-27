@@ -3,7 +3,7 @@
     {
       "Id": "uploads",
       "QueueArn": "arn:rustfs:sqs:us-east-1:primary:amqp",
-      "Events": ["s3:ObjectCreated:Put"],
+      "Events": ["s3:ObjectCreated:Post"],
       "Filter": {
         "Key": {
           "FilterRules": [{ "Name": "prefix", "Value": "uploads/" }]

@@ -1,7 +1,9 @@
 """Unit tests for StorageService. Signing is local, so nothing connects."""
 
+import base64
+import json
 from collections.abc import AsyncIterator
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock
 from urllib.parse import parse_qs, urlsplit
 
@@ -10,6 +12,7 @@ from types_aiobotocore_s3 import S3Client
 
 from api.core.config import StorageConfig
 from api.services.storage import StorageService
+from kickroller.models import UPLOAD_MAX_SIZE_BYTES
 from kickroller.storage import open_store
 from tests.fakes import load_settings
 
@@ -36,26 +39,35 @@ async def storage(store: Mock) -> AsyncIterator[StorageService]:
         )
 
 
-@pytest.mark.parametrize("method", ["create_put_url", "create_get_url"])
-async def test_sign_returns_url_for_the_key_and_expiry(
-    storage: StorageService, method: str
+async def test_get_url_is_signed_for_the_key_and_expiry(
+    storage: StorageService,
 ) -> None:
-    url = await getattr(storage, method)("uploads/a", timedelta(minutes=5))
+    url = await storage.create_get_url("tracks/a", timedelta(minutes=5))
 
     parts = urlsplit(url)
     assert f"{parts.scheme}://{parts.netloc}{parts.path}" == (
-        "http://rustfs:9000/bucket/uploads/a"
+        "http://rustfs:9000/bucket/tracks/a"
     )
     assert parse_qs(parts.query)["X-Amz-Expires"] == ["300"]
 
 
-async def test_put_and_get_signatures_differ(storage: StorageService) -> None:
-    expires_in = timedelta(minutes=5)
+async def test_post_form_policy_caps_size_and_requires_audio(
+    storage: StorageService,
+) -> None:
+    before = datetime.now(UTC).replace(microsecond=0)
 
-    put = await storage.create_put_url("uploads/a", expires_in)
-    get = await storage.create_get_url("uploads/a", expires_in)
+    form = await storage.create_post_form("uploads/a", timedelta(minutes=5))
 
-    assert put != get
+    assert form.url == "http://rustfs:9000/bucket"
+    assert form.fields["key"] == "uploads/a"
+    policy = json.loads(base64.b64decode(form.fields["policy"]))
+    assert {"key": "uploads/a"} in policy["conditions"]
+    assert ["content-length-range", 1, UPLOAD_MAX_SIZE_BYTES] in (
+        policy["conditions"]
+    )
+    assert ["starts-with", "$Content-Type", "audio/"] in policy["conditions"]
+    expiration = datetime.fromisoformat(policy["expiration"])
+    assert before + timedelta(minutes=5) <= expiration
 
 
 async def test_delete_removes_the_object_from_the_bucket(

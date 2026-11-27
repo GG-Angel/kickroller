@@ -31,10 +31,15 @@ class StorageConfig(BaseSettings):
     )
 
     endpoint: HttpUrl = HttpUrl("http://localhost:9000")
+    """Object storage endpoint URL."""
     bucket: str = "kickroller"
+    """Object storage bucket name."""
     access_key_id: str = Field(init=False)
+    """Object storage access key ID."""
     secret_access_key: SecretStr = Field(init=False)
+    """Object storage secret access key."""
     region: str = "us-east-1"
+    """Object storage region."""
 
 
 class BrokerConfig(BaseSettings):
@@ -47,4 +52,4 @@ class BrokerConfig(BaseSettings):
     )
 
     url: AmqpDsn = Field(init=False)
-    """AMQP URI with credentials, e.g. amqp://user:pass@localhost:5672/."""
+    """AMQP connection URL."""

@@ -26,7 +26,10 @@ def test_create_upload_returns_the_signed_upload(
     client: TestClient, uploads: Mock
 ) -> None:
     created = CreateUploadResponse(
-        upload_id=uuid7(), upload_url="http://rustfs/put", expires_at=NOW
+        upload_id=uuid7(),
+        upload_url="http://rustfs/bucket",
+        upload_fields={"key": "uploads/a"},
+        expires_at=NOW,
     )
     uploads.create.return_value = created
 

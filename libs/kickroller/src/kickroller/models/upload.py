@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from kickroller.models.base import Base
 
 UPLOAD_FILENAME_MAX_LENGTH = 500
+UPLOAD_MAX_SIZE_BYTES = 100 * 1024 * 1024
 
 
 class UploadStatus(StrEnum):

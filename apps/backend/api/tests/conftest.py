@@ -12,7 +12,7 @@ from types_aiobotocore_s3 import S3Client
 
 from api.core.config import Config, StorageConfig
 from api.core.state import AppState
-from api.services.storage import StorageService
+from api.services.storage import PostForm, StorageService
 from tests.fakes import load_settings
 
 
@@ -22,7 +22,9 @@ def storage() -> Mock:
     storage = Mock(spec=StorageService)
     storage.upload_url_ttl = timedelta(minutes=15)
     storage.playback_url_ttl = timedelta(hours=1)
-    storage.create_put_url.return_value = "http://rustfs/put"
+    storage.create_post_form.return_value = PostForm(
+        url="http://rustfs/bucket", fields={"key": "uploads/a"}
+    )
     storage.create_get_url.return_value = "http://rustfs/get"
     return storage
 

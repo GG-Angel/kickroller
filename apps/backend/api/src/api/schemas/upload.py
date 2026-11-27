@@ -18,6 +18,9 @@ class CreateUploadResponse(BaseModel):
     upload_id: UUID
     """ID of the created upload."""
     upload_url: str
-    """Presigned URL to upload the audio."""
+    """URL to POST the audio to, as multipart/form-data."""
+    upload_fields: dict[str, str]
+    """Signed form fields. Send them all, plus an audio/* `Content-Type`,
+    before the `file` field."""
     expires_at: datetime
-    """Expiration time of the presigned URL."""
+    """When the signed form stops working."""

@@ -5,9 +5,9 @@ RustFS ─ uploads.created ─▶ ingester: claim, copy to tracks/{id}, decode (
                                       then insert Track or reject
 ```
 
-The api issues upload URLs and serves reads; it never touches an upload after the PUT. The ingester owns everything from the PUT to the verdict. Both use the shared models in `kickroller.models`, and the api keeps the migrations.
+The api issues upload URLs and serves reads; it never touches an upload after the POST. The ingester owns everything from the POST to the verdict. Both use the shared models in `kickroller.models`, and the api keeps the migrations.
 
-Upload status: `pending` → `validating` → a `Track`, `rejected`, or `expired` if the PUT never came.
+Upload status: `pending` → `validating` → a `Track`, `rejected`, or `expired` if the POST never came.
 
 ## Infra
 
@@ -31,8 +31,8 @@ Upload status: `pending` → `validating` → a `Track`, `rejected`, or `expired
 - [ ] One `process(object_key)` runs the whole pipeline. The event handler and the sweep both call it.
 - [ ] Claim: `UPDATE upload SET status = 'validating', validation_started_at = now(), validation_attempts = validation_attempts + 1 WHERE object_key = ? AND (status = 'pending' OR (status = 'validating' AND validation_started_at < now() - <lease>)) RETURNING ...`. No row means someone else has it: ack and exit. The lease (10 min) only has to outlast a max-size copy and decode; it lets another instance take over from one that died.
 - [ ] If `validation_attempts` is over the cap (3), reject with "validation kept failing". This stops a file that crashes the ingester from looping forever.
-- [ ] Copy `uploads/{id}` to `tracks/{id}` and validate the copy, since the client can still PUT to the original. The copy must be outside `uploads/`, or the bucket rule deletes it.
-- [ ] Reject if the copy is over the max size. The signed PUT doesn't limit it.
+- [ ] Copy `uploads/{id}` to `tracks/{id}` and validate the copy, since the client can still POST to the original until the form expires. The copy must be outside `uploads/`, or the bucket rule deletes it.
+- [ ] Reject if the copy is over the max size. The POST policy already caps it, so this is a backstop.
 - [ ] With PyAV (`av`, bundles FFmpeg) in `asyncio.to_thread`: open the file, require an allowed container (`container.format.name`) with an audio stream, decode `streams.audio[0]` summing `frame.samples` for `duration_ms`, and check the duration limits. Any `av.FFmpegError` is a rejection.
 - [ ] Verdicts only apply `WHERE status = 'validating'`. If no row matches, another instance finished first: drop the result and leave `tracks/{id}` alone.
   - Pass: in one transaction, insert the `Track` (key `tracks/{id}`, `duration_ms`) and delete the upload row.
@@ -43,10 +43,10 @@ Upload status: `pending` → `validating` → a `Track`, `rejected`, or `expired
 ## Decisions
 
 - `title` is the original filename without its extension (truncated to `TRACK_TITLE_MAX_LENGTH`). `artist` starts as null. The user can edit both later.
-- Max size is 400 MiB. A 20-minute 24-bit/48 kHz stereo WAV is ~330 MiB, the largest common case at the max duration; FLAC and MP3 are far smaller. A presigned POST will enforce it during the upload to RustFS (not yet: the signed PUT doesn't limit size), and the ingester checks the real size again.
+- Max size is 100 MiB (`UPLOAD_MAX_SIZE_BYTES`). That fits 20 minutes of FLAC or MP3, but only ~10 minutes of 16-bit/44.1 kHz stereo WAV (~6 at 24-bit/48 kHz). The signed POST policy enforces it during the upload to RustFS, along with a Content-Type that starts with `audio/` as a cheap first filter (the client sets it, so the decode is the real check). The ingester checks the real size again.
 - Allowed containers: mp3, wav, flac, ogg and m4a (PyAV's mov/mp4 family). Clients play the stored file directly, so these are the formats an `<audio>` element plays everywhere. AIFF is out: only Safari plays it.
 - Duration is 5 s to 20 min. That is long enough for extended mixes of a single track, and DJ sets are out of scope.
-- The upload URL TTL stays at the current 15 minutes (`upload_url_ttl`). A signed PUT only has to *start* before it expires, so slow uploads of large files still finish.
+- The upload URL TTL stays at the current 15 minutes (`upload_url_ttl`). A signed POST only has to *start* before it expires, so slow uploads of large files still finish.
 
 ## Sweep (a periodic loop in the ingester, already in TODO.md)
 

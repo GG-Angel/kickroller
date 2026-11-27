@@ -20,10 +20,10 @@ pytestmark = pytest.mark.anyio
 
 def storage_event(*keys: str) -> dict[str, Any]:
     records = [
-        {"eventName": "s3:ObjectCreated:Put", "s3": {"object": {"key": key}}}
+        {"eventName": "s3:ObjectCreated:Post", "s3": {"object": {"key": key}}}
         for key in keys
     ]
-    return {"EventName": "s3:ObjectCreated:Put", "Records": records}
+    return {"EventName": "s3:ObjectCreated:Post", "Records": records}
 
 
 async def test_upload_events_reach_the_handler() -> None:
